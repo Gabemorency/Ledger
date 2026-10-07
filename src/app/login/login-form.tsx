@@ -52,8 +52,8 @@ export default function LoginForm({ linkFailed = false }: { linkFailed?: boolean
       <form onSubmit={sendCode} noValidate>
         <h1 className="authtitle">Confirm it’s you</h1>
         <p className="sub">
-          New device, or forgot your PIN? Enter your email and we’ll send a code. After that you’ll open Ledger with
-          your PIN.
+          New device, or forgot your PIN? Enter your email and we’ll send a sign-in link. After that you’ll open
+          Ledger with your PIN.
         </p>
         <label className="field">
           <span>Email</span>
@@ -70,7 +70,7 @@ export default function LoginForm({ linkFailed = false }: { linkFailed?: boolean
           {error}
         </p>
         <button className="btn full" disabled={busy}>
-          {busy ? "Sending…" : "Email me a code"}
+          {busy ? "Sending…" : "Email me a link"}
         </button>
       </form>
     );
@@ -79,10 +79,11 @@ export default function LoginForm({ linkFailed = false }: { linkFailed?: boolean
     <form onSubmit={verify} noValidate>
       <h1 className="authtitle">Check your email</h1>
       <p className="sub">
-        We sent a code to <b>{email.trim()}</b>. Enter it here, or tap the link in the email.
+        We sent a link to <b>{email.trim()}</b>. Open the email <b>on this device, in this browser</b>, and tap the
+        link.
       </p>
       <label className="field">
-        <span>Code</span>
+        <span>Or enter the code, if your email has one</span>
         <input
           ref={codeRef}
           className="codein num"
@@ -101,7 +102,7 @@ export default function LoginForm({ linkFailed = false }: { linkFailed?: boolean
       </button>
       <div className="llinks">
         <button type="button" onClick={() => sendCode()} disabled={busy}>
-          Send a new code
+          Send again
         </button>
         <button type="button" onClick={() => (setStep("email"), setCode(""), setError(""))}>
           Use a different email

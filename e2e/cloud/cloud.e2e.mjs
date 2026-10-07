@@ -29,7 +29,7 @@ async function signIn(page, email, code = "123456") {
   await page.goto(APP + "/");
   await page.waitForURL("**/login");
   await page.fill('input[type=email]', email);
-  await page.click("button:has-text('Email me a code')");
+  await page.click("button:has-text('Email me a link')");
   await page.waitForSelector("input[autocomplete=one-time-code]");
   await page.fill("input[autocomplete=one-time-code]", code);
   await page.click("button:has-text('Continue')");
@@ -171,7 +171,31 @@ await A.ctx.setOffline(false);
 await saved(A.page);
 check("uploaded once back online", Number(sql(`select count(*) from entries where user_id='${U1}'`)) === Number(before) + 1);
 
-// 8. PIN rules: can't be turned off; 5 wrong tries signs the device out
+// 8. the emailed link: works in the browser that asked for it, nowhere else
+const D = await device();
+await D.page.goto(APP + "/login");
+await D.page.fill("input[type=email]", "me@example.com");
+await D.page.click("button:has-text('Email me a link')");
+await D.page.waitForSelector("text=on this device, in this browser");
+const { link } = await (await fetch("http://localhost:54321/auth/v1/__test/link?email=me@example.com")).json();
+check("the email link points at this app", Boolean(link) && link.startsWith(APP + "/auth/confirm?code="), link);
+const E = await device(); // a different browser
+await E.page.goto(link);
+check("the link is refused in a different browser", E.page.url().includes("/login?error=link"));
+check("…with an explanation", (await E.page.content()).includes("expired or was already used"));
+await D.page.click("button:has-text('Send again')");
+await D.page.waitForTimeout(300);
+const fresh = (await (await fetch("http://localhost:54321/auth/v1/__test/link?email=me@example.com")).json()).link;
+await D.page.goto(fresh);
+await D.page.waitForURL(APP + "/");
+await D.page.waitForSelector("#app *");
+await D.page.waitForTimeout(200);
+check("the link signs in the browser that asked for it", (await lockTitle(D.page)).startsWith("Choose"));
+await getPastPin(D.page);
+await go(D.page, "activity");
+check("…which then sees the same data", (await appHTML(D.page)).includes("12.50"));
+
+// 9. PIN rules: can't be turned off; 5 wrong tries signs the device out
 await go(C.page, "config");
 check("settings can't turn the PIN off", !(await appHTML(C.page)).includes('data-act="pinOff"'));
 await C.page.reload();
@@ -189,7 +213,7 @@ await C.page.waitForTimeout(200);
 check("…after which a new PIN is chosen", (await lockTitle(C.page)).startsWith("Choose"));
 await getPastPin(C.page);
 
-// 9. sign out
+// 10. sign out
 await A.page.click("[data-menu]");
 check("menu shows who is signed in", (await appHTML(A.page)).includes("me@example.com"));
 if (OUT) await A.page.screenshot({ path: `${OUT}/cloud-menu.png` });
@@ -200,7 +224,7 @@ check("sign out clears this device's copy", await A.page.evaluate((uid) => local
 await A.page.goto(APP + "/");
 check("signed-out device can't open the app", A.page.url().endsWith("/login"));
 
-for (const [n, d] of [["A", A], ["B", B], ["C", C]]) check(`no page errors on device ${n}`, d.page.errors.length === 0, d.page.errors.slice(0, 3).join(" | "));
+for (const [n, d] of [["A", A], ["B", B], ["C", C], ["D", D], ["E", E]]) check(`no page errors on device ${n}`, d.page.errors.length === 0, d.page.errors.slice(0, 3).join(" | "));
 console.log(`\n${passed} passed, ${failed} failed`);
 await browser.close();
 process.exit(failed ? 1 : 0);
