@@ -751,6 +751,15 @@ function chart(){
     ${pts.map((p,i)=>`<circle cx="${x(i)}" cy="${y(p.net)}" r="4" fill="var(--accent)"/><text x="${x(i)}" y="${H-4}" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="Instrument Sans, sans-serif">${p.m}</text>`).join('')}
   </svg>`;
 }
+/* leftovers when closing a month: unspent budget can stay put, top up next month, or go to a goal */
+const nextMonthOf=m=>mkey(new Date(mDate(m).getFullYear(),mDate(m).getMonth()+1,1));
+const rollsOver=(c,m)=>c.roll&&c.rollFrom&&c.type==='monthly'&&m>=c.rollFrom;
+function leftoversFor(T){return S.categories.filter(c=>c.type==='monthly'&&!c.archived).map(c=>({c,left:r2(budgetOf(c,T)-spent(c.id,T))})).filter(x=>x.left>0.004)}
+function leftoverSource(c){return routeAcct(c.acct)||routeAcct(S.plan.payDefault)||routeAcct(S.plan.deposit)||(payAccts()[0]||{}).id||null}
+function leftoverPlan(T){const N=nextMonthOf(T);return leftoversFor(T).filter(x=>!rollsOver(x.c,T)).map(x=>{const ch=(UI.lo||{})[x.c.id]||'stay';
+  if(ch==='next')return {...x,to:'next',N};
+  if(ch.startsWith('goal:')){const g=goal(ch.slice(5));if(g&&!g.done)return {...x,to:'goal',g,from:leftoverSource(x.c)}}
+  return {...x,to:'stay'}})}
 V.close=()=>{
   const T=closeTarget(),open=openMonths();
   if(!T)return `<button class="btn small ghost" data-go="activity" style="margin-bottom:8px">Back to activity</button><h1>All caught up</h1><p class="sub">Every finished month is closed. The next one opens for closing on the 1st.</p>`;
@@ -769,7 +778,18 @@ V.close=()=>{
   <p class="sub" style="font-size:14px">${older?`Balances as of the end of ${esc(monthName(mDate(T)))}, worked out from your entries. Check them against that month\u2019s statements.`:'Calculated from your entries.'} Change any that don't match, and the difference is recorded as a correction.</p>
   <div class="panel" style="padding:6px 16px 12px;margin-top:10px">${liveAccts().filter(a=>existedBy(a,T)).map(a=>`<label class="field"><span>${esc(a.name)}${a.type==='debt'?' (owed)':''}</span><input type="number" inputmode="decimal" data-bal="${a.id}" data-calc="${balAt(a,T)}" value="${balAt(a,T)}"></label>`).join('')}</div>
   ${(S.assets||[]).some(x=>!x.archived)?`<p class="lbl" style="margin-top:12px">Other assets (estimated value)</p><div class="panel" style="padding:6px 16px 12px;margin-top:6px">${S.assets.filter(x=>!x.archived).map(x=>`<label class="field"><span>${esc(x.name)}</span><input type="number" inputmode="decimal" data-asset="${x.id}" value="${x.value||0}"></label>`).join('')}</div>`:''}
-  <p class="step">Step 3: Lock it in</p>
+  ${(()=>{const L=leftoversFor(T);if(!L.length)return '';const N=nextMonthOf(T),nn=monthName(mDate(N));
+    const gs=activeGoals();
+    const tot=r2(L.reduce((a,x)=>a+x.left,0));
+    return `<p class="step">Step 3: Leftovers ${tip('leftovers')}</p>
+    <p class="sub" style="font-size:14px">${money(tot,true)} of ${esc(monthName(mDate(T)))}’s budget went unspent. It’s still in your accounts. Choose where each part goes, or leave it.</p>
+    <div class="panel" style="padding:6px 16px 12px;margin-top:10px">${L.map(x=>rollsOver(x.c,T)?`<div class="row"><div class="rowtop"><b>${esc(x.c.name)}</b><span class="num">${money(x.left,true)}</span></div><p class="sub" style="font-size:13px;margin:2px 0 0">Rolls into ${esc(nn)} automatically</p></div>`
+      :`<label class="field"><span>${esc(x.c.name)} <b class="num" style="float:right;color:var(--ink)">${money(x.left,true)}</b></span><select data-lo="${x.c.id}">
+        <option value="stay" ${((UI.lo||{})[x.c.id]||'stay')==='stay'?'selected':''}>Stays put</option>
+        <option value="next" ${(UI.lo||{})[x.c.id]==='next'?'selected':''}>Add to ${esc(nn)}’s ${esc(x.c.name)} budget</option>
+        ${gs.map(g=>`<option value="goal:${g.id}" ${(UI.lo||{})[x.c.id]==='goal:'+g.id?'selected':''}>Goal: ${esc(g.name)}</option>`).join('')}
+      </select></label>`).join('')}</div>`})()}
+  <p class="step">Step ${leftoversFor(T).length?4:3}: Lock it in</p>
   <button class="btn full" data-act="closeMonth" data-m="${T}">Close ${esc(monthName(mDate(T)))}</button>`;
 };
 
@@ -1277,6 +1297,7 @@ const TIPS={
     const tg=b.min==null?'':`<p style="margin-top:6px">Target: ${b.min===b.max?b.min+'%':b.min+'–'+b.max+'%'} of ${money(inc)} = ${b.min===b.max?money(inc*b.min/100):money(inc*b.min/100)+'–'+money(inc*b.max/100)}.</p>`;
     const list=r.its.length?`<p style="margin-top:6px"><b>What’s in it now (${money(r.v)} ÷ ${money(inc)} = ${Math.round(r.pct)}%):</b></p><ul class="tiplist">${r.its.slice(0,7).map(x=>`<li><span>${esc(x.n)}${x.note?` <em>${x.note}</em>`:''}</span><b>${money(x.v)}</b></li>`).join('')}${r.its.length>7?`<li><span>${r.its.length-7} more</span><b>${money(r.its.slice(7).reduce((a,x)=>a+x.v,0))}</b></li>`:''}</ul>`:`<p style="margin-top:6px">Nothing is in this group yet.</p>`;
     return [`<p><b>${esc(b.name)}:</b> ${b.roles.map(x=>what[x]).join(' and ')}.</p>${list}${tg}`,'planread']},
+  leftovers:['A category’s budget is a limit, so unspent money just stays in your account. Here you can top up next month’s budget for that category (that month only), or set it aside for a goal. Leaving it is fine too.'],
   setleft:['Started mid-month? Type what’s really left in each category. Ledger records the difference as “Spent before Ledger”, so your limits stay the same and your account balances don’t change.'],
   movebudget:['Planning to spend differently this month? Move budget from one or more categories into another, like clothes into food for a family dinner. It only changes this month. Each category can only give what it has left.'],
   cut:['Cover it moves this month’s budget from categories with money left into the one that’s over. It suggests amounts, starting with the categories that have the most left, and you can change them. Other months keep their normal budgets.'],
@@ -1520,6 +1541,7 @@ const GUIDE=[
   {id:'close',t:'Closing a month',lead:'Once a month, lock the last one in so its numbers never shift.',tips:[
     ['When','A banner appears when last month is ready to close.'],
     ['What it does','You confirm each account’s balance; any difference is logged as a correction, and the month’s totals are saved for Trends.'],
+    ['Leftovers','Money a category didn’t use is still in your account. Leave it, add it to next month’s budget for that category, or send it to a goal.'],
     ['Locked','Closed months can’t be edited by accident, so history stays honest.']]},
   {id:'safe',t:'Security & your data',lead:'Your data is yours, private, and synced across your devices.',tips:[
     ['PIN','Each device opens with your own 6-digit PIN. Five wrong tries signs that device out.'],
@@ -1710,6 +1732,7 @@ document.getElementById('app').addEventListener('change',e=>{const t=e.target;
     confirmBox('Restore this backup?',[`${d.tx.length} entries and ${d.accounts.length} accounts`,'Replaces everything in the app right now','Download a backup first if you want to keep what’s here'],'Restore',()=>{if(SEC().hash){LK.restore=d;lockOpen('verify','restore');return}doRestore(d)},{danger:true});t.value=''};fr.readAsText(t.files[0]);return}
   if(t.dataset.tips){S.tips=t.checked;logIt(['Help tips turned '+(t.checked?'on':'off')]);render();return}
   if(t.dataset.dshow){const k=t.dataset.dshow;S.dash.hidden=t.checked?S.dash.hidden.filter(x=>x!==k):S.dash.hidden.concat(k);logIt(['Dashboard — '+(t.checked?'showing ':'hiding ')+(DASH_CARDS[k]||k)]);save();return}
+  if(t.dataset.lo){UI.lo=UI.lo||{};UI.lo[t.dataset.lo]=t.value;return}
   if(t.dataset.trcat!==undefined){delete CH.cat;TR.cat=t.value;render();return}
   if(t.dataset.filter){const k=t.dataset.filter;if(k==='month')setMonth(t.value);else{F[k]=t.value;if(k==='year')F.month='all'}render();return}
   if(bindDraft(t))render();});
@@ -1988,8 +2011,15 @@ function handleAct(t){
     document.querySelectorAll('#app [data-bal]').forEach(i=>{const x=acct(i.dataset.bal),calc=parseFloat(i.dataset.calc),v=r2(parseFloat(i.value)||0);asOf[x.id]=v;if(Math.abs(v-calc)>0.004)corr.push({id:x.id,from:calc,to:v,delta:r2(v-calc)})});
     document.querySelectorAll('#app [data-asset]').forEach(i=>{const x=S.assets.find(y=>y.id===i.dataset.asset),v=r2(Math.max(0,parseFloat(i.value)||0));if(Math.abs(v-(x.value||0))>0.004)corr.push({asset:x.id,from:x.value||0,to:v})});
     const unpaid=liveFixed().filter(f=>fixedOwe(f,T)>0.004);
+    const LP=leftoverPlan(T),moves=LP.filter(x=>x.to!=='stay');
+    const loTx=moves.filter(x=>x.to==='goal').map(x=>x.from&&x.from!==x.g.acct?{date:todayISO,kind:'transfer',from:x.from,to:x.g.acct,goal:x.g.id,amount:x.left}:{date:todayISO,kind:'assign',acct:x.g.acct,goal:x.g.id,amount:x.left});
+    if(moves.some(x=>x.to==='goal'&&!x.from&&!x.g.acct)){toast('Pick an account for that goal first');return}
+    {const bad=guardTx(loTx);if(bad){toast(bad);return}}
+    const loLines=moves.map(x=>x.to==='next'?`${esc(x.c.name)} leftover ${money(x.left,true)} → ${esc(monthName(mDate(x.N)))}’s ${esc(x.c.name)} budget`
+      :`${esc(x.c.name)} leftover ${money(x.left,true)} → ${esc(x.g.name)}${x.from&&x.from!==x.g.acct?` (records a transfer ${esc(aName(x.from))} → ${esc(aName(x.g.acct))}; make it in your bank too)`:''}`);
     const lines=(corr.length?corr.map(c=>`${c.asset?'Update':'Correct'} ${esc(c.asset?S.assets.find(y=>y.id===c.asset).name:aName(c.id))}: ${money(c.from,true)} → ${money(c.to,true)}`):['All balances match your entries'])
       .concat(unpaid.length?[`Not marked paid: ${unpaid.map(f=>esc(f.name)).join(', ')}`]:[])
+      .concat(loLines)
       .concat([`${nm}\u2019s entries become read-only`,'You can reopen it from Activity if something\u2019s wrong']);
     confirmBox(`Close and lock ${esc(nm)}?`,lines,'Confirm and close',()=>{
       /* corrections become dated entries on the month's last day, so every later balance still adds up */
@@ -2001,6 +2031,9 @@ function handleAct(t){
       S.snapshots.push({m:monthName(mDate(T),{month:'short'}),key:T,full:monthName(mDate(T),{month:'long',year:'numeric'}),bal,budgets,corr});
       S.snapshots.sort((a,b)=>(a.key||'').localeCompare(b.key||''));
       S.closed.push(T);(S.did=S.did||{}).close=true;
+      moves.filter(x=>x.to==='next').forEach(x=>{const m=S.adj[x.N]=S.adj[x.N]||{};m[x.c.id]=r2((m[x.c.id]||0)+x.left)});
+      loTx.forEach(t=>addTx(t));MEMO=null;UI.lo={};
+      if(loLines.length)logIt(loLines.map(l=>'Leftover at close: '+l.replace(/ \(records a transfer[^)]*\)/,'')));
       logIt(corr.map(c=>`Reconciled at close — ${c.asset?S.assets.find(y=>y.id===c.asset).name:aName(c.id)}: ${money(c.from,true)} → ${money(c.to,true)}`).concat([nm+' closed and locked']));
       const next=closeTarget();
       if(next){S.view='close';render();window.scrollTo(0,0);toast(`${nm} closed. Next up: ${monthName(mDate(next))}`)}
