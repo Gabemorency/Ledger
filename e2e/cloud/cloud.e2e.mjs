@@ -110,9 +110,11 @@ for (const v of ["home", "trends", "goals", "activity", "accounts", "config"]) {
   await A.page.waitForTimeout(150);
   let html = await appHTML(A.page);
   const noSecurity = (h) => h.replace(/<h2 id="secsec">[\s\S]*?<\/div>\s*<\/div>\s*(?=<h2)/, "");
-  if (v === "config") html = noSecurity(html).replace(/<p class="sub"[^>]*>Your data is saved[\s\S]*?<\/p>/, "").replace(/<p class="sub"[^>]*>This is a demo[\s\S]*?<button class="btn ghost full" id="reset">Reset sample data<\/button>/, "");
+  // The Backup wording differs between cloud and demo by design.
+  const noBackupNote = (h) => h.replace(/<p class="sub"[^>]*>(Your data is saved to your account and synced|This demo saves only in this browser)[\s\S]*?<\/p>/, "");
+  if (v === "config") html = noBackupNote(noSecurity(html)).replace(/<p class="sub"[^>]*>Your data is saved[\s\S]*?<\/p>/, "").replace(/<p class="sub"[^>]*>This is a demo[\s\S]*?<button class="btn ghost full" id="reset">Reset sample data<\/button>/, "");
   let base = baseline[v];
-  if (v === "config") base = noSecurity(base).replace(/<p class="sub"[^>]*>This is a demo[\s\S]*?<button class="btn ghost full" id="reset">Reset sample data<\/button>/, "");
+  if (v === "config") base = noBackupNote(noSecurity(base)).replace(/<p class="sub"[^>]*>This is a demo[\s\S]*?<button class="btn ghost full" id="reset">Reset sample data<\/button>/, "");
   // Expected differences: setting the PIN ticks a getting-started step and writes change-log entries.
   const known = (h) =>
     h
