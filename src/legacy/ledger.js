@@ -1,6 +1,8 @@
 import * as Model from "@/lib/model";
 
 (function(){
+/* Set by src/app/legacy-app.tsx when signed in: cloud state plus save/sign-out hooks. Absent in on-device demo mode. */
+const BOOT=window.__ledgerBoot||null;
 const KEY='ledger-demo-v9';
 const now=new Date();
 function pad2(...a){return Model.pad2(...a)}
@@ -17,7 +19,7 @@ function money(...a){return Model.money(...a)}
 const fmtD=d=>new Date(d+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 function r2(...a){return Model.r2(...a)}
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let uid=1000; const id=()=>'i'+(uid++)+Math.random().toString(36).slice(2,6);
+let uid=1000; const id=()=>BOOT?'i'+crypto.randomUUID().replace(/-/g,''):'i'+(uid++)+Math.random().toString(36).slice(2,6);
 
 const DASH_CARDS={start:'Getting started',payday:'Payday transfers',checkin:'Weekly check-in',cardpay:'Credit card statement',networth:'Net worth',overview:'Account totals',plan:'Plan check',spending:'Spending',fixed:'Fixed costs',annual:'Annual budgets',latest:'Latest entries'};
 const defaultDash=()=>({order:['start','payday','checkin','cardpay','networth','overview','goal:g3','plan','spending','fixed','debt:a6','annual','latest'],hidden:[]});
@@ -119,10 +121,17 @@ function seed(){
   };
 }
 let S;
-try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
-if(!S||!S.plan||!S.plan.inc||!S.dash)S=seed();
+if(BOOT){
+  /* a new account starts at setup; missing keys get defaults, never replacing saved data */
+  S=Object.assign(blank(),BOOT.state||{});if(!S.plan.inc)S.plan=Object.assign(blankPlan(),S.plan);
+  if(S.setupDone&&(!S.view||S.view==='setup'))S.view='home';
+}else{
+  try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
+  if(!S||!S.plan||!S.plan.inc||!S.dash)S=seed();
+}
 sanitize();
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+if(BOOT)BOOT.loaded(S);
+function save(){if(BOOT){BOOT.save(S);return}try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 
 /* ---------- core model ----------
    The math lives in src/lib/model (typed and unit-tested). These wrappers
@@ -1019,8 +1028,9 @@ V.config=()=>{
   </div>
   <h2>Start over</h2>
   <div class="panel" style="padding:14px 16px">
-    <p class="sub" style="font-size:14px;margin:0 0 10px">This is a demo with sample numbers, saved only in this browser.</p>
-    <button class="btn ghost full" id="reset">Reset sample data</button>
+    ${BOOT?`<p class="sub" style="font-size:14px;margin:0 0 10px">Your data is saved to your account and kept in sync across your devices. Erasing removes it everywhere.</p>`
+      :`<p class="sub" style="font-size:14px;margin:0 0 10px">This is a demo with sample numbers, saved only in this browser.</p>
+    <button class="btn ghost full" id="reset">Reset sample data</button>`}
     <button class="btn full dangerbtn" data-act="erase" style="margin-top:10px">Erase everything and start fresh</button>
   </div>`;
 };
@@ -1450,7 +1460,7 @@ function appBar(){
   const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log'};
   const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['help','Help','?']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
   return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${!!UI.menu}" aria-label="Menu">☰ Menu</button></div>
-    ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}</div>`:''}`;
+    ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}${BOOT?`<div class="who">Signed in as ${esc(BOOT.email)}</div><button role="menuitem" data-signout><span class="mi">⎋</span>Sign out</button>`:''}</div>`:''}`;
 }
 function render(){
   MEMO=null;const y=window.scrollY||0,same=lastView===S.view;lastView=S.view;
@@ -1607,6 +1617,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.see){setMonth(t.dataset.see);F.cat=t.dataset.seecat||'all';F.q=t.dataset.seeq||'';F.type='all';F.acct='all';resetUI();S.view='activity';render();window.scrollTo(0,0);return}
   if(t.dataset.range){Object.keys(CH).forEach(k=>delete CH[k]);TR.range=t.dataset.range==='all'?'all':+t.dataset.range;render();return}
   if(t.dataset.menu!==undefined){UI.menu=!UI.menu;render();return}
+  if(t.dataset.signout!==undefined&&BOOT){BOOT.signOut();return}
   if(t.dataset.go){resetUI();S.view=t.dataset.go;if(t.dataset.help)UI.help=t.dataset.help;render();window.scrollTo(0,0);const an=t.dataset.anchor&&document.getElementById(t.dataset.anchor);if(an)an.scrollIntoView({block:'start'});return}
   if(t.dataset.txopen){UI.txOpen=UI.txOpen===t.dataset.txopen?null:t.dataset.txopen;render();return}
   if(t.dataset.txclose){UI.txOpen=null;render();return}
@@ -1647,7 +1658,7 @@ document.getElementById('app').addEventListener('click',e=>{
     const g={id:id(),name:n,target:a,saved:0,date:d,created:todayISO,acct:document.getElementById('gAcct').value,done:false};
     S.goals.push(g);logIt(['Created goal '+n+' ('+money(a)+' by '+fmtD(d)+')']);render();toast('Goal created: '+money(goalInfo(g).perMonth)+'/month');return}
   if(t.id==='testN'){notify('Food is at 84%','$48 left for the rest of the month.');return}
-  if(t.id==='reset'){resetUI();wipeSheet();{const keep=S.sec;S=seed();if(keep)S.sec=keep}S.view='config';render();toast('Sample data restored');return}
+  if(t.id==='reset'&&!BOOT){resetUI();wipeSheet();{const keep=S.sec;S=seed();if(keep)S.sec=keep}S.view='config';render();toast('Sample data restored');return}
   if(t.dataset.act)handleAct(t);
 });
 
@@ -2048,14 +2059,14 @@ function drawLock(){
   } else if(m==='forgot'||m==='signedout'){
     el.innerHTML=`<div class="lockbox" role="dialog" aria-modal="true" aria-labelledby="lkT"><div class="lbrand">Ledger</div>
       <h2 id="lkT">${m==='forgot'?'Reset your passcode':'You’ve been signed out'}</h2>
-      <p class="lsub">${m==='forgot'?'We’ll email you a code. After that you’ll choose a new passcode. Your data stays as it is.':'Too many wrong passcodes, so Ledger signed you out to protect your data. Sign in with your email to continue.'}</p>
-      ${sec.email?`<p class="lsub"><b>${esc(maskEmail(sec.email))}</b></p>`:`<label class="field" style="text-align:left"><span>Email</span><input type="email" id="lkEmail" value="${esc(LK.emailIn)}" autocomplete="email"></label>`}
+      <p class="lsub">${m==='forgot'?(BOOT?'You’ll be signed out. Sign back in with the code we email you, then choose a new passcode. Your data stays as it is.':'We’ll email you a code. After that you’ll choose a new passcode. Your data stays as it is.'):'Too many wrong passcodes, so Ledger signed you out to protect your data. Sign in with your email to continue.'}</p>
+      ${BOOT?'':sec.email?`<p class="lsub"><b>${esc(maskEmail(sec.email))}</b></p>`:`<label class="field" style="text-align:left"><span>Email</span><input type="email" id="lkEmail" value="${esc(LK.emailIn)}" autocomplete="email"></label>`}
       <p class="lerr" role="alert">${esc(LK.err)}</p>
-      <button class="btn full" data-lka="send">Email me a code</button>
+      <button class="btn full" data-lka="send">${BOOT?'Sign out and continue':'Email me a code'}</button>
       ${m==='forgot'?`<div class="llinks"><button data-lka="back">Back</button></div>`:''}</div>`;
   }
 }
-function lockSend(){const sec=SEC();if(!sec.email){const v=(document.getElementById('lkEmail')||{}).value||'';if(!/^\S+@\S+\.\S+$/.test(v)){LK.err='Enter a valid email';drawLock();return}sec.email=v.trim();save()}
+function lockSend(){if(BOOT){S.sec={};save();BOOT.signOut();return}const sec=SEC();if(!sec.email){const v=(document.getElementById('lkEmail')||{}).value||'';if(!/^\S+@\S+\.\S+$/.test(v)){LK.err='Enter a valid email';drawLock();return}sec.email=v.trim();save()}
   LK.code=String(100000+Math.floor(Math.random()*900000));LK.mode='code';LK.buf='';LK.err='';drawLock()}
 function lockDigit(k){
   if(k==='⌫'){LK.buf=LK.buf.slice(0,-1);LK.err='';drawLock();return}

@@ -337,3 +337,23 @@ input[type=month]{width:100%;padding:12px;border-radius:12px;border:1px solid va
 .llinks{display:flex;justify-content:center;gap:18px}.llinks button{border:0;background:none;color:var(--accent);font:inherit;font-weight:600;padding:8px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+/* sign-in */
+.auth{min-height:100dvh;display:grid;place-items:center;padding:24px 16px;max-width:none}
+.authcard{width:100%;max-width:380px;background:var(--surface);border-radius:24px;padding:28px 22px 22px;box-shadow:0 20px 50px rgba(0,0,0,.08);animation:rise .4s cubic-bezier(.2,.8,.2,1)}
+.authcard .lbrand{text-align:left;margin-bottom:14px}
+.authtitle{font:800 30px/1.1 var(--display);letter-spacing:-.02em;margin:0 0 6px}
+.authcard .sub{margin:0 0 6px;font-size:15px}
+.authcard .lerr{min-height:20px;margin:6px 0 8px}
+.authcard .llinks{margin-top:10px;flex-wrap:wrap;gap:4px 14px}
+.codein{font:700 26px/1 var(--display)!important;letter-spacing:.3em;text-align:center}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+/* cloud sync status */
+.syncpill{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:50%;z-index:25;background:var(--surface);color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:5px 11px 5px 9px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;box-shadow:0 4px 14px rgba(0,0,0,.08);opacity:0;transform:translate(-50%,-6px);transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap}
+.syncpill.show{opacity:1;transform:translate(-50%,0)}
+.syncpill i{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.syncpill[data-s=saving] i{background:var(--warn);animation:pulse 1s infinite}
+.syncpill[data-s=offline] i,.syncpill[data-s=error] i{background:var(--over)}
+@keyframes pulse{50%{opacity:.35}}
+.boot{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);z-index:60;transition:opacity .25s}
+.boot .lbrand{font:800 22px var(--display);color:var(--accent);animation:pulse 1.2s infinite}
+.menu .who{padding:8px 12px 4px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

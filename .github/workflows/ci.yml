@@ -39,3 +39,42 @@ jobs:
           npx next start -p 3000 &
           curl -sf --retry 30 --retry-connrefused --retry-delay 1 -o /dev/null http://localhost:3000
           npm run e2e -- http://localhost:3000
+
+  # Sign-in, sync, row-level security and offline saving against a real
+  # Postgres and PostgREST (the API Supabase uses).
+  cloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      POSTGREST_VERSION: v16.4
+      POSTGREST_SHA256: b47ecc82fce1dcebbbc4183d839e52f07f7630c9d7ad0f54db753d1939299354
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Install PostgREST (checksum-verified)
+        run: |
+          curl -sSLf -o pgrst.tar.xz "https://github.com/PostgREST/postgrest/releases/download/${POSTGREST_VERSION}/postgrest-${POSTGREST_VERSION}-linux-static-x86-64.tar.xz"
+          echo "${POSTGREST_SHA256}  pgrst.tar.xz" | sha256sum -c -
+          tar xJf pgrst.tar.xz -C "$RUNNER_TEMP"
+      - run: ./e2e/cloud/run.sh
+        env:
+          POSTGREST: ${{ runner.temp }}/postgrest

@@ -5,22 +5,48 @@ Built with Next.js, deployed on Vercel, with data in Supabase.
 
 ## Status
 
-1. **Port:** done. The original prototype runs inside Next.js; data stays in
-   the browser's localStorage for now.
-2. **Model + tests (current):** the money math lives in typed modules under
-   `src/lib/model` with unit tests. The original screens (`src/legacy`) call
-   into it, so there is one copy of every calculation.
+1. **Port:** done.
+2. **Model + tests:** done. The money math lives in `src/lib/model`.
 3. **Vercel:** connected. `main` deploys to production; branches get previews.
-4. **Supabase:** sign-in plus a database, with a one-time import of existing
-   browser data, a backup file, or the original spreadsheet.
+4. **Supabase (current):** email sign-in and cloud storage with row-level
+   security. Without Supabase settings (local dev, CI) the app runs as an
+   on-device demo.
+
+## How data is stored
+
+- Tables (`supabase/migrations/0001_init.sql`): `accounts`, `categories`,
+  `fixed_costs`, `goals`, `entries`, `snapshots`, plus one `settings` row per
+  user. Money is `numeric(12,2)`.
+- Row Level Security on every table: a signed-in user can only read and write
+  their own rows; signed-out requests are refused.
+- The app is local-first (`src/lib/sync`): each change is kept on the device
+  immediately, then only the changed rows are uploaded. Offline changes upload
+  when the connection returns. When another device has saved, the app reloads
+  on return to pick it up.
+
+## Supabase setup (once)
+
+1. **Create the tables:** Supabase dashboard → SQL Editor → paste
+   `supabase/migrations/0001_init.sql` → Run. Safe to run again.
+2. **Sign-in links:** Authentication → URL Configuration → set Site URL to the
+   production address and add `https://*.vercel.app/**` under Redirect URLs.
+3. **Sign-in code:** Authentication → Emails → Magic Link template → add the
+   code so it can be typed into the app (handy on a home-screen app):
+   `<p>Your Ledger code: <strong>{{ .Token }}</strong></p>`
+4. **After creating your own account:** Authentication → Sign In / Providers →
+   Email → turn off "Allow new users to sign up".
 
 ## Layout
 
 | Path | What it is |
 | --- | --- |
 | `src/lib/model` | Balances, budgets, fixed-cost schedules, goals, plan check, debt payoff. Pure functions, no UI. |
+| `src/lib/sync` | Maps app state to database rows, uploads changes, loads from the cloud. |
+| `src/lib/supabase`, `src/proxy.ts`, `src/app/login`, `src/app/auth` | Sign-in and session handling. |
+| `supabase/migrations` | Database schema and access rules. |
 | `src/legacy` | The original screens, being replaced by React components. |
 | `e2e/` | Screen regression check: renders every screen at a fixed date and compares with `baseline.json`. |
+| `e2e/cloud` | Cloud-mode test against real Postgres + PostgREST: sign-in, sync, isolation, offline, sign-out. |
 
 ## Develop
 

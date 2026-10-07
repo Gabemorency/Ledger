@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
+const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const supabaseWs = supabase.replace(/^https:/, "wss:");
 
 // 'unsafe-inline' scripts are needed for Next's inline bootstrap until the
 // app moves to nonce-based CSP (planned with Supabase auth middleware).
@@ -10,7 +12,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  "connect-src 'self'",
+  `connect-src 'self'${supabase ? ` ${supabase} ${supabaseWs}` : ""}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
