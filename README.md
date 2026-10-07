@@ -29,9 +29,11 @@ Built with Next.js, deployed on Vercel, with data in Supabase.
 1. **Create the tables:** Supabase dashboard → SQL Editor → paste
    `supabase/migrations/0001_init.sql` → Run. Safe to run again.
 2. **Sign-in links:** Authentication → URL Configuration → set Site URL to the
-   production address and add `https://*.vercel.app/**` under Redirect URLs.
-3. **Sign-in code:** Authentication → Emails → Magic Link template → add the
-   code so it can be typed into the app (handy on a home-screen app):
+   production address and add your previews under Redirect URLs as
+   `https://ledger-*-<team>.vercel.app/**` (your Vercel team's suffix). Avoid
+   `https://*.vercel.app/**`: it would accept anyone's vercel.app site.
+3. **Sign-in code:** Authentication → Emails → in both the Confirm signup and
+   Magic Link templates, add the code so it can be typed into the app:
    `<p>Your Ledger code: <strong>{{ .Token }}</strong></p>`
 4. **After creating your own account:** Authentication → Sign In / Providers →
    Email → turn off "Allow new users to sign up".
