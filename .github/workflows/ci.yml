@@ -33,7 +33,9 @@ jobs:
       - run: npm test
       - run: npm run build
       # Every screen must render exactly like e2e/baseline.json.
-      - run: npx playwright install --with-deps chromium
+      # The browser download occasionally stalls; cap each try at 3 minutes and retry once.
+      - name: Install Chromium for tests
+        run: timeout 180 npx playwright install --with-deps chromium || timeout 180 npx playwright install --with-deps chromium
       - name: Screen regression check
         run: |
           npx next start -p 3000 &
@@ -69,7 +71,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # The browser download occasionally stalls; cap each try at 3 minutes and retry once.
+      - name: Install Chromium for tests
+        run: timeout 180 npx playwright install --with-deps chromium || timeout 180 npx playwright install --with-deps chromium
       - name: Install PostgREST (checksum-verified)
         run: |
           curl -sSLf -o pgrst.tar.xz "https://github.com/PostgREST/postgrest/releases/download/${POSTGREST_VERSION}/postgrest-${POSTGREST_VERSION}-linux-static-x86-64.tar.xz"
