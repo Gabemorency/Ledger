@@ -1043,7 +1043,7 @@ V.config=()=>{
     ${BOOT?`<p class="sub" style="font-size:14px;margin:0 0 10px">Your data is saved to your account and kept in sync across your devices. Erasing removes it everywhere.</p>`
       :`<p class="sub" style="font-size:14px;margin:0 0 10px">This is a demo with sample numbers, saved only in this browser.</p>
     <button class="btn ghost full" id="reset">Reset sample data</button>`}
-    <button class="btn full dangerbtn" data-act="erase" style="margin-top:10px">Erase everything and start fresh</button>
+    <button class="btn full dangerline" data-act="erase" style="margin-top:10px">Erase everything and start fresh</button>
   </div></details>`;
 };
 

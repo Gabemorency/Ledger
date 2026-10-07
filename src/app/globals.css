@@ -280,7 +280,7 @@ details.guide summary{font-weight:600;cursor:pointer;list-style:none;display:fle
 details.guide summary::after{content:'+';color:var(--muted);font-weight:400}details.guide[open] summary::after{content:'−'}
 details.guide summary::-webkit-details-marker{display:none}
 details.guide ol{padding-left:20px;margin:10px 0 12px;font-size:15px}details.guide li{margin:6px 0}
-.dangerbtn{background:var(--over);color:#fff}
+.dangerbtn{background:var(--over);color:var(--surface)}
 .crumbs{display:flex;align-items:center;gap:10px;margin:0 0 10px;min-height:34px}.crumbs b{font:700 18px var(--display)}
 details.yearcard{background:var(--surface);border-radius:18px;padding:4px 16px;margin-bottom:10px}
 details.yearcard>summary{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:12px 0;cursor:pointer;list-style:none}
@@ -405,3 +405,9 @@ details.advanced>summary::-webkit-details-marker{display:none}
 details.advanced>summary::after{content:'›';font-size:20px;transition:transform .2s}
 details.advanced[open]>summary::after{transform:rotate(90deg)}
 details.advanced[open]>*:not(summary){animation:fadeIn .2s both}
+/* Contents of <details> sit in a ::details-content box that the universal
+   box-sizing rule doesn't reach, so full-width buttons overflowed. */
+details *{box-sizing:border-box}
+/* quiet destructive button: outlined, red text; solid red is kept for the final confirm */
+.btn.dangerline{background:transparent;color:var(--over);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--over) 55%,transparent);font-weight:700}
+.btn.dangerline:hover,.btn.dangerline:focus-visible{background:var(--over-soft)}
