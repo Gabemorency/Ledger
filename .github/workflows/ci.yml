@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
 
 # Read-only token; no job needs to write to the repo.
@@ -29,5 +29,5 @@ jobs:
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
-      - run: npx tsc --noEmit
+      - run: npm run typecheck
       - run: npm run build
