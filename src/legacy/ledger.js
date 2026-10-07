@@ -1764,17 +1764,9 @@ function handleAct(t){
   if(a==='lockNow'){lockOpen('unlock');return}
   if(a==='setLeft'){
     if(S.closed.includes(thisM)){toast('This month is closed');return}
-    const cs=liveCats().filter(c=>c.type==='monthly');if(!cs.length){toast('Add a monthly category first');return}
-    const rows=cs.map(c=>({id:c.id,label:c.name,budget:budgetOf(c,thisM),spent:r2(spent(c.id,thisM)),left:r2(catLeft(c,thisM))}));
-    confirmBox('Set what’s left for '+monthName(mDate(thisM)),['Type what’s really left in each category','Adjusts this month’s budget only. Account balances don’t change'],'Save',(v,sv,mv,ml)=>{
-      const m=S.adj[thisM]=S.adj[thisM]||{};const snap=JSON.stringify(m);const changed=[];
-      for(const r of rows){if(!(r.id in ml)||Math.abs(ml[r.id]-r.left)<0.005)continue;const want=ml[r.id];if(!isFinite(want)||want<0){toast(`Enter 0 or more for ${r.label}`);S.adj[thisM]=JSON.parse(snap);return}
-        const d=r2(want-r.left);if(Math.abs(d)<0.005)continue;m[r.id]=r2((m[r.id]||0)+d);changed.push({name:r.label,text:`${r.label} ${money(r.left,true)} → ${money(want,true)}`})}
-      MEMO=null;if(!changed.length){toast('Nothing changed');return}
-      logIt(['Set what’s left for '+monthName(mDate(thisM))+': '+changed.map(x=>x.text).join(', ')]);
-      render();toast(changed.length===1?`${changed[0].name} updated`:`Updated ${changed.length} categories`,()=>{S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Change undone')})},
-      {left:rows});
-    return}
+    if(!liveCats().some(c=>c.type==='monthly')){toast('Add a monthly category first');return}
+    if(SEC().hash){lockOpen('verify','setleft');return}
+    openSetLeft();return}
   if(a==='moveBudget'){
     if(S.closed.includes(thisM)){toast('This month is closed');return}
     const cs=liveCats().filter(c=>c.type==='monthly');const src=cs.filter(c=>catLeft(c,thisM)>0.004);
@@ -2091,6 +2083,19 @@ const pinHash=(pin,salt)=>sha256(salt+':'+pin);
 const weakPin=p=>/^(\d)\1{5}$/.test(p)||'0123456789'.includes(p)||'9876543210'.includes(p);
 const maskEmail=e=>{if(!e||!e.includes('@'))return 'your email';const [u,d]=e.split('@');return u[0]+'•••@'+d};
 const LK={on:false,mode:'unlock',buf:'',first:'',err:'',after:null,code:'',emailIn:''};
+/* Set what's left: this month's budget adjusts so each category's 'left' matches what's typed */
+function openSetLeft(){
+    const cs=liveCats().filter(c=>c.type==='monthly');
+    const rows=cs.map(c=>({id:c.id,label:c.name,budget:budgetOf(c,thisM),spent:r2(spent(c.id,thisM)),left:r2(catLeft(c,thisM))}));
+    confirmBox('Set what’s left for '+monthName(mDate(thisM)),['Type what’s really left in each category','Adjusts this month’s budget only. Account balances don’t change'],'Save',(v,sv,mv,ml)=>{
+      const m=S.adj[thisM]=S.adj[thisM]||{};const snap=JSON.stringify(m);const changed=[];
+      for(const r of rows){if(!(r.id in ml)||Math.abs(ml[r.id]-r.left)<0.005)continue;const want=ml[r.id];if(!isFinite(want)||want<0){toast(`Enter 0 or more for ${r.label}`);S.adj[thisM]=JSON.parse(snap);return}
+        const d=r2(want-r.left);if(Math.abs(d)<0.005)continue;m[r.id]=r2((m[r.id]||0)+d);changed.push({name:r.label,text:`${r.label} ${money(r.left,true)} → ${money(want,true)}`})}
+      MEMO=null;if(!changed.length){toast('Nothing changed');return}
+      logIt(['Set what’s left for '+monthName(mDate(thisM))+': '+changed.map(x=>x.text).join(', ')]);
+      render();toast(changed.length===1?`${changed[0].name} updated`:`Updated ${changed.length} categories`,()=>{S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Change undone')})},
+      {left:rows});
+}
 function doRestore(d){resetUI();wipeSheet();{const keep=S.sec;S=d;sanitize();if(keep)S.sec=keep;else delete S.sec}S.view='home';S.log.push({ts:Date.now(),text:'Restored from a backup'});render();window.scrollTo(0,0);toast('Backup restored')}
 function doErase(){resetUI();wipeSheet();const keep=S.sec;S=blank();if(keep)S.sec=keep;render();window.scrollTo(0,0);toast('Everything erased. Let’s set things up.')}
 function lockOpen(mode,after){Object.assign(LK,{on:true,mode,buf:'',first:'',err:'',after:after||null});drawLock()}
@@ -2108,7 +2113,7 @@ function drawLock(){
       <div class="ldots ${LK.err?'shake':''}" aria-label="${LK.buf.length} of 6 digits entered">${dots}</div><p class="lerr" role="alert">${esc(LK.err)}</p>
       ${m==='code'&&LK.code?`<p class="ldemo">Demo only: in the real app this code arrives by email. Code: <b>${LK.code}</b></p>`:''}
       <div class="lpad">${['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k=>k?`<button data-lk="${k}" aria-label="${k==='⌫'?'Delete':k}">${k}</button>`:'<span></span>').join('')}</div>
-      <div class="llinks">${m==='unlock'?`<button data-lka="forgot">Forgot PIN?</button>`:''}${['set1','set2','verify'].includes(m)&&['new','change','off','erase','restore'].includes(LK.after)?`<button data-lka="cancel">Cancel</button>`:''}${m==='code'?`<button data-lka="resend">Send a new code</button>`:''}</div></div>`;
+      <div class="llinks">${m==='unlock'?`<button data-lka="forgot">Forgot PIN?</button>`:''}${['set1','set2','verify'].includes(m)&&['new','change','off','erase','restore','setleft'].includes(LK.after)?`<button data-lka="cancel">Cancel</button>`:''}${m==='code'?`<button data-lka="resend">Send a new code</button>`:''}</div></div>`;
   } else if(m==='forgot'||m==='signedout'){
     el.innerHTML=`<div class="lockbox" role="dialog" aria-modal="true" aria-labelledby="lkT"><div class="lbrand">Ledger</div>
       <h2 id="lkT">${m==='forgot'?'Reset your PIN':'You’ve been signed out'}</h2>
@@ -2131,7 +2136,8 @@ function lockDigit(k){
       const a=LK.after;if(a==='off'){delete sec.hash;delete sec.salt;logIt(['PIN turned off']);lockClose();render();toast('PIN turned off');return}
       if(a==='change'){LK.mode='set1';LK.after='change';drawLock();return}
       if(a==='erase'){lockClose();doErase();return}
-      if(a==='restore'){const d=LK.restore;LK.restore=null;lockClose();if(d)doRestore(d);return}}
+      if(a==='restore'){const d=LK.restore;LK.restore=null;lockClose();if(d)doRestore(d);return}
+      if(a==='setleft'){lockClose();openSetLeft();return}}
     sec.tries=(sec.tries||0)+1;save();
     if(sec.tries>=5){sec.signedOut=true;sec.tries=0;save();logIt(['Signed out after 5 wrong PINs']);LK.mode='signedout';LK.err='';drawLock();return}
     LK.err=`Wrong PIN. ${5-sec.tries} ${5-sec.tries===1?'try':'tries'} left before you’re signed out.`;drawLock();return}
