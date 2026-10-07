@@ -411,3 +411,40 @@ details *{box-sizing:border-box}
 /* quiet destructive button: outlined, red text; solid red is kept for the final confirm */
 .btn.dangerline{background:transparent;color:var(--over);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--over) 55%,transparent);font-weight:700}
 .btn.dangerline:hover,.btn.dangerline:focus-visible{background:var(--over-soft)}
+/* ---------- floating menu: the top bar sticks; the title fades when scrolled ---------- */
+.appbar{position:sticky;top:8px;z-index:20;pointer-events:none}
+.appbar>*{pointer-events:auto}
+.appbar .brand{transition:opacity .2s,transform .2s}
+.scrolled .appbar .brand{opacity:0;transform:translateY(-6px);pointer-events:none}
+.appbar .menubtn{transition:box-shadow .25s,transform .12s var(--ease-out),background-color .2s}
+.scrolled .appbar .menubtn{box-shadow:0 8px 24px rgba(0,0,0,.14);background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.appbar .menu{position:absolute;right:0;top:calc(100% + 8px);width:min(300px,calc(100vw - 32px));margin:0;z-index:21}
+/* ---------- guide ---------- */
+.gnav{position:sticky;top:60px;z-index:15;display:flex;gap:8px;overflow-x:auto;padding:10px 2px;margin:10px -2px 4px;scrollbar-width:none;background:var(--bg);box-shadow:0 8px 10px -8px var(--bg)}
+.gnav::-webkit-scrollbar{display:none}
+.gchip{flex:none;display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:7px 12px;font:inherit;font-size:13px;font-weight:600;transition:background-color .2s,color .2s,border-color .2s}
+.gchip span{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font:700 11px var(--display)}
+.gchip.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.gchip.on span{background:color-mix(in srgb,var(--surface) 20%,transparent);color:var(--surface)}
+.gch{scroll-margin-top:118px;margin:22px 0 30px}
+.ghead{display:flex;align-items:center;gap:14px}
+.gicon{width:46px;height:46px;flex:none;border-radius:14px;display:grid;place-items:center;font:700 22px var(--display);color:var(--surface);background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 60%,var(--ink)));box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 30%,transparent)}
+.gkick{margin:0;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.ghead h2{margin:0}
+.glead{font-size:16px;margin:12px 0 12px;color:var(--ink)}
+.gtips{display:grid;gap:10px}
+@media (min-width:640px){.gtips{grid-template-columns:1fr 1fr}}
+.gtip{background:var(--surface);border-radius:16px;padding:14px 16px;border-left:3px solid var(--accent-soft)}
+.gtip b{display:block;font:700 16px var(--display);margin-bottom:4px}
+.gtip p{margin:0;font-size:14px;color:var(--muted)}
+.gtake{margin-top:12px}
+.gend{text-align:center;margin:30px 0 10px}
+@media (prefers-reduced-motion: no-preference){
+  .gch .ghead,.gch .glead,.gch .gtip,.gch .gtake{opacity:0;transform:translateY(16px)}
+  .gch.in .ghead,.gch.in .glead,.gch.in .gtip,.gch.in .gtake{animation:guideIn .55s var(--ease-out) both}
+  .gch.in .glead{animation-delay:.06s}
+  .gch.in .gtip{animation-delay:calc(.12s + var(--k) * .07s)}
+  .gch.in .gtake{animation-delay:.4s}
+  .gch.in .gicon{animation:pop .5s var(--spring) both}
+}
+@keyframes guideIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}

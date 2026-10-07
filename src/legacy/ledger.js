@@ -1359,6 +1359,7 @@ document.addEventListener('click',e=>{
   if(!e.target.closest('#tipPop'))hideTip();
 },true);
 window.addEventListener('scroll',hideTip,{passive:true});
+window.addEventListener('scroll',()=>document.documentElement.classList.toggle('scrolled',window.scrollY>24),{passive:true});
 
 /* ---------- help ---------- */
 const GUIDES=[
@@ -1380,6 +1381,7 @@ const GUIDES=[
 V.help=()=>{
   return `<button class="btn small ghost" data-go="home" style="margin-bottom:8px">Back to dashboard</button><h1>Help</h1>
   <p class="sub">Short guides for common tasks. Look for the ? next to anything on screen for a quick explanation.</p>
+  <button class="loglink" data-go="guide" style="margin-top:14px"><span><b>✦ The full guide</b><small>A tour of everything Ledger does, chapter by chapter</small></span><span class="chev">›</span></button>
   ${S.gsHidden?`<div class="actions"><button class="btn ghost" data-act="gsShow">Show the getting-started checklist</button></div>`:''}
   <div class="panel" style="margin-top:16px">${GUIDES.map(g=>`<details class="guide" id="help-${g.id}" ${UI.help===g.id?'open':''}><summary>${esc(g.t)}</summary>
     <ol>${g.s.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>
@@ -1473,11 +1475,88 @@ function setupStepCheck(st){
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
   const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log'};
-  const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['help','Help','?']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
-  return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${!!UI.menu}" aria-label="Menu">☰ Menu</button></div>
-    ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}${BOOT?`<div class="who">Signed in as ${esc(maskEmail(BOOT.email))}</div><button role="menuitem" data-signout><span class="mi">⎋</span>Sign out</button>`:''}</div>`:''}`;
+  const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['help','Help','?'],['guide','Guide','✦']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
+  return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${!!UI.menu}" aria-label="Menu">☰ Menu</button>
+    ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}${BOOT?`<div class="who">Signed in as ${esc(maskEmail(BOOT.email))}</div><button role="menuitem" data-signout><span class="mi">⎋</span>Sign out</button>`:''}</div>`:''}</div>`;
 }
 const REDUCED=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* ---------- Guide: an illustrated tour of the whole app (Menu → Guide) ---------- */
+const GUIDE=[
+  {id:'idea',t:'The idea',lead:'Ledger follows the Conscious Spending Plan: pay yourself first, then spend what’s left without guilt.',tips:[
+    ['Pay yourself first','Fixed costs, investing and saving are covered before anything else, so the important stuff never depends on willpower.'],
+    ['Guilt-free spending','Whatever’s left after that is yours to spend however you like. That’s the point, not a loophole.'],
+    ['One place for all of it','Accounts, bills, spending, goals and trends live together, so every number agrees with every other one.']]},
+  {id:'log',t:'Logging money',lead:'The big + at the bottom is the one button you’ll use most.',tips:[
+    ['Expense','Type the amount on the keypad, pick a category and what you paid with. It shows what’s left in that category before you save.'],
+    ['Income','Choose Salary or Side income, where it landed, and save. Ledger suggests how to split it across your plan.'],
+    ['Transfer','Moving money between your own accounts, like checking to HYSA or paying a card. Not spending, not income.'],
+    ['Fix a mistake','Tap any entry in Activity to see its details, edit it, or delete it. Undo appears right after most actions.']],go:['activity','See Activity']},
+  {id:'dash',t:'Your dashboard',lead:'The first few cards show what needs you now; the rest wait behind “Show more”.',tips:[
+    ['Spending','Each category’s limit, what you’ve spent and what’s left, with a heads-up at 80% and when you go over.'],
+    ['Move budget','Shift this month’s money between categories, like clothes into food for a dinner out. Next month resets.'],
+    ['Set what’s left','Starting mid-month? Type what’s really left and Ledger records the rest as spent before Ledger. Needs your PIN.'],
+    ['Fixed costs','Your bills with set amounts and due days. Tap Pay when one’s paid so you never pay twice.'],
+    ['Net worth & totals','Everything you own minus everything you owe, and how each kind of account moved since last month.']],go:['home','Open the dashboard']},
+  {id:'accounts',t:'Accounts',lead:'Every place your money lives, and every debt, grouped by bank.',tips:[
+    ['Types','Checking, cash, savings, base share, HYSA, pre-tax retirement, after-tax (Roth) retirement, other retirement, and debt.'],
+    ['Balances update themselves','Once an account is set up, your entries move its balance. Edit only to match a bank statement; that’s logged as a correction.'],
+    ['Money set aside','Under each savings account you’ll see what’s held for each goal and what’s unassigned.'],
+    ['Debts','Add the APR and payment to see a payoff date and estimated interest. Cards paid in full show the statement balance.']],go:['accounts','Open Accounts']},
+  {id:'goals',t:'Goals',lead:'Name what you’re saving for and when, and Ledger turns it into a monthly number.',tips:[
+    ['On track, ahead, behind','The marker on each bar is where you should be today. The pill tells you how you’re doing against it.'],
+    ['Add money','Moves money into a goal inside its account. It stays in the account, just set aside.'],
+    ['Payments (sub-goals)','For something paid in parts, like tuition, add each payment under the big goal so each due date is covered.'],
+    ['Emergency fund','Ledger suggests one: three months of your essential bills plus your need categories.']],go:['goals','Open Goals']},
+  {id:'plan',t:'Your plan',lead:'The Plan check compares your budget with healthy ranges, as a share of take-home pay.',tips:[
+    ['Groups','Every bill and category belongs to a group: Fixed costs (needs), Investments, Savings, or Guilt-free spending.'],
+    ['Above, below, ahead','Over the range in spending says Above; over in saving or investing says Ahead, which is good.'],
+    ['Change a group','Settings → Categories → Edit, then pick each category’s Group. Mark groceries and gas as Fixed costs (needs).'],
+    ['Other frameworks','Prefer 50/30/20, zero-based, or your own ranges? Settings → Plan framework.']],go:['config','Open Settings']},
+  {id:'trends',t:'Trends & activity',lead:'See where the money went, month by month.',tips:[
+    ['Charts','Income vs spending, savings rate, net worth and each category. Tap a month on any chart for its numbers.'],
+    ['Side income','Trends shows how much of your average income came from side work.'],
+    ['Activity','Every entry, filterable by month, type, account and category, with totals per month.'],
+    ['Change log','Every settings change, transfer and correction, in plain words. Menu → Change log.']],go:['trends','Open Trends']},
+  {id:'close',t:'Closing a month',lead:'Once a month, lock the last one in so its numbers never shift.',tips:[
+    ['When','A banner appears when last month is ready to close.'],
+    ['What it does','You confirm each account’s balance; any difference is logged as a correction, and the month’s totals are saved for Trends.'],
+    ['Locked','Closed months can’t be edited by accident, so history stays honest.']]},
+  {id:'safe',t:'Security & your data',lead:'Your data is yours, private, and synced across your devices.',tips:[
+    ['PIN','Each device opens with your own 6-digit PIN. Five wrong tries signs that device out.'],
+    ['Email','Confirms a new device, or a forgotten PIN, with a one-time code. It’s never your password.'],
+    ['Saving & sync','The little pill at the top shows Saving, Saved, or Saved offline. Offline changes upload when you’re back.'],
+    ['Only you','Every row in the database is locked to your account. Nobody else can read it.']]},
+  {id:'backup',t:'Backups & starting over',lead:'Syncing copies mistakes too, so keep your own copy.',tips:[
+    ['Download a backup','Settings → Backup, about once a month and before big changes. Keep the file somewhere private.'],
+    ['Restore','Replaces everything, on every device, with a backup file. Needs your PIN.'],
+    ['Erase everything','Settings → Advanced. Takes your email, a second confirmation and your PIN.']],go:['config','Open Settings']}
+];
+V.guide=()=>`<h1>The Ledger guide</h1>
+  <p class="sub">Everything Ledger does, one chapter at a time. Tap a chapter to jump there.</p>
+  <div class="gnav" role="navigation" aria-label="Guide chapters">${GUIDE.map((c,i)=>`<button class="gchip${i?'':' on'}" data-gjump="${c.id}"><span>${i+1}</span>${esc(c.t)}</button>`).join('')}</div>
+  ${GUIDE.map((c,i)=>`<section class="gch" id="g-${c.id}" data-gch="${c.id}">
+    <div class="ghead"><span class="gicon" aria-hidden="true">${i+1}</span><div><p class="gkick">Chapter ${i+1}</p><h2>${esc(c.t)}</h2></div></div>
+    <p class="glead">${esc(c.lead)}</p>
+    <div class="gtips">${c.tips.map(([t,d],k)=>`<div class="gtip" style="--k:${k}"><b>${esc(t)}</b><p>${esc(d)}</p></div>`).join('')}</div>
+    ${c.go?`<button class="btn small ghost gtake" data-go="${c.go[0]}">${esc(c.go[1])} →</button>`:''}
+  </section>`).join('')}
+  <p class="sub gend">That’s everything. Look for the <b>?</b> next to anything in the app for a quick explanation.</p>`;
+let GOBS=null;
+function guideMark(id){document.querySelectorAll('.gchip').forEach(b=>{const on=b.dataset.gjump===id;if(on&&!b.classList.contains('on')&&b.scrollIntoView)b.scrollIntoView({block:'nearest',inline:'center',behavior:REDUCED?'auto':'smooth'});b.classList.toggle('on',on)})}
+/* highlight the chapter sitting just under the chapter strip (or the last one at the very bottom) */
+function guideSpy(){if(S.view!=='guide')return;const secs=[...document.querySelectorAll('.gch')];if(!secs.length)return;
+  const atEnd=innerHeight+scrollY>=document.documentElement.scrollHeight-4;let cur=secs[0];
+  for(const x of secs)if(x.getBoundingClientRect().top<=140)cur=x;if(atEnd)cur=secs[secs.length-1];guideMark(cur.dataset.gch)}
+let GSPY=0;window.addEventListener('scroll',()=>{if(S.view!=='guide'||GSPY)return;GSPY=requestAnimationFrame(()=>{GSPY=0;guideSpy()})},{passive:true});
+function setupGuide(){
+  if(GOBS){GOBS.disconnect();GOBS=null}
+  const secs=[...document.querySelectorAll('.gch')];if(!secs.length)return;
+  if(REDUCED||!('IntersectionObserver' in window)){secs.forEach(x=>x.classList.add('in'));return}
+  /* chapters ease in as they enter the screen */
+  GOBS=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');GOBS&&GOBS.unobserve(e.target)}}),{threshold:0.05});
+  secs.forEach(x=>GOBS.observe(x));
+}
+
 /* headline money figures count up from zero when a screen opens */
 function countUp(root){
   root.querySelectorAll('.networth > .num, .ovv.num').forEach(el=>{
@@ -1491,6 +1570,7 @@ function render(){
   MEMO=null;const y=window.scrollY||0,same=lastView===S.view;lastView=S.view;
   const app=document.getElementById('app');app.dataset.view=S.view;app.innerHTML=appBar()+V[S.view]();
   if(!same&&!REDUCED){app.classList.remove('enter');void app.offsetWidth;app.classList.add('enter');countUp(app)}
+  if(S.view==='guide')setupGuide();else if(GOBS){GOBS.disconnect();GOBS=null}
   document.querySelectorAll('nav [data-view]').forEach(b=>{if(b.dataset.view===S.view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   if(same&&window.scrollTo)window.scrollTo(0,y);
   const gd=document.getElementById('gDate');if(gd){const d=new Date(now);d.setMonth(d.getMonth()+6);gd.value=d.toISOString().slice(0,10)}
@@ -1645,6 +1725,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.range){Object.keys(CH).forEach(k=>delete CH[k]);TR.range=t.dataset.range==='all'?'all':+t.dataset.range;render();return}
   if(t.dataset.menu!==undefined){UI.menu=!UI.menu;render();return}
   if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
+  if(t.dataset.gjump){const el=document.getElementById('g-'+t.dataset.gjump);guideMark(t.dataset.gjump);if(el){el.classList.add('in');el.scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}return}
   if(t.dataset.signout!==undefined&&BOOT){BOOT.signOut();return}
   if(t.dataset.go){resetUI();S.view=t.dataset.go;if(t.dataset.help)UI.help=t.dataset.help;render();window.scrollTo(0,0);const an=t.dataset.anchor&&document.getElementById(t.dataset.anchor);if(an)an.scrollIntoView({block:'start'});return}
   if(t.dataset.txopen){UI.txOpen=UI.txOpen===t.dataset.txopen?null:t.dataset.txopen;render();return}

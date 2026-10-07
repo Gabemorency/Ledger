@@ -41,7 +41,7 @@ const go = (view) =>
 await grab("home");
 await page.click("[data-dashmore]");
 await grab("home-more");
-for (const v of ["trends", "goals", "activity", "accounts", "close", "config", "help", "log"]) {
+for (const v of ["trends", "goals", "activity", "accounts", "close", "config", "help", "guide", "log"]) {
   await go(v);
   await grab(v);
 }
