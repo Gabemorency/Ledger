@@ -145,11 +145,11 @@ function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
 const TYPES={checking:'Checking',cash:'Cash',savings:'Savings',retirement:'Retirement',debt:'Debt'};
-/* Account kinds: a base share counts as checking, a HYSA as savings; only the label differs */
-const KINDS={share:{type:'checking',label:'Base share'},hysa:{type:'savings',label:'High-yield savings'}};
+/* Account kinds: base shares and HYSAs are savings accounts; only the label differs */
+const KINDS={share:{type:'savings',label:'Base share'},hysa:{type:'savings',label:'High-yield savings'}};
 const kindOf=a=>KINDS[a.sub]&&KINDS[a.sub].type===a.type?a.sub:a.type;
 const typeLabel=a=>(KINDS[kindOf(a)]||{}).label||TYPES[a.type];
-const TYPE_CHOICES=[['checking','Checking'],['share','Base share (credit union)'],['cash','Cash'],['savings','Savings'],['hysa','High-yield savings (HYSA)'],['retirement','Retirement'],['debt','Debt']];
+const TYPE_CHOICES=[['checking','Checking'],['cash','Cash'],['savings','Savings'],['share','Base share (credit union)'],['hysa','High-yield savings (HYSA)'],['retirement','Retirement'],['debt','Debt']];
 function applyTx(t,sign){MEMO=null;Model.applyTx(S,t,sign)}
 /* never let a regular account drop below $0, or below what its goals have set aside */
 function guardTx(add,rem){return Model.guardTx(S,add,rem)}
