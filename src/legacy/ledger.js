@@ -1014,10 +1014,10 @@ V.config=()=>{
   <div class="panel"><div class="toggle"><div>Show ? tips<small>Tap a ? next to anything for a quick explanation</small></div><input class="sw" type="checkbox" data-tips="1" ${S.tips?'checked':''} aria-label="Show tips"></div></div>
   <h2 id="secsec">Security ${tip('security')}</h2>
   <div class="panel" style="padding:6px 16px 12px">
-    <div class="row"><div class="rowtop"><b>Account email</b><span>${SEC().email?esc(SEC().email):'Not set'}</span></div><div class="sub" style="font-size:13px">Used to sign in on a new device and to reset your passcode.</div>
-      <label class="field" style="margin:6px 0 0"><span class="sr">Account email</span><input type="email" id="secEmail" placeholder="you@example.com" value="${esc(SEC().email||'')}"></label></div>
-    <div class="row"><div class="rowtop"><b>App passcode</b><span>${SEC().hash?'On':'Off'}</span></div><div class="sub" style="font-size:13px">A 6-digit code that unlocks Ledger on this device.</div>
-      <div class="actions">${SEC().hash?`<button class="btn small ghost" data-act="pinChange">Change passcode</button><button class="btn small ghost" data-act="pinOff">Turn off</button><button class="btn small ghost" data-act="lockNow">Lock now</button>`:`<button class="btn small" data-act="pinSet">Set a passcode</button>`}</div></div>
+    <div class="row"><div class="rowtop"><b>Account email</b><span>${BOOT?esc(BOOT.email):SEC().email?esc(SEC().email):'Not set'}</span></div><div class="sub" style="font-size:13px">Used to sign in on a new device and to reset your PIN.</div>
+      ${BOOT?'':`<label class="field" style="margin:6px 0 0"><span class="sr">Account email</span><input type="email" id="secEmail" placeholder="you@example.com" value="${esc(SEC().email||'')}"></label>`}</div>
+    <div class="row"><div class="rowtop"><b>App PIN</b><span>${SEC().hash?'On':'Off'}</span></div><div class="sub" style="font-size:13px">A 6-digit code that unlocks Ledger on this device.</div>
+      <div class="actions">${SEC().hash?`<button class="btn small ghost" data-act="pinChange">Change PIN</button>${BOOT?'':`<button class="btn small ghost" data-act="pinOff">Turn off</button>`}<button class="btn small ghost" data-act="lockNow">Lock now</button>`:`<button class="btn small" data-act="pinSet">Set a PIN</button>`}</div></div>
     ${SEC().hash?`<div class="row"><label class="field" style="margin:0"><span>Lock when I’ve been away for</span><select id="secAfter">${[[0,'Right away'],[1,'1 minute'],[5,'5 minutes'],[15,'15 minutes'],[60,'1 hour']].map(([v,l])=>`<option value="${v}" ${(SEC().lockAfter??5)===v?'selected':''}>${l}</option>`).join('')}</select></label></div>`:''}
   </div>
   <h2>Backup</h2>
@@ -1265,7 +1265,7 @@ const TIPS={
     return [`<p><b>${esc(b.name)}:</b> ${b.roles.map(x=>what[x]).join(' and ')}.</p>${list}${tg}`,'planread']},
   movebudget:['Planning to spend differently this month? Move budget from one or more categories into another, like clothes into food for a family dinner. It only changes this month. Each category can only give what it has left.'],
   cut:['Cover it moves this month’s budget from categories with money left into the one that’s over. It suggests amounts, starting with the categories that have the most left, and you can change them. Other months keep their normal budgets.'],
-  security:['Two layers. Your account (email sign-in) protects your data on the server and on new devices. The passcode locks the app on a device that’s already signed in. Forget it? Reset it with a code sent to your email. Five wrong tries signs you out.'],
+  security:['Two layers. Your account (email sign-in) protects your data on the server and on new devices. The PIN locks the app on a device that’s already signed in. Forget it? Reset it with a code sent to your email. Five wrong tries signs you out.'],
   start:['A list of things to set up and try once. Each step checks itself off when you do it. Optional steps can be skipped. Hide the list anytime and bring it back from Help.'],
   checkin:['A two-minute weekly review: purchases to add, what’s left to spend, bills due soon, transfers to make, and goals that slipped. Turn it off in Settings → Notifications.'],
   emergency:['Three months of essentials: your fixed costs marked as needs, plus any categories in the needs group, from Settings. It goes to the top of your goals so it fills first. Once it’s full, its monthly amount drops to $0 and that money flows to the next goal.','goal'],
@@ -1535,7 +1535,7 @@ function gsSteps(){
     {k:'ef',t:'Start your emergency fund',d:'Goals suggests a target from your bills.',done:ef,go:['goals']},
     {k:'goals',t:'Add your other goals',d:'Grad school, a trip, anything with a target and a date.',done:topGoals().some(g=>!g.emergency),go:['goals']},
     {k:'card',t:'Set up your credit card',d:'Settings → Accounts: add it as a debt, then turn on “This is a credit card”.',done:liveAccts().some(a=>a.card),go:['config','acctsec'],opt:true},
-    {k:'pin',t:'Set an app passcode',d:'Settings → Security. Add your email first so you can reset it.',done:!!(S.sec&&S.sec.hash),go:['config','secsec'],opt:true},
+    {k:'pin',t:'Set an app PIN',d:'Settings → Security. Add your email first so you can reset it.',done:!!(S.sec&&S.sec.hash),go:['config','secsec'],opt:true},
     {k:'split',t:'Log a paycheck and apply the split',d:'Tap +, choose Income, then Apply split.',done:!!(S.did||{}).split},
     {k:'transfers',t:'Make your payday transfers',d:'Tick each one on the Payday transfers card as you do it in your bank.',done:!!(S.did||{}).transfers},
     {k:'purchase',t:'Log a purchase',d:'Tap +, type the amount, pick a category.',done:!!(S.did||{}).purchase},
@@ -1723,9 +1723,9 @@ function handleAct(t){
   if(a==='gsShow'){S.gsHidden=false;resetUI();S.view='home';render();window.scrollTo(0,0);return}
   if(a==='checkDone'){S.lastCheck=todayISO;logIt(['Weekly check-in done']);render();toast('Nice. See you next week.');return}
   if(a==='pdClear'){const left=(S.payday||[]).filter(x=>!x.done).length;const go=()=>{S.payday=[];render()};if(left)confirmBox('Clear the transfer list?',[`${left} transfer${left===1?' isn’t':'s aren’t'} ticked yet`,'The app already counted them. If you skip one in your bank, fix the balance at the monthly close'],'Clear list',go);else go();return}
-  if(a==='pinSet'){if(!SEC().email){toast('Add your account email first, so you can reset a forgotten passcode');const i=document.getElementById('secEmail');if(i)i.focus();return}lockOpen('set1','new');return}
+  if(a==='pinSet'){if(!SEC().email){toast('Add your account email first, so you can reset a forgotten PIN');const i=document.getElementById('secEmail');if(i)i.focus();return}lockOpen('set1','new');return}
   if(a==='pinChange'){lockOpen('verify','change');return}
-  if(a==='pinOff'){lockOpen('verify','off');return}
+  if(a==='pinOff'&&!BOOT){lockOpen('verify','off');return}
   if(a==='lockNow'){lockOpen('unlock');return}
   if(a==='moveBudget'){
     if(S.closed.includes(thisM)){toast('This month is closed');return}
@@ -2022,7 +2022,7 @@ document.getElementById('sheet').addEventListener('click',e=>{
   }
 });
 
-/* ---------- app lock (demo of the Supabase sign-in + device passcode plan) ---------- */
+/* ---------- app lock (demo of the Supabase sign-in + device PIN plan) ---------- */
 function sha256(m){const K=[],H=[];let p=2,n=0;const isP=x=>{for(let f=2;f*f<=x;f++)if(x%f===0)return false;return true};
   while(n<64){if(isP(p)){if(n<8)H[n]=(Math.pow(p,1/2)*4294967296)|0;K[n++]=(Math.pow(p,1/3)*4294967296)|0}p++}
   const b=unescape(encodeURIComponent(m)),w=[],L=b.length*8;let s=b+'\x80';while(s.length%64!==56)s+='\x00';
@@ -2034,7 +2034,7 @@ function sha256(m){const K=[],H=[];let p=2,n=0;const isP=x=>{for(let f=2;f*f<=x;
       h.unshift((t1+t2)|0);h[4]=(h[4]+t1)|0;h.pop()}
     for(let i=0;i<8;i++)h[i]=(h[i]+o[i])|0}
   return h.map(x=>('00000000'+(x>>>0).toString(16)).slice(-8)).join('')}
-const SEC=()=>(S.sec=S.sec||{lockAfter:5,email:'',tries:0});
+const SEC=()=>(S.sec=S.sec||{lockAfter:BOOT?0:5,email:BOOT?BOOT.email:'',tries:0});
 const pinHash=(pin,salt)=>sha256(salt+':'+pin);
 const weakPin=p=>/^(\d)\1{5}$/.test(p)||'0123456789'.includes(p)||'9876543210'.includes(p);
 const maskEmail=e=>{if(!e||!e.includes('@'))return 'your email';const [u,d]=e.split('@');return u[0]+'•••@'+d};
@@ -2047,7 +2047,7 @@ function drawLock(){
   const el=document.getElementById('lock');if(!LK.on){el.hidden=true;return}
   el.hidden=false;document.getElementById('app').setAttribute('aria-hidden','true');document.querySelector('nav').setAttribute('aria-hidden','true');
   const sec=SEC(),m=LK.mode,left=5-(sec.tries||0);
-  const T={unlock:['Enter your passcode',''],set1:['Choose a 6-digit passcode','You’ll use it to unlock Ledger on this device.'],set2:['Enter it again','So we know you typed it right.'],verify:['Enter your current passcode',''],
+  const T={unlock:['Enter your PIN',''],set1:['Choose a 6-digit PIN',LK.after==='first'?'Your email confirmed this device. From now on you’ll open Ledger with this PIN.':'You’ll use it to unlock Ledger on this device.'],set2:['Enter it again','So we know you typed it right.'],verify:['Enter your current PIN',''],
     code:['Enter the code from your email',`Sent to ${esc(maskEmail(sec.email))}. It expires in 10 minutes.`]};
   if(PADMODES.includes(m)){
     const dots=Array.from({length:6},(_,i)=>`<i class="${i<LK.buf.length?'on':''}"></i>`).join('');
@@ -2055,11 +2055,11 @@ function drawLock(){
       <div class="ldots ${LK.err?'shake':''}" aria-label="${LK.buf.length} of 6 digits entered">${dots}</div><p class="lerr" role="alert">${esc(LK.err)}</p>
       ${m==='code'&&LK.code?`<p class="ldemo">Demo only: in the real app this code arrives by email. Code: <b>${LK.code}</b></p>`:''}
       <div class="lpad">${['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k=>k?`<button data-lk="${k}" aria-label="${k==='⌫'?'Delete':k}">${k}</button>`:'<span></span>').join('')}</div>
-      <div class="llinks">${m==='unlock'?`<button data-lka="forgot">Forgot passcode?</button>`:''}${['set1','set2','verify'].includes(m)&&['new','change','off','erase'].includes(LK.after)?`<button data-lka="cancel">Cancel</button>`:''}${m==='code'?`<button data-lka="resend">Send a new code</button>`:''}</div></div>`;
+      <div class="llinks">${m==='unlock'?`<button data-lka="forgot">Forgot PIN?</button>`:''}${['set1','set2','verify'].includes(m)&&['new','change','off','erase'].includes(LK.after)?`<button data-lka="cancel">Cancel</button>`:''}${m==='code'?`<button data-lka="resend">Send a new code</button>`:''}</div></div>`;
   } else if(m==='forgot'||m==='signedout'){
     el.innerHTML=`<div class="lockbox" role="dialog" aria-modal="true" aria-labelledby="lkT"><div class="lbrand">Ledger</div>
-      <h2 id="lkT">${m==='forgot'?'Reset your passcode':'You’ve been signed out'}</h2>
-      <p class="lsub">${m==='forgot'?(BOOT?'You’ll be signed out. Sign back in with the code we email you, then choose a new passcode. Your data stays as it is.':'We’ll email you a code. After that you’ll choose a new passcode. Your data stays as it is.'):'Too many wrong passcodes, so Ledger signed you out to protect your data. Sign in with your email to continue.'}</p>
+      <h2 id="lkT">${m==='forgot'?'Reset your PIN':'You’ve been signed out'}</h2>
+      <p class="lsub">${m==='forgot'?(BOOT?'You’ll be signed out. Sign back in with the code we email you, then choose a new PIN. Your data stays as it is.':'We’ll email you a code. After that you’ll choose a new PIN. Your data stays as it is.'):'Too many wrong PINs, so Ledger signed you out to protect your data. Sign in with your email to continue.'}</p>
       ${BOOT?'':sec.email?`<p class="lsub"><b>${esc(maskEmail(sec.email))}</b></p>`:`<label class="field" style="text-align:left"><span>Email</span><input type="email" id="lkEmail" value="${esc(LK.emailIn)}" autocomplete="email"></label>`}
       <p class="lerr" role="alert">${esc(LK.err)}</p>
       <button class="btn full" data-lka="send">${BOOT?'Sign out and continue':'Email me a code'}</button>
@@ -2075,16 +2075,16 @@ function lockDigit(k){
   if(LK.mode==='unlock'||LK.mode==='verify'){
     if(pinHash(pin,sec.salt)===sec.hash){sec.tries=0;save();
       if(LK.mode==='unlock'){lockClose();sec.lockedAt=null;save();return}
-      const a=LK.after;if(a==='off'){delete sec.hash;delete sec.salt;logIt(['Passcode turned off']);lockClose();render();toast('Passcode turned off');return}
+      const a=LK.after;if(a==='off'){delete sec.hash;delete sec.salt;logIt(['PIN turned off']);lockClose();render();toast('PIN turned off');return}
       if(a==='change'){LK.mode='set1';LK.after='change';drawLock();return}
       if(a==='erase'){lockClose();doErase();return}}
     sec.tries=(sec.tries||0)+1;save();
-    if(sec.tries>=5){sec.signedOut=true;sec.tries=0;save();logIt(['Signed out after 5 wrong passcodes']);LK.mode='signedout';LK.err='';drawLock();return}
-    LK.err=`Wrong passcode. ${5-sec.tries} ${5-sec.tries===1?'try':'tries'} left before you’re signed out.`;drawLock();return}
+    if(sec.tries>=5){sec.signedOut=true;sec.tries=0;save();logIt(['Signed out after 5 wrong PINs']);LK.mode='signedout';LK.err='';drawLock();return}
+    LK.err=`Wrong PIN. ${5-sec.tries} ${5-sec.tries===1?'try':'tries'} left before you’re signed out.`;drawLock();return}
   if(LK.mode==='set1'){if(weakPin(pin)){LK.err='That one’s too easy to guess. Try another.';drawLock();return}LK.first=pin;LK.mode='set2';drawLock();return}
   if(LK.mode==='set2'){if(pin!==LK.first){LK.mode='set1';LK.first='';LK.err='Those didn’t match. Start again.';drawLock();return}
     const salt=Math.random().toString(36).slice(2)+Date.now().toString(36);sec.salt=salt;sec.hash=pinHash(pin,salt);sec.tries=0;sec.signedOut=false;
-    logIt([LK.after==='change'?'Passcode changed':LK.after==='reset'?'Passcode reset by email':'Passcode turned on']);lockClose();render();toast(LK.after==='change'?'Passcode changed':'Passcode set. Ledger will lock when you’re away.');return}
+    logIt([LK.after==='change'?'PIN changed':LK.after==='reset'?'PIN reset by email':'PIN turned on']);lockClose();render();toast(LK.after==='change'?'PIN changed':LK.after==='first'?'PIN set':'PIN set. Ledger will lock when you’re away.');return}
   if(LK.mode==='code'){if(pin===LK.code){LK.code='';sec.signedOut=false;sec.tries=0;save();LK.mode='set1';LK.after='reset';LK.err='';drawLock();return}
     LK.err='That code isn’t right. Check your email and try again.';drawLock();return}
 }
@@ -2098,10 +2098,10 @@ document.getElementById('lock').addEventListener('click',e=>{const b=e.target.cl
 });
 document.getElementById('lock').addEventListener('input',e=>{if(e.target.id==='lkEmail')LK.emailIn=e.target.value});
 document.addEventListener('keydown',e=>{if(!LK.on||!PADMODES.includes(LK.mode)||e.target.tagName==='INPUT')return;if(/^\d$/.test(e.key)){e.preventDefault();lockDigit(e.key)}else if(e.key==='Backspace'){e.preventDefault();lockDigit('⌫')}},true);
-const lockNeeded=()=>{const s=SEC();return !!(s.hash&&S.setupDone)};
+const lockNeeded=()=>{const s=SEC();return !!(s.hash&&(S.setupDone||BOOT))};
 function lockIfAway(){const s=SEC();if(!lockNeeded()||LK.on)return;const away=s.awayAt?(Date.now()-s.awayAt)/60000:Infinity;if(away>=(s.lockAfter||0))lockOpen(s.signedOut?'signedout':'unlock')}
 document.addEventListener('visibilitychange',()=>{const s=SEC();if(document.visibilityState==='hidden'){s.awayAt=Date.now();save()}else lockIfAway()});
-function lockOnLoad(){const s=SEC();if(s.signedOut){lockOpen('signedout');return}if(lockNeeded()){s.awayAt=null;lockOpen('unlock')}}
+function lockOnLoad(){const s=SEC();if(s.signedOut){lockOpen('signedout');return}if(BOOT&&!s.hash){lockOpen('set1','first');return}if(lockNeeded()){s.awayAt=null;lockOpen('unlock')}}
 let DL=null;
 try{if(window.claude&&typeof window.claude.use==='function')window.claude.use('downloads').then(d=>{DL=d||null}).catch(()=>{})}catch(e){}
 render();

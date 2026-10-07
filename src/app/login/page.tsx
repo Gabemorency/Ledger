@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { supabaseEnabled } from "@/lib/supabase/env";
 import LoginForm from "./login-form";
 
-export const metadata: Metadata = { title: "Sign in · Ledger" };
+export const metadata: Metadata = { title: "Confirm it’s you · Ledger" };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (!supabaseEnabled) redirect("/"); // demo mode has no accounts

@@ -50,8 +50,11 @@ export default function LoginForm({ linkFailed = false }: { linkFailed?: boolean
   if (step === "email")
     return (
       <form onSubmit={sendCode} noValidate>
-        <h1 className="authtitle">Sign in</h1>
-        <p className="sub">We’ll email you a code. No password needed.</p>
+        <h1 className="authtitle">Confirm it’s you</h1>
+        <p className="sub">
+          New device, or forgot your PIN? Enter your email and we’ll send a code. After that you’ll open Ledger with
+          your PIN.
+        </p>
         <label className="field">
           <span>Email</span>
           <input
@@ -94,7 +97,7 @@ export default function LoginForm({ linkFailed = false }: { linkFailed?: boolean
         {error}
       </p>
       <button className="btn full" disabled={busy}>
-        {busy ? "Checking…" : "Sign in"}
+        {busy ? "Checking…" : "Continue"}
       </button>
       <div className="llinks">
         <button type="button" onClick={() => sendCode()} disabled={busy}>

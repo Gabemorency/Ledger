@@ -12,8 +12,8 @@ const U1 = "aaaaaaaa-0000-4000-8000-000000000001";
 const sql = (q) => execSync(`psql -Atc "${q}"`).toString().trim();
 const baseline = JSON.parse(readFileSync(`${HERE}../baseline.json`, "utf8"));
 const seed = JSON.parse(readFileSync(`${HERE}seed.json`, "utf8"));
-let pass = 0, fail = 0;
-const check = (name, ok, extra = "") => { ok ? pass++ : fail++; console.log(`${ok ? "PASS" : "FAIL"} ${name}${extra ? "  " + extra : ""}`); };
+let passed = 0, failed = 0;
+const check = (name, ok, extra = "") => { ok ? passed++ : failed++; console.log(`${ok ? "PASS" : "FAIL"} ${name}${extra ? "  " + extra : ""}`); };
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 async function device() {
@@ -32,7 +32,23 @@ async function signIn(page, email, code = "123456") {
   await page.click("button:has-text('Email me a code')");
   await page.waitForSelector("input[autocomplete=one-time-code]");
   await page.fill("input[autocomplete=one-time-code]", code);
-  await page.click("button:has-text('Sign in')");
+  await page.click("button:has-text('Continue')");
+}
+const PIN = "135790";
+const typePin = async (page, pin = PIN) => {
+  for (const d of pin) await page.click(`#lock button[data-lk="${d}"]`);
+};
+const lockTitle = (page) => page.$eval("#lock", (e) => (e.hidden ? "" : e.querySelector("h2")?.textContent || ""));
+/** Get past the PIN screen: choose a PIN on a newly confirmed device, else enter it. */
+async function getPastPin(page) {
+  await page.waitForSelector("#app *");
+  await page.waitForTimeout(200);
+  const t = await lockTitle(page);
+  if (t.startsWith("Choose")) {
+    await typePin(page);
+    await typePin(page);
+  } else if (t.startsWith("Enter your PIN")) await typePin(page);
+  await page.waitForFunction(() => document.getElementById("lock").hidden);
 }
 const go = (page, v) => page.evaluate((v) => { const b = document.createElement("button"); b.dataset.go = v; document.getElementById("app").appendChild(b); b.click(); b.remove(); }, v);
 const saved = (page) => page.waitForFunction(() => document.getElementById("syncPill")?.dataset.s === "saved", null, { timeout: 15000 });
@@ -55,9 +71,15 @@ await signIn(A.page, "me@example.com", "000000");
 await A.page.waitForSelector("text=That code didn’t work");
 check("wrong code is rejected", A.page.url().endsWith("/login"));
 await A.page.fill("input[autocomplete=one-time-code]", "123456");
-await A.page.click("button:has-text('Sign in')");
+await A.page.click("button:has-text('Continue')");
 await A.page.waitForURL(APP + "/");
 await A.page.waitForSelector("#app *");
+await A.page.waitForTimeout(200);
+check("a newly confirmed device must choose a PIN", (await lockTitle(A.page)).startsWith("Choose a 6-digit PIN"));
+check("…with no way to skip it", (await A.page.$$("#lock [data-lka=cancel]")).length === 0);
+await typePin(A.page, "111111");
+check("too-easy PINs are refused", (await A.page.$eval("#lock", (e) => e.textContent)).includes("too easy"));
+await getPastPin(A.page);
 await saved(A.page);
 check("new account opens setup", (await appHTML(A.page)).includes("Set"), "");
 check("new account gets a settings row", sql(`select count(*) from settings where user_id='${U1}'`) === "1");
@@ -65,7 +87,7 @@ if (OUT) await A.page.screenshot({ path: `${OUT}/cloud-setup.png` });
 
 // 2. a device with unsent changes (157 sample entries) uploads them
 await setDeviceCopy(A.page, { state: { ...seed, view: "home" }, pending: true, rev: "" });
-await A.page.waitForSelector("#app *");
+await getPastPin(A.page);
 await saved(A.page);
 check("all entries uploaded", sql(`select count(*) from entries where user_id='${U1}'`) === String(seed.tx.length), sql(`select count(*) from entries`));
 check("accounts uploaded with exact balances", sql(`select balance from accounts where user_id='${U1}' and id='a1'`) === seed.accounts.find((a) => a.id === "a1").balance.toFixed(2));
@@ -73,16 +95,25 @@ check("goal order kept", sql(`select string_agg(id, ',' order by position) from 
 
 // 3. a fresh load comes entirely from the cloud and renders identically to the original app
 await setDeviceCopy(A.page, null);
-await A.page.waitForSelector("#app *");
+await getPastPin(A.page);
 await A.page.waitForTimeout(300);
 for (const v of ["home", "trends", "goals", "activity", "accounts", "config"]) {
   if (v !== "home") await go(A.page, v);
   await A.page.waitForTimeout(150);
   let html = await appHTML(A.page);
-  if (v === "config") html = html.replace(/<p class="sub"[^>]*>Your data is saved[\s\S]*?<\/p>/, "").replace(/<p class="sub"[^>]*>This is a demo[\s\S]*?<button class="btn ghost full" id="reset">Reset sample data<\/button>/, "");
+  const noSecurity = (h) => h.replace(/<h2 id="secsec">[\s\S]*?<\/div>\s*<\/div>\s*(?=<h2)/, "");
+  if (v === "config") html = noSecurity(html).replace(/<p class="sub"[^>]*>Your data is saved[\s\S]*?<\/p>/, "").replace(/<p class="sub"[^>]*>This is a demo[\s\S]*?<button class="btn ghost full" id="reset">Reset sample data<\/button>/, "");
   let base = baseline[v];
-  if (v === "config") base = base.replace(/<p class="sub"[^>]*>This is a demo[\s\S]*?<button class="btn ghost full" id="reset">Reset sample data<\/button>/, "");
-  check(`cloud-loaded "${v}" screen matches the original`, html.replace(/\s+/g, " ") === base.replace(/\s+/g, " "));
+  if (v === "config") base = noSecurity(base).replace(/<p class="sub"[^>]*>This is a demo[\s\S]*?<button class="btn ghost full" id="reset">Reset sample data<\/button>/, "");
+  // Expected differences: setting the PIN ticks a getting-started step and writes change-log entries.
+  const known = (h) =>
+    h
+      .replace(/\s+/g, " ")
+      .replace(/<section class="dcard dc-start">[\s\S]*?<\/section>/, "GETTING STARTED")
+      .replace(/\d+ changes? recorded/, "N changes recorded");
+  const same = known(html) === known(base);
+  if (!same && process.env.DUMP) (await import("node:fs")).writeFileSync(`${process.env.DUMP}/cloud-${v}.html`, html);
+  check(`cloud-loaded "${v}" screen matches the original`, same);
 }
 await go(A.page, "home");
 
@@ -99,7 +130,7 @@ check("new ids are random UUIDs", /^i[0-9a-f]{32}$/.test(sql(`select id from ent
 const B = await device();
 await signIn(B.page, "other@example.com");
 await B.page.waitForURL(APP + "/");
-await B.page.waitForSelector("#app *");
+await getPastPin(B.page);
 await saved(B.page);
 check("second user starts empty (RLS)", !(await appHTML(B.page)).includes("Publix"));
 check("second user's rows are separate", sql(`select count(*) from entries where user_id<>'${U1}'`) === "0");
@@ -108,7 +139,7 @@ check("second user's rows are separate", sql(`select count(*) from entries where
 const C = await device();
 await signIn(C.page, "me@example.com");
 await C.page.waitForURL(APP + "/");
-await C.page.waitForSelector("#app *");
+await getPastPin(C.page);
 await go(C.page, "activity");
 check("second device loads the same data", (await appHTML(C.page)).includes("12.50"));
 await A.page.click("#addBtn");
@@ -121,7 +152,8 @@ await C.page.clock.setFixedTime(new Date("2026-10-07T12:01:00"));
 const reloaded = C.page.waitForEvent("load", { timeout: 10000 }).then(() => true, () => false);
 await C.page.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" }); document.dispatchEvent(new Event("visibilitychange")); });
 check("second device reloads when it comes back after another device saved", await reloaded);
-await C.page.waitForSelector("#app *");
+check("…and asks for the PIN again", (await (async () => { await C.page.waitForSelector("#app *"); await C.page.waitForTimeout(200); return lockTitle(C.page); })()).startsWith("Enter your PIN"));
+await getPastPin(C.page);
 await go(C.page, "activity");
 check("…and shows the new entry", (await appHTML(C.page)).includes("$7.00"));
 
@@ -139,7 +171,25 @@ await A.ctx.setOffline(false);
 await saved(A.page);
 check("uploaded once back online", Number(sql(`select count(*) from entries where user_id='${U1}'`)) === Number(before) + 1);
 
-// 8. sign out
+// 8. PIN rules: can't be turned off; 5 wrong tries signs the device out
+await go(C.page, "config");
+check("settings can't turn the PIN off", !(await appHTML(C.page)).includes('data-act="pinOff"'));
+await C.page.reload();
+await C.page.waitForSelector("#app *");
+await C.page.waitForTimeout(200);
+for (let i = 0; i < 5; i++) await typePin(C.page, "246802");
+check("5 wrong PINs lock the device out", (await lockTitle(C.page)).includes("signed out"));
+await C.page.click("#lock [data-lka=send]");
+await C.page.waitForURL("**/login");
+check("…and confirming email again is the way back in", true);
+await signIn(C.page, "me@example.com");
+await C.page.waitForURL(APP + "/");
+await C.page.waitForSelector("#app *");
+await C.page.waitForTimeout(200);
+check("…after which a new PIN is chosen", (await lockTitle(C.page)).startsWith("Choose"));
+await getPastPin(C.page);
+
+// 9. sign out
 await A.page.click("[data-menu]");
 check("menu shows who is signed in", (await appHTML(A.page)).includes("me@example.com"));
 if (OUT) await A.page.screenshot({ path: `${OUT}/cloud-menu.png` });
@@ -151,6 +201,6 @@ await A.page.goto(APP + "/");
 check("signed-out device can't open the app", A.page.url().endsWith("/login"));
 
 for (const [n, d] of [["A", A], ["B", B], ["C", C]]) check(`no page errors on device ${n}`, d.page.errors.length === 0, d.page.errors.slice(0, 3).join(" | "));
-console.log(`\n${pass} passed, ${fail} failed`);
+console.log(`\n${passed} passed, ${failed} failed`);
 await browser.close();
-process.exit(fail ? 1 : 0);
+process.exit(failed ? 1 : 0);

@@ -49,9 +49,10 @@ export default function LegacyApp() {
     }
     let cancelled = false;
     (async () => {
-      const [{ createClient }, cloud] = await Promise.all([
+      const [{ createClient }, cloud, { LOCAL_ONLY }] = await Promise.all([
         import("@/lib/supabase/client"),
         import("@/lib/sync/cloud"),
+        import("@/lib/sync/rows"),
       ]);
       const sb = createClient();
       const { data } = await sb.auth.getSession();
@@ -72,6 +73,9 @@ export default function LegacyApp() {
       if (cached?.pending) state = cached.state;
       else if (remote) state = remote.state;
       else state = cached?.state ?? null;
+      // The PIN and open screen never leave this device: keep them from its copy.
+      if (state && cached?.state && state !== cached.state)
+        for (const k of LOCAL_ONLY) if (cached.state[k] !== undefined) state = { ...state, [k]: cached.state[k] };
 
       const sync = new cloud.CloudSync(sb, user.id, remote ? remote.state : null, remote?.rev ?? cached?.rev ?? "", showStatus);
       if (!remote) showStatus("offline");
