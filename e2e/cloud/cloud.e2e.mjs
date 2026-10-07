@@ -29,7 +29,7 @@ async function signIn(page, email, code = "123456") {
   await page.goto(APP + "/");
   await page.waitForURL("**/login");
   await page.fill('input[type=email]', email);
-  await page.click("button:has-text('Email me a link')");
+  await page.click("button:has-text('Email me a code')");
   await page.waitForSelector("input[autocomplete=one-time-code]");
   await page.fill("input[autocomplete=one-time-code]", code);
   await page.click("button:has-text('Continue')");
@@ -175,8 +175,8 @@ check("uploaded once back online", Number(sql(`select count(*) from entries wher
 const D = await device();
 await D.page.goto(APP + "/login");
 await D.page.fill("input[type=email]", "me@example.com");
-await D.page.click("button:has-text('Email me a link')");
-await D.page.waitForSelector("text=on this device, in this browser");
+await D.page.click("button:has-text('Email me a code')");
+await D.page.waitForSelector("text=On this same device and browser");
 const { link } = await (await fetch("http://localhost:54321/auth/v1/__test/link?email=me@example.com")).json();
 check("the email link points at this app", Boolean(link) && link.startsWith(APP + "/auth/confirm?code="), link);
 const E = await device(); // a different browser
