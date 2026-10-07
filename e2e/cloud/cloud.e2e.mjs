@@ -52,6 +52,14 @@ async function getPastPin(page) {
 }
 const go = (page, v) => page.evaluate((v) => { const b = document.createElement("button"); b.dataset.go = v; document.getElementById("app").appendChild(b); b.click(); b.remove(); }, v);
 const saved = (page) => page.waitForFunction(() => document.getElementById("syncPill")?.dataset.s === "saved", null, { timeout: 15000 });
+/** Poll until fn() is true (e.g. a database change after a debounced upload), up to 15s. */
+async function eventually(fn) {
+  for (let i = 0; i < 60; i++) {
+    if (await fn()) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+}
 const appHTML = (page) => page.$eval("#app", (e) => e.innerHTML);
 // Change this device's stored copy while the app isn't running (leaving the app saves it).
 async function setDeviceCopy(page, value) {
@@ -213,7 +221,34 @@ await C.page.waitForTimeout(200);
 check("…after which a new PIN is chosen", (await lockTitle(C.page)).startsWith("Choose"));
 await getPastPin(C.page);
 
-// 10. sign out
+// 10. erasing everything takes your email, a second confirmation and your PIN, and empties the cloud
+await go(D.page, "config");
+await D.page.click('[data-act="erase"]');
+await D.page.waitForSelector("#mBg.open");
+check("erase asks for your email", (await D.page.$eval("#mX", (e) => e.textContent)).includes("me@example.com"));
+await D.page.fill("#mWord", "someone@else.com");
+check("…and won't continue with the wrong one", await D.page.$eval("#mYes", (b) => b.disabled));
+await D.page.fill("#mWord", "Me@Example.com");
+await D.page.click("#mYes");
+await D.page.waitForSelector("text=Are you absolutely sure?");
+check("then asks a second time, counting what will go", (await D.page.$eval("#mL", (e) => e.textContent)).includes("entries"));
+await D.page.click("#mNo");
+check("'Keep my data' backs out", sql(`select count(*) from entries where user_id='${U1}'`) !== "0");
+await D.page.click('[data-act="erase"]');
+await D.page.fill("#mWord", "me@example.com");
+await D.page.click("#mYes");
+await D.page.waitForSelector("text=Are you absolutely sure?");
+await D.page.click("#mYes");
+await D.page.waitForTimeout(200);
+check("then asks for the PIN", (await lockTitle(D.page)).startsWith("Enter your current PIN"));
+await typePin(D.page);
+check(
+  "erase empties the cloud",
+  await eventually(() => sql(`select count(*) from entries where user_id='${U1}'`) === "0" && sql(`select count(*) from accounts where user_id='${U1}'`) === "0"),
+);
+check("…and starts setup", (await appHTML(D.page)).includes("set up your budget"));
+
+// 11. sign out
 await A.page.click("[data-menu]");
 check("menu shows who is signed in", (await appHTML(A.page)).includes("me@example.com"));
 if (OUT) await A.page.screenshot({ path: `${OUT}/cloud-menu.png` });

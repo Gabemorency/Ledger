@@ -268,7 +268,7 @@ function confirmBox(title,lines,okLabel,onOk,opt){
   document.getElementById('mT').textContent=title;
   document.getElementById('mL').innerHTML=lines.map(l=>`<li>${l}</li>`).join('');
   document.getElementById('mX').innerHTML=(opt.input?`<label class="field"><span>${opt.input.label}</span><input type="number" inputmode="decimal" id="mIn" value="${opt.input.value}"></label>`:'')
-    +(opt.word?`<label class="field"><span>Type <b>${opt.word}</b> to confirm</span><input type="text" id="mWord" autocomplete="off" autocapitalize="off" spellcheck="false"></label>`:'')
+    +(opt.word?`<label class="field"><span>Type <b>${opt.word}</b> to confirm</span><input type="text" ${opt.word.includes('@')?'inputmode="email"':''} id="mWord" autocomplete="off" autocapitalize="off" spellcheck="false"></label>`:'')
     +(opt.select?`<label class="field"><span>${opt.select.label}</span><select id="mSel">${opt.select.options.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select></label>`:'')
     +(opt.multi?`<p class="lbl" style="margin:10px 0 4px">${opt.multi.label}</p>${opt.multi.rows.map(r=>`<label class="mcrow"><span>${esc(r.label)}<small>${money(r.max,true)} left</small></span><input type="number" inputmode="decimal" class="mcIn" data-id="${r.id}" data-max="${r.max}" value="${r.value||''}" placeholder="0" aria-label="Amount from ${esc(r.label)}"></label>`).join('')}<p class="mctot" id="mcTot"></p>`:'');
   mMulti=opt.multi||null;if(mMulti)updMulti();
@@ -1703,7 +1703,15 @@ function handleAct(t){
     R.applies.forEach(f=>f());S.setupDone=true;
     logIt([(rerun?'Setup run again':'Setup completed')+(n?`, ${n} change${n===1?'':'s'}`:', no changes')].concat(R.secs.flatMap(x=>x.ch.map(c=>'Setup — '+c.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>')))));
     resetUI();S.view='home';render();window.scrollTo(0,0);toast(rerun?(n?'Setup saved':'No changes made'):'You’re all set. Tap + to log your first entry.');return}
-  if(a==='erase'){confirmBox('Erase everything and start fresh?',['Deletes every entry, account, goal, budget, and setting in this app','This can’t be undone','Setup starts right after'],'Erase everything',()=>{if(SEC().hash){lockOpen('verify','erase');return}doErase()},{danger:true});return}
+  if(a==='erase'){
+    /* three checks: type your email, confirm again, then your PIN */
+    const word=(BOOT&&BOOT.email?BOOT.email:'erase').toLowerCase();
+    const n=(k,one,many)=>{const c=(S[k]||[]).length;return `${c} ${c===1?one:many}`};
+    confirmBox('Erase everything and start fresh?',['Deletes every entry, account, goal, budget, and setting'+(BOOT?', on every device':''),'This can’t be undone'],'Continue',()=>
+      setTimeout(()=>confirmBox('Are you absolutely sure?',[`${n('tx','entry','entries')}, ${n('accounts','account','accounts')} and ${n('goals','goal','goals')} will be gone for good`,'There’s no undo and no backup unless you downloaded one','Last step after this: your PIN'],'Yes, erase everything',()=>{
+        if(SEC().hash){lockOpen('verify','erase');return}doErase()},{danger:true,cancel:'Keep my data'}),60),
+      {danger:true,word,cancel:'Keep my data'});
+    return}
   if(a==='reopen'){
     const K=t.dataset.m,list=S.closed.filter(m=>m>=K).sort().reverse(),snaps=list.map(m=>S.snapshots.find(x=>x.key===m)).filter(Boolean);
     const corr=snaps.flatMap(sn=>(sn.corr||[]).map(c=>Object.assign({m:sn.key},c)));
