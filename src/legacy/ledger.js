@@ -22,12 +22,12 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 let uid=1000; const id=()=>BOOT?'i'+crypto.randomUUID().replace(/-/g,''):'i'+(uid++)+Math.random().toString(36).slice(2,6);
 
 const DASH_CARDS={start:'Getting started',payday:'Payday transfers',checkin:'Weekly check-in',cardpay:'Credit card statement',networth:'Net worth',overview:'Account totals',plan:'Plan check',spending:'Spending',fixed:'Fixed costs',annual:'Annual budgets',latest:'Latest entries'};
-const defaultDash=()=>({order:['start','payday','checkin','cardpay','networth','overview','goal:g3','plan','spending','fixed','debt:a6','annual','latest'],hidden:[]});
+const defaultDash=()=>({order:['start','payday','checkin','cardpay','spending','networth','goal:g3','plan','overview','fixed','debt:a6','annual','latest'],hidden:[]});
 function blankPlan(){return {income:0,deposit:null,payDefault:null,framework:'csp',inc:{grossAnnual:0,pretax:0,net:0,extra:0},
   custom:[{name:'Fixed costs',roles:['need'],min:50,max:60},{name:'Investments',roles:['invest'],min:10,max:10},{name:'Savings',roles:['save'],min:5,max:10},{name:'Guilt-free spending',roles:['want'],min:20,max:35}]}}
 function blank(){
   return {view:'setup',setupDone:false,tips:true,did:{},payday:[],gsSkip:[],plan:blankPlan(),categories:[],fixed:[],accounts:[],assets:[],tx:[],goals:[],snapshots:[],closed:[],log:[],
-    dash:{order:['networth','overview','plan','spending','fixed','annual','latest'],hidden:[]},
+    dash:{order:['spending','networth','plan','overview','fixed','annual','latest'],hidden:[]},
     notif:{b80:true,over:true,goals:true,due:true,close:true,daily:false,weekly:true}};
 }
 function seed(){
@@ -40,7 +40,7 @@ function seed(){
   /* six months of history */
   for(let k=6;k>=1;k--){const {y,m}=mo(k);const D=dd=>iso(y,m,dd);
     [1,15].forEach(pd=>{tx.push(T({date:D(pd),vendor:'Paycheck',amount:1250,kind:'income',acct:'a1'}));tx.push(T({date:D(pd),vendor:'Tithe/offering',amount:125,kind:'fixed',fixedId:'f1',acct:'a1'}))});
-    if(k%3===0)tx.push(T({date:D(20),vendor:'Tutoring',amount:between(120,220),kind:'income',acct:'a2'}));
+    if(k%3===0)tx.push(T({date:D(20),vendor:'Tutoring',amount:between(120,220),kind:'income',acct:'a2',src:'side'}));
     tx.push(T({date:D(2),vendor:'Phone',amount:65,kind:'fixed',fixedId:'f2',acct:'a1'}));
     tx.push(T({date:D(10),vendor:'Car insurance',amount:120,kind:'fixed',fixedId:'f3',acct:'a1'}));
     tx.push(T({date:D(12),vendor:'Spotify',amount:12,kind:'fixed',fixedId:'f4',acct:'a4'}));
@@ -307,6 +307,7 @@ function txDetail(t){
   L.push(['Date',new Date(t.date+'T00:00').toLocaleDateString('en-US',{weekday:'short',month:'long',day:'numeric',year:'numeric'})]);
   L.push(['Amount',money(t.amount,true)]);
   if(t.kind==='expense')L.push(['Category',cat(t.cat).name]);
+  if(t.kind==='income')L.push(['Kind',t.src==='side'?'Side income':'Salary']);
   if(t.from&&t.to&&t.kind==='transfer')L.push(['From → to',aName(t.from)+' → '+aName(t.to)]);
   else if(t.acct)L.push(['Account',aName(t.acct)+(t.to?' → '+aName(t.to):'')]);
   if(t.goal&&goal(t.goal))L.push(['Goal',goal(t.goal).name]);
@@ -453,6 +454,7 @@ function pinCard(key){
       <div class="actions"><button class="btn small ghost" data-go="accounts">Open in Accounts</button></div></div>`}
   return null;
 }
+const DASH_TOP=4;
 V.home=()=>{
   if(!S.setupDone)return V.setup();
   const C=homeCards();
@@ -463,7 +465,10 @@ V.home=()=>{
   <p class="sub">${monthName(now,{month:'long',year:'numeric'})}</p>
   <h1>Dashboard</h1>
   ${closeBanner()}
-  <div class="dgrid">${shown.map(k=>{const h=C[k]?C[k]():pinCard(k);return h?`<section class="dcard dc-${k.replace(':','-')}">${h}</section>`:''}).join('')}</div>
+  ${(()=>{const cards=shown.map(k=>{const h=C[k]?C[k]():pinCard(k);return h?`<section class="dcard dc-${k.replace(':','-')}">${h}</section>`:''}).filter(Boolean);
+    const top=cards.slice(0,DASH_TOP),rest=cards.slice(DASH_TOP);
+    return `<div class="dgrid">${top.join('')}${UI.dashMore?rest.map(c=>c.replace('<section class="dcard','<section class="dcard dc-more')).join(''):''}</div>
+    ${rest.length?`<button class="morebtn" data-dashmore aria-expanded="${!!UI.dashMore}">${UI.dashMore?'Show less':`Show ${rest.length} more`}<span class="chev">${UI.dashMore?'⌃':'⌄'}</span></button>`:''}`})()}
   ${shown.length?'':`<div class="panel emptycard"><b>Every card is hidden.</b><p class="sub">Turn some back on in Settings, under Dashboard.</p></div>`}
 `;
 };
@@ -1084,9 +1089,9 @@ let lastView=null;
 const TR={range:6,cat:null};
 const CH={};
 function monthStats(m){
-  const o={m,income:0,spend:0,planned:0,interest:0,save:0,invest:0,need:0,want:0,byCat:{},cnt:{},vend:{},plannedList:[]};
+  const o={m,income:0,side:0,spend:0,planned:0,interest:0,save:0,invest:0,need:0,want:0,byCat:{},cnt:{},vend:{},plannedList:[]};
   S.tx.forEach(t=>{if(!inMonth(t,m))return;
-    if(t.kind==='income'){o.income+=t.amount;return}
+    if(t.kind==='income'){o.income+=t.amount;if(t.src==='side')o.side+=t.amount;return}
     if(t.kind==='expense'){const c=cat(t.cat);const r=(c&&c.role)||'want';o.spend+=t.amount;o.byCat[t.cat]=(o.byCat[t.cat]||0)+t.amount;o.cnt[t.cat]=(o.cnt[t.cat]||0)+1;o.vend[t.vendor]=(o.vend[t.vendor]||0)+t.amount;
       o[r]=(o[r]||0)+t.amount;return}
     if(t.kind==='fixed'){const f=S.fixed.find(x=>x.id===t.fixedId);const r=(f&&f.role)||'need';if(!t.to)o.spend+=t.amount;o[r]=(o[r]||0)+t.amount;return}
@@ -1176,7 +1181,7 @@ V.trends=()=>{
   const full=st.filter(x=>x.m!==thisM),fullM=full.map(x=>x.m),nf=Math.max(1,full.length);
   const nw=months.map(m=>{if(m===thisM)return netOf();const sn=S.snapshots.find(x=>x.key===m);return sn?netOf(sn.bal):null});
   const nwVals=nw.filter(v=>v!=null),nwChg=nwVals.length>1?nwVals[nwVals.length-1]-nwVals[0]:0;
-  const avgSpend=full.reduce((a,x)=>a+x.spend,0)/nf, avgInc=full.reduce((a,x)=>a+x.income,0)/nf;
+  const avgSpend=full.reduce((a,x)=>a+x.spend,0)/nf, avgInc=full.reduce((a,x)=>a+x.income,0)/nf, avgSide=full.reduce((a,x)=>a+x.side,0)/nf;
   const rate=full.map(x=>x.income?(x.income-x.spend)/x.income*100:null), avgRate=avgInc?(avgInc-avgSpend)/avgInc*100:0;
   const cats=liveCats().concat(S.categories.filter(c=>c.archived&&st.some(x=>x.byCat[c.id])));
   if(!TR.cat||!cat(TR.cat))TR.cat=(cats[0]||{}).id;
@@ -1195,7 +1200,7 @@ V.trends=()=>{
   <div class="ovgrid">
     ${stat('Net worth change',(nwChg>=0?'+':'')+money(nwChg),`across ${nwVals.length} recorded months`,nwChg>=0?'up':'down')}
     ${stat('Avg. spending',money(avgSpend),'per full month')}
-    ${stat('Avg. income',money(avgInc),'per full month')}
+    ${stat('Avg. income',money(avgInc),avgSide>0.5?`per full month, ${money(avgSide)} of it side income`:'per full month')}
     ${stat('Avg. savings rate',Math.round(avgRate)+'%','income not spent')}
   </div>
 
@@ -1462,9 +1467,20 @@ function appBar(){
   return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${!!UI.menu}" aria-label="Menu">☰ Menu</button></div>
     ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}${BOOT?`<div class="who">Signed in as ${esc(BOOT.email)}</div><button role="menuitem" data-signout><span class="mi">⎋</span>Sign out</button>`:''}</div>`:''}`;
 }
+const REDUCED=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* headline money figures count up from zero when a screen opens */
+function countUp(root){
+  root.querySelectorAll('.networth > .num, .ovv.num').forEach(el=>{
+    const m=/^(-?)\$([\d,]+)(\.\d\d)?$/.exec(el.textContent.trim());if(!m)return;
+    const end=(m[1]?-1:1)*parseFloat(m[2].replace(/,/g,'')+(m[3]||'')),cents=!!m[3],t0=performance.now(),dur=650,final=el.textContent;
+    const step=t=>{if(!el.isConnected)return;const p=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-p,3);el.textContent=p<1?money(end*e,cents):final;if(p<1)requestAnimationFrame(step)};
+    requestAnimationFrame(step);
+  });
+}
 function render(){
   MEMO=null;const y=window.scrollY||0,same=lastView===S.view;lastView=S.view;
   const app=document.getElementById('app');app.dataset.view=S.view;app.innerHTML=appBar()+V[S.view]();
+  if(!same&&!REDUCED){app.classList.remove('enter');void app.offsetWidth;app.classList.add('enter');countUp(app)}
   document.querySelectorAll('nav [data-view]').forEach(b=>{if(b.dataset.view===S.view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   if(same&&window.scrollTo)window.scrollTo(0,y);
   const gd=document.getElementById('gDate');if(gd){const d=new Date(now);d.setMonth(d.getMonth()+6);gd.value=d.toISOString().slice(0,10)}
@@ -1617,6 +1633,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.see){setMonth(t.dataset.see);F.cat=t.dataset.seecat||'all';F.q=t.dataset.seeq||'';F.type='all';F.acct='all';resetUI();S.view='activity';render();window.scrollTo(0,0);return}
   if(t.dataset.range){Object.keys(CH).forEach(k=>delete CH[k]);TR.range=t.dataset.range==='all'?'all':+t.dataset.range;render();return}
   if(t.dataset.menu!==undefined){UI.menu=!UI.menu;render();return}
+  if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
   if(t.dataset.signout!==undefined&&BOOT){BOOT.signOut();return}
   if(t.dataset.go){resetUI();S.view=t.dataset.go;if(t.dataset.help)UI.help=t.dataset.help;render();window.scrollTo(0,0);const an=t.dataset.anchor&&document.getElementById(t.dataset.anchor);if(an)an.scrollIntoView({block:'start'});return}
   if(t.dataset.txopen){UI.txOpen=UI.txOpen===t.dataset.txopen?null:t.dataset.txopen;render();return}
@@ -1887,8 +1904,8 @@ let SHEET_OK=false;
 function openSheet(tx){
   if(!liveAccts().some(a=>a.type!=='debt')){toast('Finish setup first, so entries have an account to go to');resetUI();S.view='setup';render();return}
   const live=liveAccts();const to=((live.find(a=>a.type==='savings')||live[1]||live[0])||{}).id;
-  A={kind:'expense',amt:'',cat:null,vendor:'',date:todayISO,acct:S.plan.payDefault,from:S.plan.deposit,to,auto:'',editId:null};
-  if(tx&&tx.id)Object.assign(A,{kind:tx.kind,amt:String(tx.amount),cat:tx.cat||null,vendor:tx.vendor||'',date:tx.date,acct:tx.acct,editId:tx.id});
+  A={kind:'expense',amt:'',cat:null,vendor:'',date:todayISO,acct:S.plan.payDefault,from:S.plan.deposit,to,auto:'',editId:null,src:'salary'};
+  if(tx&&tx.id)Object.assign(A,{kind:tx.kind,amt:String(tx.amount),cat:tx.cat||null,vendor:tx.vendor||'',date:tx.date,acct:tx.acct,editId:tx.id,src:tx.src||'salary'});
   drawSheet();
   document.getElementById('sheet').classList.add('open');document.getElementById('sheetBg').classList.add('open');
 }
@@ -1920,7 +1937,8 @@ function drawSheet(){
     <p class="lbl">Category</p><div class="chips">${cats.map(c=>`<button class="chip" data-cat="${c.id}" aria-pressed="${A.cat===c.id}">${esc(c.name)}</button>`).join('')}</div>
     <p class="lbl">Paid with</p>${chipsAcct('acct',payAccts().concat(all.filter(a=>a.id===A.acct&&!a.pay)))}`:''}
   ${A.kind==='income'?`
-    <label class="field" style="margin:0"><span>Source</span><input type="text" id="aVendor" value="${esc(A.vendor)}" placeholder="Paycheck"></label>
+    <p class="lbl" style="margin-top:0">Kind of income</p><div class="chips small">${[['salary','Salary'],['side','Side income']].map(([k,l])=>`<button class="chip" data-src="${k}" aria-pressed="${A.src===k}">${l}</button>`).join('')}</div>
+    <label class="field" style="margin:0"><span>Source</span><input type="text" id="aVendor" value="${esc(A.vendor)}" placeholder="${A.src==='side'?'Tutoring':'Paycheck'}"></label>
     <p class="lbl">Deposited to</p>${chipsAcct('acct',nonDebt)}`:''}
   ${A.kind==='transfer'&&all.length<2?`<p class="hint">You need two accounts to move money between them. Add another in Settings.</p>`:''}
   ${A.kind==='transfer'&&all.length>=2?`
@@ -1952,6 +1970,7 @@ document.getElementById('sheet').addEventListener('click',e=>{
   if(b.dataset.kind){A.kind=b.dataset.kind;A.auto='';if(A.kind==='income'){A.acct=S.plan.deposit;if(!A.vendor)A.vendor='Paycheck'}else if(A.kind==='expense'&&!acct(A.acct).pay)A.acct=S.plan.payDefault;else if(A.vendor==='Paycheck')A.vendor='';if(A.kind==='transfer'&&(A.to===A.from||!A.to))A.to=((liveAccts().find(x=>x.id!==A.from&&x.type==='savings')||liveAccts().find(x=>x.id!==A.from))||{}).id||null;drawSheet();return}
   if(b.dataset.cat){A.cat=b.dataset.cat;A.auto='';const ca=cat(A.cat).acct&&acct(cat(A.cat).acct);if(ca&&!ca.archived&&ca.pay&&!A.editId){A.acct=ca.id;A.auto=`${esc(cat(A.cat).name)} is usually paid from ${esc(ca.name)}`}drawSheet();return}
   if(b.dataset.acct){A.acct=b.dataset.acct;drawSheet();return}
+  if(b.dataset.src){A.src=b.dataset.src;drawSheet();return}
   if(b.dataset.from){A.from=b.dataset.from;if(A.to===A.from)A.to=((liveAccts().find(x=>x.id!==A.from&&x.type==='savings')||liveAccts().find(x=>x.id!==A.from))||{}).id||null;drawSheet();return}
   if(b.dataset.to){A.to=b.dataset.to;drawSheet();return}
   if(b.dataset.k){const k=b.dataset.k;
@@ -1970,13 +1989,14 @@ document.getElementById('sheet').addEventListener('click',e=>{
       const pd=[];if(before.amount!==v)pd.push('Amount: '+money(before.amount,true)+' → '+money(v,true));if(before.date!==A.date)pd.push('Date: '+fmtD(before.date)+' → '+fmtD(A.date));
       if(before.acct!==A.acct)pd.push('Account: '+aName(before.acct)+' → '+aName(A.acct));if(t.kind==='expense'&&before.cat!==A.cat)pd.push('Category: '+cat(before.cat).name+' → '+cat(A.cat).name);
       if((t.kind==='expense'||t.kind==='income')&&nv!==before.vendor)pd.push('Name: '+(before.vendor||'—')+' → '+nv);
+      if(t.kind==='income'&&(t.src||'salary')!==A.src)pd.push('Kind: '+(t.src==='side'?'Side income':'Salary')+' → '+(A.src==='side'?'Side income':'Salary'));
       if(!pd.length){closeSheet();toast('No changes to save');return}
       if(!SHEET_OK){confirmBox('Save changes to this entry?',pd.map(esc).concat(['Account balances update to match']),'Save changes',()=>{SHEET_OK=true;try{document.getElementById('aSave').click()}finally{SHEET_OK=false}});return}
       {const nt=Object.assign({},t,{amount:v,date:A.date,acct:A.acct});const g=guardTx([nt],[t]);if(g){toast(g);return}
         if(t.kind==='expense'&&cat(A.cat).type==='monthly'){const M=A.date.slice(0,7),same=t.cat===A.cat&&t.date.slice(0,7)===M,lf=r2(catLeft(cat(A.cat),M)+(same?t.amount:0));if(v>Math.max(0,lf)+0.004&&!(same&&v<=t.amount)){toast(`That would put ${cat(A.cat).name} ${money(v-Math.max(0,lf),true)} over. Move budget into it first (Spending → Move budget).`);return}}}
       applyTx(t,-1);Object.assign(t,{amount:v,date:A.date,acct:A.acct});
       if(t.kind==='expense'){t.cat=A.cat;t.vendor=A.vendor.trim()||'Purchase'}
-      if(t.kind==='income')t.vendor=A.vendor.trim()||'Income';
+      if(t.kind==='income'){t.vendor=A.vendor.trim()||'Income';if(A.src==='side')t.src='side';else delete t.src}
       applyTx(t,1);
       const neg=[t.acct,t.to].map(acct).find(a=>a&&a.type==='debt'&&a.balance<-0.004);
       if(neg){applyTx(t,-1);Object.assign(t,{amount:before.amount,date:before.date,acct:before.acct,cat:before.cat,vendor:before.vendor});applyTx(t,1);toast(`That would pay ${neg.name} past zero`);return}
@@ -2010,7 +2030,7 @@ document.getElementById('sheet').addEventListener('click',e=>{
       else if(S.notif.b80&&before<.8&&after>=.8)setTimeout(()=>notify(c.name+' is at '+Math.round(after*100)+'%',money(left,true)+' left for the rest of the month.'),900);
       closeSheet();render();
     } else if(A.kind==='income'){
-      addTx({date:A.date,vendor:A.vendor.trim()||'Income',amount:v,kind:'income',acct:A.acct});
+      addTx(Object.assign({date:A.date,vendor:A.vendor.trim()||'Income',amount:v,kind:'income',acct:A.acct},A.src==='side'?{src:'side'}:{}));
       closeSheet();render();toast('Income logged to '+aName(A.acct));offerSplit(v,A.acct);
     } else {
       const src=acct(A.from);if(!src||!acct(A.to)){toast('Pick both accounts first');return}if(v>src.balance+0.004){toast(`${src.name} only has ${money(src.balance,true)}`);return}

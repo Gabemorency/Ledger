@@ -357,3 +357,42 @@ input[type=month]{width:100%;padding:12px;border-radius:12px;border:1px solid va
 .boot{position:fixed;inset:0;display:grid;place-items:center;background:var(--bg);z-index:60;transition:opacity .25s}
 .boot .lbrand{font:800 22px var(--display);color:var(--accent);animation:pulse 1.2s infinite}
 .menu .who{padding:8px 12px 4px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ---------- motion ---------- */
+:root{--spring:cubic-bezier(.2,.9,.3,1.12);--ease-out:cubic-bezier(.2,.8,.2,1)}
+#app.enter>*{animation:viewIn .32s var(--ease-out) both}
+#app.enter .dcard{animation:cardIn .5s var(--ease-out) both}
+#app.enter .dcard:nth-child(2){animation-delay:.05s}
+#app.enter .dcard:nth-child(3){animation-delay:.1s}
+#app.enter .dcard:nth-child(4){animation-delay:.15s}
+#app.enter .goal:nth-of-type(2){animation-delay:.05s}
+#app.enter .goal:nth-of-type(3){animation-delay:.1s}
+.dc-more{animation:cardIn .4s var(--ease-out) both}
+#app.enter :is(.bar i,.fbar i,.gsbar i,.stack i,.pbar .pfill){animation:grow .8s var(--ease-out) .12s both;transform-origin:left center}
+@keyframes viewIn{from{opacity:0;transform:translateY(8px)}}
+@keyframes cardIn{from{opacity:0;transform:translateY(16px) scale(.985)}}
+@keyframes grow{from{transform:scaleX(0)}}
+@keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes fadeIn{from{opacity:0}}
+/* tactile presses */
+:is(.btn,.chip,.pad button,.lpad button,.paidbtn,.menubtn,.morebtn,nav button,.mrow,.txbtn,.loglink){transition:transform .12s var(--ease-out),background-color .2s,color .2s,box-shadow .2s}
+:is(.btn,.chip,.pad button,.lpad button,.paidbtn,.menubtn,.morebtn,nav button,.loglink):active{transform:scale(.96)}
+nav .plus{transition:transform .2s var(--spring),box-shadow .2s;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 35%,transparent)}
+nav .plus:active{transform:scale(.9) rotate(90deg)}
+nav button .ico{transition:transform .25s var(--spring)}
+nav button[aria-current=page] .ico{transform:translateY(-2px) scale(1.12)}
+/* sheet slides up with a little spring; backdrop fades */
+.sheet{transition:transform .45s var(--spring)}
+.sheet-bg{display:block;opacity:0;pointer-events:none;transition:opacity .25s}
+.sheet-bg.open{opacity:1;pointer-events:auto}
+.modal-bg.open{animation:fadeIn .2s both}
+.modal-bg.open .modal{animation:cardIn .3s var(--spring) both}
+.menu{animation:cardIn .22s var(--ease-out) both;transform-origin:top right}
+.toast{transform:translate(-50%,8px);transition:opacity .2s,transform .3s var(--spring)}
+.toast.show{transform:translate(-50%,0)}
+.ldots i{transition:background-color .15s}
+.ldots i.on{animation:pop .22s var(--spring)}
+.txdet,.hbdetail,.readout{animation:fadeIn .2s both}
+/* dashboard "show more" */
+.morebtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin:14px 0 0;padding:14px;border:1px dashed var(--line);border-radius:16px;background:none;color:var(--accent);font:inherit;font-weight:600}
+.morebtn .chev{font-size:14px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}

@@ -11,7 +11,7 @@ const update = args.includes("--update");
 const url = args.find((a) => !a.startsWith("--")) || "http://localhost:3000";
 const baselinePath = new URL("./baseline.json", import.meta.url);
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
-const page = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: "UTC", locale: "en-US" });
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: "UTC", locale: "en-US", reducedMotion: "reduce" });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
@@ -39,6 +39,8 @@ const go = (view) =>
   }, view);
 
 await grab("home");
+await page.click("[data-dashmore]");
+await grab("home-more");
 for (const v of ["trends", "goals", "activity", "accounts", "close", "config", "help", "log"]) {
   await go(v);
   await grab(v);

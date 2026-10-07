@@ -17,7 +17,7 @@ const check = (name, ok, extra = "") => { ok ? passed++ : failed++; console.log(
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 async function device() {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "UTC", locale: "en-US" });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: "UTC", locale: "en-US", reducedMotion: "reduce" });
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
