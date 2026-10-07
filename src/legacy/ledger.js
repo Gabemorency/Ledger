@@ -1033,7 +1033,7 @@ V.config=()=>{
   </div>
   <h2>Backup</h2>
   <div class="panel" style="padding:14px 16px">
-    <p class="sub" style="font-size:14px;margin:0 0 10px">${BOOT?'Your data is saved to your account and synced. A backup is an extra copy you keep yourself: a file of all your numbers, not encrypted, so store it somewhere private. Restoring one replaces your data on every device.':'This demo saves only in this browser. Download a backup now and then so clearing your browser doesn’t lose anything.'} ${tip('backup')}</p>
+    <p class="sub" style="font-size:14px;margin:0 0 10px">${BOOT?'Your data is saved to your account and synced, but syncing copies mistakes too, and there are no automatic backups. Download one about once a month and before big changes. It’s a file of all your numbers, not encrypted, so store it somewhere private. Restoring one replaces your data on every device and needs your PIN.':'This demo saves only in this browser. Download a backup now and then so clearing your browser doesn’t lose anything.'} ${tip('backup')}</p>
     <div class="actions" style="margin-top:0"><button class="btn" data-act="backup">Download backup</button><label class="btn ghost filebtn">Restore from backup<input type="file" accept="application/json,.json" id="restoreFile" hidden></label></div>
     ${S.lastBackup?`<p class="sub" style="font-size:13px;margin:8px 0 0">Last backup: ${new Date(S.lastBackup).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>`:''}
   </div>
@@ -1624,7 +1624,7 @@ document.getElementById('app').addEventListener('change',e=>{const t=e.target;
   if(t.dataset.pd){const x=(S.payday||[]).find(y=>y.id===t.dataset.pd);if(x){x.done=t.checked;if(S.payday.every(y=>y.done)){(S.did=S.did||{}).transfers=true;toast('All transfers made')}render()}return}
   if(t.id==='restoreFile'&&t.files&&t.files[0]){const fr=new FileReader();fr.onload=()=>{let d;try{d=JSON.parse(fr.result);d=d&&d.data?d.data:d}catch(e){d=null}
     if(!d||!d.plan||!Array.isArray(d.accounts)||!Array.isArray(d.tx)){toast('That file isn’t a Ledger backup');t.value='';return}
-    confirmBox('Restore this backup?',[`${d.tx.length} entries and ${d.accounts.length} accounts`,'Replaces everything in the app right now','Download a backup first if you want to keep what’s here'],'Restore',()=>{resetUI();wipeSheet();{const keep=S.sec;S=d;sanitize();if(keep)S.sec=keep;else delete S.sec}S.view='home';S.log.push({ts:Date.now(),text:'Restored from a backup'});render();window.scrollTo(0,0);toast('Backup restored')},{danger:true});t.value=''};fr.readAsText(t.files[0]);return}
+    confirmBox('Restore this backup?',[`${d.tx.length} entries and ${d.accounts.length} accounts`,'Replaces everything in the app right now','Download a backup first if you want to keep what’s here'],'Restore',()=>{if(SEC().hash){LK.restore=d;lockOpen('verify','restore');return}doRestore(d)},{danger:true});t.value=''};fr.readAsText(t.files[0]);return}
   if(t.dataset.tips){S.tips=t.checked;logIt(['Help tips turned '+(t.checked?'on':'off')]);render();return}
   if(t.dataset.dshow){const k=t.dataset.dshow;S.dash.hidden=t.checked?S.dash.hidden.filter(x=>x!==k):S.dash.hidden.concat(k);logIt(['Dashboard — '+(t.checked?'showing ':'hiding ')+(DASH_CARDS[k]||k)]);save();return}
   if(t.dataset.trcat!==undefined){delete CH.cat;TR.cat=t.value;render();return}
@@ -2076,6 +2076,7 @@ const pinHash=(pin,salt)=>sha256(salt+':'+pin);
 const weakPin=p=>/^(\d)\1{5}$/.test(p)||'0123456789'.includes(p)||'9876543210'.includes(p);
 const maskEmail=e=>{if(!e||!e.includes('@'))return 'your email';const [u,d]=e.split('@');return u[0]+'•••@'+d};
 const LK={on:false,mode:'unlock',buf:'',first:'',err:'',after:null,code:'',emailIn:''};
+function doRestore(d){resetUI();wipeSheet();{const keep=S.sec;S=d;sanitize();if(keep)S.sec=keep;else delete S.sec}S.view='home';S.log.push({ts:Date.now(),text:'Restored from a backup'});render();window.scrollTo(0,0);toast('Backup restored')}
 function doErase(){resetUI();wipeSheet();const keep=S.sec;S=blank();if(keep)S.sec=keep;render();window.scrollTo(0,0);toast('Everything erased. Let’s set things up.')}
 function lockOpen(mode,after){Object.assign(LK,{on:true,mode,buf:'',first:'',err:'',after:after||null});drawLock()}
 function lockClose(){LK.on=false;LK.buf='';const el=document.getElementById('lock');el.hidden=true;el.innerHTML='';document.getElementById('app').removeAttribute('aria-hidden');document.querySelector('nav').removeAttribute('aria-hidden')}
@@ -2092,7 +2093,7 @@ function drawLock(){
       <div class="ldots ${LK.err?'shake':''}" aria-label="${LK.buf.length} of 6 digits entered">${dots}</div><p class="lerr" role="alert">${esc(LK.err)}</p>
       ${m==='code'&&LK.code?`<p class="ldemo">Demo only: in the real app this code arrives by email. Code: <b>${LK.code}</b></p>`:''}
       <div class="lpad">${['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k=>k?`<button data-lk="${k}" aria-label="${k==='⌫'?'Delete':k}">${k}</button>`:'<span></span>').join('')}</div>
-      <div class="llinks">${m==='unlock'?`<button data-lka="forgot">Forgot PIN?</button>`:''}${['set1','set2','verify'].includes(m)&&['new','change','off','erase'].includes(LK.after)?`<button data-lka="cancel">Cancel</button>`:''}${m==='code'?`<button data-lka="resend">Send a new code</button>`:''}</div></div>`;
+      <div class="llinks">${m==='unlock'?`<button data-lka="forgot">Forgot PIN?</button>`:''}${['set1','set2','verify'].includes(m)&&['new','change','off','erase','restore'].includes(LK.after)?`<button data-lka="cancel">Cancel</button>`:''}${m==='code'?`<button data-lka="resend">Send a new code</button>`:''}</div></div>`;
   } else if(m==='forgot'||m==='signedout'){
     el.innerHTML=`<div class="lockbox" role="dialog" aria-modal="true" aria-labelledby="lkT"><div class="lbrand">Ledger</div>
       <h2 id="lkT">${m==='forgot'?'Reset your PIN':'You’ve been signed out'}</h2>
@@ -2114,7 +2115,8 @@ function lockDigit(k){
       if(LK.mode==='unlock'){lockClose();sec.lockedAt=null;save();return}
       const a=LK.after;if(a==='off'){delete sec.hash;delete sec.salt;logIt(['PIN turned off']);lockClose();render();toast('PIN turned off');return}
       if(a==='change'){LK.mode='set1';LK.after='change';drawLock();return}
-      if(a==='erase'){lockClose();doErase();return}}
+      if(a==='erase'){lockClose();doErase();return}
+      if(a==='restore'){const d=LK.restore;LK.restore=null;lockClose();if(d)doRestore(d);return}}
     sec.tries=(sec.tries||0)+1;save();
     if(sec.tries>=5){sec.signedOut=true;sec.tries=0;save();logIt(['Signed out after 5 wrong PINs']);LK.mode='signedout';LK.err='';drawLock();return}
     LK.err=`Wrong PIN. ${5-sec.tries} ${5-sec.tries===1?'try':'tries'} left before you’re signed out.`;drawLock();return}
