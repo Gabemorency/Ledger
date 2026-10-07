@@ -223,9 +223,12 @@ await getPastPin(C.page);
 
 // 10. erasing everything takes your email, a second confirmation and your PIN, and empties the cloud
 await go(D.page, "config");
+check("erase is tucked away under Advanced", !(await D.page.isVisible('[data-act="erase"]')));
+await D.page.click("details.advanced summary");
 await D.page.click('[data-act="erase"]');
 await D.page.waitForSelector("#mBg.open");
-check("erase asks for your email", (await D.page.$eval("#mX", (e) => e.textContent)).includes("me@example.com"));
+check("erase asks for your email", (await D.page.$eval("#mX", (e) => e.textContent)).includes("account email"));
+check("…without showing it", !(await D.page.$eval("#mBg", (e) => e.textContent)).includes("me@example.com"));
 await D.page.fill("#mWord", "someone@else.com");
 check("…and won't continue with the wrong one", await D.page.$eval("#mYes", (b) => b.disabled));
 await D.page.fill("#mWord", "Me@Example.com");
@@ -234,6 +237,7 @@ await D.page.waitForSelector("text=Are you absolutely sure?");
 check("then asks a second time, counting what will go", (await D.page.$eval("#mL", (e) => e.textContent)).includes("entries"));
 await D.page.click("#mNo");
 check("'Keep my data' backs out", sql(`select count(*) from entries where user_id='${U1}'`) !== "0");
+if (!(await D.page.isVisible('[data-act="erase"]'))) await D.page.click("details.advanced summary");
 await D.page.click('[data-act="erase"]');
 await D.page.fill("#mWord", "me@example.com");
 await D.page.click("#mYes");
@@ -250,7 +254,7 @@ check("…and starts setup", (await appHTML(D.page)).includes("set up your budge
 
 // 11. sign out
 await A.page.click("[data-menu]");
-check("menu shows who is signed in", (await appHTML(A.page)).includes("me@example.com"));
+check("menu shows who is signed in, masked", (await appHTML(A.page)).includes("m•••@example.com") && !(await appHTML(A.page)).includes("me@example.com"));
 if (OUT) await A.page.screenshot({ path: `${OUT}/cloud-menu.png` });
 await A.page.click("[data-signout]");
 await A.page.waitForURL("**/login");

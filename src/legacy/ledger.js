@@ -268,7 +268,7 @@ function confirmBox(title,lines,okLabel,onOk,opt){
   document.getElementById('mT').textContent=title;
   document.getElementById('mL').innerHTML=lines.map(l=>`<li>${l}</li>`).join('');
   document.getElementById('mX').innerHTML=(opt.input?`<label class="field"><span>${opt.input.label}</span><input type="number" inputmode="decimal" id="mIn" value="${opt.input.value}"></label>`:'')
-    +(opt.word?`<label class="field"><span>Type <b>${opt.word}</b> to confirm</span><input type="text" ${opt.word.includes('@')?'inputmode="email"':''} id="mWord" autocomplete="off" autocapitalize="off" spellcheck="false"></label>`:'')
+    +(opt.word?`<label class="field"><span>${opt.wordLabel||`Type <b>${opt.word}</b> to confirm`}</span><input type="text" ${opt.word.includes('@')?'inputmode="email"':''} id="mWord" autocomplete="off" autocapitalize="off" spellcheck="false"></label>`:'')
     +(opt.select?`<label class="field"><span>${opt.select.label}</span><select id="mSel">${opt.select.options.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select></label>`:'')
     +(opt.multi?`<p class="lbl" style="margin:10px 0 4px">${opt.multi.label}</p>${opt.multi.rows.map(r=>`<label class="mcrow"><span>${esc(r.label)}<small>${money(r.max,true)} left</small></span><input type="number" inputmode="decimal" class="mcIn" data-id="${r.id}" data-max="${r.max}" value="${r.value||''}" placeholder="0" aria-label="Amount from ${esc(r.label)}"></label>`).join('')}<p class="mctot" id="mcTot"></p>`:'');
   mMulti=opt.multi||null;if(mMulti)updMulti();
@@ -1025,7 +1025,7 @@ V.config=()=>{
   <div class="panel"><div class="toggle"><div>Show ? tips<small>Tap a ? next to anything for a quick explanation</small></div><input class="sw" type="checkbox" data-tips="1" ${S.tips?'checked':''} aria-label="Show tips"></div></div>
   <h2 id="secsec">Security ${tip('security')}</h2>
   <div class="panel" style="padding:6px 16px 12px">
-    <div class="row"><div class="rowtop"><b>Account email</b><span>${BOOT?esc(BOOT.email):SEC().email?esc(SEC().email):'Not set'}</span></div><div class="sub" style="font-size:13px">Used to sign in on a new device and to reset your PIN.</div>
+    <div class="row"><div class="rowtop"><b>Account email</b><span>${BOOT?esc(maskEmail(BOOT.email)):SEC().email?esc(SEC().email):'Not set'}</span></div><div class="sub" style="font-size:13px">Used to sign in on a new device and to reset your PIN.</div>
       ${BOOT?'':`<label class="field" style="margin:6px 0 0"><span class="sr">Account email</span><input type="email" id="secEmail" placeholder="you@example.com" value="${esc(SEC().email||'')}"></label>`}</div>
     <div class="row"><div class="rowtop"><b>App PIN</b><span>${SEC().hash?'On':'Off'}</span></div><div class="sub" style="font-size:13px">A 6-digit code that unlocks Ledger on this device.</div>
       <div class="actions">${SEC().hash?`<button class="btn small ghost" data-act="pinChange">Change PIN</button>${BOOT?'':`<button class="btn small ghost" data-act="pinOff">Turn off</button>`}<button class="btn small ghost" data-act="lockNow">Lock now</button>`:`<button class="btn small" data-act="pinSet">Set a PIN</button>`}</div></div>
@@ -1037,13 +1037,14 @@ V.config=()=>{
     <div class="actions" style="margin-top:0"><button class="btn" data-act="backup">Download backup</button><label class="btn ghost filebtn">Restore from backup<input type="file" accept="application/json,.json" id="restoreFile" hidden></label></div>
     ${S.lastBackup?`<p class="sub" style="font-size:13px;margin:8px 0 0">Last backup: ${new Date(S.lastBackup).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>`:''}
   </div>
-  <h2>Start over</h2>
+  <details class="advanced"><summary>Advanced</summary>
+  <p class="lbl" style="margin:4px 0 6px">Start over</p>
   <div class="panel" style="padding:14px 16px">
     ${BOOT?`<p class="sub" style="font-size:14px;margin:0 0 10px">Your data is saved to your account and kept in sync across your devices. Erasing removes it everywhere.</p>`
       :`<p class="sub" style="font-size:14px;margin:0 0 10px">This is a demo with sample numbers, saved only in this browser.</p>
     <button class="btn ghost full" id="reset">Reset sample data</button>`}
     <button class="btn full dangerbtn" data-act="erase" style="margin-top:10px">Erase everything and start fresh</button>
-  </div>`;
+  </div></details>`;
 };
 
 /* review a config section: diff the draft against saved data */
@@ -1471,7 +1472,7 @@ function appBar(){
   const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log'};
   const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['help','Help','?']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
   return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${!!UI.menu}" aria-label="Menu">☰ Menu</button></div>
-    ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}${BOOT?`<div class="who">Signed in as ${esc(BOOT.email)}</div><button role="menuitem" data-signout><span class="mi">⎋</span>Sign out</button>`:''}</div>`:''}`;
+    ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}${BOOT?`<div class="who">Signed in as ${esc(maskEmail(BOOT.email))}</div><button role="menuitem" data-signout><span class="mi">⎋</span>Sign out</button>`:''}</div>`:''}`;
 }
 const REDUCED=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* headline money figures count up from zero when a screen opens */
@@ -1710,7 +1711,7 @@ function handleAct(t){
     confirmBox('Erase everything and start fresh?',['Deletes every entry, account, goal, budget, and setting'+(BOOT?', on every device':''),'This can’t be undone'],'Continue',()=>
       setTimeout(()=>confirmBox('Are you absolutely sure?',[`${n('tx','entry','entries')}, ${n('accounts','account','accounts')} and ${n('goals','goal','goals')} will be gone for good`,'There’s no undo and no backup unless you downloaded one','Last step after this: your PIN'],'Yes, erase everything',()=>{
         if(SEC().hash){lockOpen('verify','erase');return}doErase()},{danger:true,cancel:'Keep my data'}),60),
-      {danger:true,word,cancel:'Keep my data'});
+      {danger:true,word,wordLabel:BOOT?'Type your account email to confirm':'',cancel:'Keep my data'});
     return}
   if(a==='reopen'){
     const K=t.dataset.m,list=S.closed.filter(m=>m>=K).sort().reverse(),snaps=list.map(m=>S.snapshots.find(x=>x.key===m)).filter(Boolean);
