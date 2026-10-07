@@ -145,11 +145,12 @@ function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
 const TYPES={checking:'Checking',cash:'Cash',savings:'Savings',retirement:'Retirement',debt:'Debt'};
-/* Account kinds: base shares and HYSAs are savings accounts; only the label differs */
-const KINDS={share:{type:'savings',label:'Base share'},hysa:{type:'savings',label:'High-yield savings'}};
+/* Account kinds: a label on top of a type; totals, goals and sync follow the type */
+const KINDS={share:{type:'savings',label:'Base share'},hysa:{type:'savings',label:'High-yield savings'},
+  pretax:{type:'retirement',label:'Pre-tax retirement'},roth:{type:'retirement',label:'After-tax retirement'}};
 const kindOf=a=>KINDS[a.sub]&&KINDS[a.sub].type===a.type?a.sub:a.type;
 const typeLabel=a=>(KINDS[kindOf(a)]||{}).label||TYPES[a.type];
-const TYPE_CHOICES=[['checking','Checking'],['cash','Cash'],['savings','Savings'],['share','Base share (credit union)'],['hysa','High-yield savings (HYSA)'],['retirement','Retirement'],['debt','Debt']];
+const TYPE_CHOICES=[['checking','Checking'],['cash','Cash'],['savings','Savings'],['share','Base share (credit union)'],['hysa','High-yield savings (HYSA)'],['pretax','Pre-tax retirement (401k, TSP, traditional IRA)'],['roth','After-tax retirement (Roth IRA, Roth 401k/TSP)'],['retirement','Retirement (other)'],['debt','Debt']];
 function applyTx(t,sign){MEMO=null;Model.applyTx(S,t,sign)}
 /* never let a regular account drop below $0, or below what its goals have set aside */
 function guardTx(add,rem){return Model.guardTx(S,add,rem)}
@@ -2128,6 +2129,14 @@ const lockNeeded=()=>{const s=SEC();return !!(s.hash&&(S.setupDone||BOOT))};
 function lockIfAway(){const s=SEC();if(!lockNeeded()||LK.on)return;const away=s.awayAt?(Date.now()-s.awayAt)/60000:Infinity;if(away>=(s.lockAfter||0))lockOpen(s.signedOut?'signedout':'unlock')}
 document.addEventListener('visibilitychange',()=>{const s=SEC();if(document.visibilityState==='hidden'){s.awayAt=Date.now();save()}else lockIfAway()});
 function lockOnLoad(){const s=SEC();if(s.signedOut){lockOpen('signedout');return}if(BOOT&&!s.hash){lockOpen('set1','first');return}if(lockNeeded()){s.awayAt=null;lockOpen('unlock')}}
+/* number boxes: a 0 clears when tapped (and comes back if nothing is typed); other numbers are selected so typing replaces them */
+const isNumBox=el=>el instanceof HTMLInputElement&&el.type==='number';
+document.addEventListener('focusin',e=>{const el=e.target;if(!isNumBox(el))return;
+  if(/^-?0(\.0+)?$/.test(el.value)){el.dataset.zero=el.value;el.value=''}else if(el.value){try{el.select()}catch(_){}}});
+document.addEventListener('input',e=>{if(isNumBox(e.target)&&e.target.dataset.zero!==undefined)e.target.dataset.typed='1'},true);
+document.addEventListener('focusout',e=>{const el=e.target;if(!isNumBox(el)||el.dataset.zero===undefined)return;
+  const typed=el.dataset.typed;delete el.dataset.zero;delete el.dataset.typed;
+  if(el.value===''){el.value='0';if(typed)el.dispatchEvent(new Event('input',{bubbles:true}))}});
 let DL=null;
 try{if(window.claude&&typeof window.claude.use==='function')window.claude.use('downloads').then(d=>{DL=d||null}).catch(()=>{})}catch(e){}
 render();
