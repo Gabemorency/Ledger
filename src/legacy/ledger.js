@@ -1033,7 +1033,7 @@ V.config=()=>{
   </div>
   <h2>Backup</h2>
   <div class="panel" style="padding:14px 16px">
-    <p class="sub" style="font-size:14px;margin:0 0 10px">This demo saves only in this browser. Download a backup now and then so clearing your browser doesn’t lose anything. ${tip('backup')}</p>
+    <p class="sub" style="font-size:14px;margin:0 0 10px">${BOOT?'Your data is saved to your account and synced. A backup is an extra copy you keep yourself: a file of all your numbers, not encrypted, so store it somewhere private. Restoring one replaces your data on every device.':'This demo saves only in this browser. Download a backup now and then so clearing your browser doesn’t lose anything.'} ${tip('backup')}</p>
     <div class="actions" style="margin-top:0"><button class="btn" data-act="backup">Download backup</button><label class="btn ghost filebtn">Restore from backup<input type="file" accept="application/json,.json" id="restoreFile" hidden></label></div>
     ${S.lastBackup?`<p class="sub" style="font-size:13px;margin:8px 0 0">Last backup: ${new Date(S.lastBackup).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>`:''}
   </div>
@@ -1794,7 +1794,8 @@ function handleAct(t){
       toast(`${c.name} covered: ${desc}`,()=>{parts.forEach(([fid,n])=>{m[fid]=r2(m[fid]+n);m[c.id]=r2(m[c.id]-n)});logIt([`Undid cover for ${c.name}`]);render()})},
       {multi:{label:'Take it from',need:over,rows}});return}
   if(a==='backup'){
-    const json=JSON.stringify({app:'ledger',version:KEY,saved:new Date().toISOString(),data:S},null,1),filename=`ledger-backup-${todayISO}.json`;
+    /* never put the PIN's hash or the account email in a file that can leave the device */
+    const json=JSON.stringify({app:'ledger',version:KEY,saved:new Date().toISOString(),data:Object.assign({},S,{sec:undefined,view:undefined})},null,1),filename=`ledger-backup-${todayISO}.json`;
     const done=()=>{S.lastBackup=Date.now();logIt(['Backup downloaded']);render();toast('Backup saved')};
     if(DL){DL.save({filename,data:json}).then(done).catch(e=>{const c=e&&e.code;toast(c==='declined'?'Backup canceled':c==='rate_limited'?'A save prompt is already open':'Saving files isn’t available here')});return}
     const u=URL.createObjectURL(new Blob([json],{type:'application/json'})),l=document.createElement('a');l.href=u;l.download=filename;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);
