@@ -271,7 +271,7 @@ function confirmBox(title,lines,okLabel,onOk,opt){
     +(opt.word?`<label class="field"><span>${opt.wordLabel||`Type <b>${opt.word}</b> to confirm`}</span><input type="text" ${opt.word.includes('@')?'inputmode="email"':''} id="mWord" autocomplete="off" autocapitalize="off" spellcheck="false"></label>`:'')
     +(opt.select?`<label class="field"><span>${opt.select.label}</span><select id="mSel">${opt.select.options.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select></label>`:'')
     +(opt.multi?`<p class="lbl" style="margin:10px 0 4px">${opt.multi.label}</p>${opt.multi.rows.map(r=>`<label class="mcrow"><span>${esc(r.label)}<small>${money(r.max,true)} left</small></span><input type="number" inputmode="decimal" class="mcIn" data-id="${r.id}" data-max="${r.max}" value="${r.value||''}" placeholder="0" aria-label="Amount from ${esc(r.label)}"></label>`).join('')}<p class="mctot" id="mcTot"></p>`:'')
-    +(opt.left?opt.left.map(r=>`<label class="mcrow"><span>${esc(r.label)}<small>${money(r.budget,true)} budget, ${money(r.spent,true)} spent</small></span><input type="number" inputmode="decimal" class="mlIn" data-id="${r.id}" value="${r.left}" aria-label="Left in ${esc(r.label)}"></label>`).join(''):'');
+    +(opt.left?opt.left.map(r=>`<label class="mcrow"><span>${esc(r.label)}<small>${money(r.budget,true)} limit, ${money(r.spent,true)} spent</small></span><input type="number" inputmode="decimal" class="mlIn" data-id="${r.id}" value="${r.left}" aria-label="Left in ${esc(r.label)}"></label>`).join(''):'');
   mMulti=opt.multi||null;if(mMulti)updMulti();
   const y=document.getElementById('mYes');y.textContent=okLabel;y.classList.toggle('dangerbtn',!!opt.danger);mWord=opt.word||null;y.disabled=!!mWord;
   document.getElementById('mNo').textContent=opt.cancel||'Cancel';
@@ -291,7 +291,7 @@ function delta(cur,prev,inv){if(prev==null)return '<span class="sub">No prior mo
 function txLine(t){
   const when=new Date(t.date+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
   let title=t.vendor,meta='',sign='',cls='';
-  if(t.kind==='expense'){meta=`${cat(t.cat).name}, ${aName(t.acct)}`}
+  if(t.kind==='expense'){meta=t.before?`${cat(t.cat).name}, before Ledger`:`${cat(t.cat).name}, ${aName(t.acct)}`}
   else if(t.kind==='fixed'){meta=t.to?`${aName(t.acct)} → ${aName(t.to)}`:`Fixed cost, ${aName(t.acct)}`}
   else if(t.kind==='income'){title=t.vendor||'Income';meta=`Income to ${aName(t.acct)}`;sign='+';cls='in'}
   else if(t.kind==='transfer'){title=t.goal?'To '+((goal(t.goal)||{}).name||'goal'):t.note||'Transfer';meta=`${aName(t.from)} → ${aName(t.to)}`}
@@ -314,6 +314,7 @@ function txDetail(t){
   L.push(['Date',new Date(t.date+'T00:00').toLocaleDateString('en-US',{weekday:'short',month:'long',day:'numeric',year:'numeric'})]);
   L.push(['Amount',money(t.amount,true)]);
   if(t.kind==='expense')L.push(['Category',cat(t.cat).name]);
+  if(t.before)L.push(['Note','Spent before you started using Ledger. Not taken from any account']);
   if(t.kind==='income')L.push(['Kind',t.src==='side'?'Side income':'Salary']);
   if(t.from&&t.to&&t.kind==='transfer')L.push(['From → to',aName(t.from)+' → '+aName(t.to)]);
   else if(t.acct)L.push(['Account',aName(t.acct)+(t.to?' → '+aName(t.to):'')]);
@@ -327,7 +328,7 @@ function txDetail(t){
 
 /* ---------- views ---------- */
 const V={};
-const editableTx=t=>['expense','income','fixed'].includes(t.kind)&&!S.closed.includes(t.date.slice(0,7));
+const editableTx=t=>['expense','income','fixed'].includes(t.kind)&&!t.before&&!S.closed.includes(t.date.slice(0,7));
 const ordinal=n=>n+(['th','st','nd','rd'][(n%100-20)%10]||['th','st','nd','rd'][n%100]||'th');
 function closeBanner(){
   const open=openMonths();if(!open.length)return '';
@@ -428,7 +429,7 @@ function homeCards(){
       return `<h2>Spending</h2>
       ${bkWarn.map(x=>`<div class="note">${esc(x.a.name)} has ${money(x.have,true)}, but ${money(x.need,true)} is still budgeted for ${x.cs.map(c=>esc(c.name)).join(', ')} this month. Move ${money(x.need-x.have,true)} into it, or lower those budgets. ${tip('bucketwarn')}</div>`).join('')}
       <div class="panel"><div class="row"><div class="rowtop"><b>Left to spend</b><span class="num" style="font-size:16px;color:${left<0?'var(--over)':'var(--ink)'};font-weight:700">${money(left)} of ${money(budget)}</span></div></div></div>
-      <div class="actions" style="margin-top:8px"><button class="btn small ghost" data-act="moveBudget">Move budget ${tip('movebudget')}</button><button class="btn small ghost" data-act="setLeft">Set what’s left ${tip('setleft')}</button></div>
+      <div class="actions" style="margin-top:8px"><button class="btn small ghost" data-act="moveBudget">Move budget ${tip('movebudget')}</button><button class="btn small ghost" data-act="setLeft">Set what’s left ${tip('setleft')}</button>${Object.values(S.adj[thisM]||{}).some(v=>Math.abs(v)>0.004)?`<button class="btn small ghost" data-act="resetLimits">Reset this month’s limits</button>`:''}</div>
       ${groups.map(x=>`<p class="lbl" style="margin:14px 0 6px">${esc(x.b.name)}</p><div class="panel">${x.cats.map(c=>row(c,true)).join('')}</div>`).join('')}
       ${overTotal>0?`<div class="note">You're ${money(overTotal,true)} over in ${overs.map(x=>esc(x.c.name.toLowerCase())).join(' and ')}. Cover it by moving budget from categories that have money left. ${tip('cut')}
         <div class="actions" style="margin-top:8px">${overs.map(x=>`<button class="btn small" data-act="cover" data-cat="${x.c.id}">Cover ${esc(x.c.name)}</button>`).join('')}</div></div>`:''}`},
@@ -1276,7 +1277,7 @@ const TIPS={
     const tg=b.min==null?'':`<p style="margin-top:6px">Target: ${b.min===b.max?b.min+'%':b.min+'–'+b.max+'%'} of ${money(inc)} = ${b.min===b.max?money(inc*b.min/100):money(inc*b.min/100)+'–'+money(inc*b.max/100)}.</p>`;
     const list=r.its.length?`<p style="margin-top:6px"><b>What’s in it now (${money(r.v)} ÷ ${money(inc)} = ${Math.round(r.pct)}%):</b></p><ul class="tiplist">${r.its.slice(0,7).map(x=>`<li><span>${esc(x.n)}${x.note?` <em>${x.note}</em>`:''}</span><b>${money(x.v)}</b></li>`).join('')}${r.its.length>7?`<li><span>${r.its.length-7} more</span><b>${money(r.its.slice(7).reduce((a,x)=>a+x.v,0))}</b></li>`:''}</ul>`:`<p style="margin-top:6px">Nothing is in this group yet.</p>`;
     return [`<p><b>${esc(b.name)}:</b> ${b.roles.map(x=>what[x]).join(' and ')}.</p>${list}${tg}`,'planread']},
-  setleft:['Started mid-month, or your numbers drifted? Type what’s really left in each category and Ledger adjusts this month’s budget to match. It doesn’t touch your account balances, and next month goes back to your normal budgets.'],
+  setleft:['Started mid-month? Type what’s really left in each category. Ledger records the difference as “Spent before Ledger”, so your limits stay the same and your account balances don’t change.'],
   movebudget:['Planning to spend differently this month? Move budget from one or more categories into another, like clothes into food for a family dinner. It only changes this month. Each category can only give what it has left.'],
   cut:['Cover it moves this month’s budget from categories with money left into the one that’s over. It suggests amounts, starting with the categories that have the most left, and you can change them. Other months keep their normal budgets.'],
   security:['Two layers. Your account (email sign-in) protects your data on the server and on new devices. The PIN locks the app on a device that’s already signed in. Forget it? Reset it with a code sent to your email. Five wrong tries signs you out.'],
@@ -1767,6 +1768,7 @@ function handleAct(t){
     if(!liveCats().some(c=>c.type==='monthly')){toast('Add a monthly category first');return}
     if(SEC().hash){lockOpen('verify','setleft');return}
     openSetLeft();return}
+  if(a==='resetLimits'){resetLimits();return}
   if(a==='moveBudget'){
     if(S.closed.includes(thisM)){toast('This month is closed');return}
     const cs=liveCats().filter(c=>c.type==='monthly');const src=cs.filter(c=>catLeft(c,thisM)>0.004);
@@ -2083,18 +2085,35 @@ const pinHash=(pin,salt)=>sha256(salt+':'+pin);
 const weakPin=p=>/^(\d)\1{5}$/.test(p)||'0123456789'.includes(p)||'9876543210'.includes(p);
 const maskEmail=e=>{if(!e||!e.includes('@'))return 'your email';const [u,d]=e.split('@');return u[0]+'•••@'+d};
 const LK={on:false,mode:'unlock',buf:'',first:'',err:'',after:null,code:'',emailIn:''};
-/* Set what's left: this month's budget adjusts so each category's 'left' matches what's typed */
+/* Set what's left: records spending from before Ledger (from no account) so each category's
+   'left' matches what's typed. Limits and account balances stay as they are. */
+const isBefore=t=>t.kind==='expense'&&t.before;
 function openSetLeft(){
-    const cs=liveCats().filter(c=>c.type==='monthly');
-    const rows=cs.map(c=>({id:c.id,label:c.name,budget:budgetOf(c,thisM),spent:r2(spent(c.id,thisM)),left:r2(catLeft(c,thisM))}));
-    confirmBox('Set what’s left for '+monthName(mDate(thisM)),['Type what’s really left in each category','Adjusts this month’s budget only. Account balances don’t change'],'Save',(v,sv,mv,ml)=>{
-      const m=S.adj[thisM]=S.adj[thisM]||{};const snap=JSON.stringify(m);const changed=[];
-      for(const r of rows){if(!(r.id in ml)||Math.abs(ml[r.id]-r.left)<0.005)continue;const want=ml[r.id];if(!isFinite(want)||want<0){toast(`Enter 0 or more for ${r.label}`);S.adj[thisM]=JSON.parse(snap);return}
-        const d=r2(want-r.left);if(Math.abs(d)<0.005)continue;m[r.id]=r2((m[r.id]||0)+d);changed.push({name:r.label,text:`${r.label} ${money(r.left,true)} → ${money(want,true)}`})}
-      MEMO=null;if(!changed.length){toast('Nothing changed');return}
-      logIt(['Set what’s left for '+monthName(mDate(thisM))+': '+changed.map(x=>x.text).join(', ')]);
-      render();toast(changed.length===1?`${changed[0].name} updated`:`Updated ${changed.length} categories`,()=>{S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Change undone')})},
-      {left:rows});
+  const cs=liveCats().filter(c=>c.type==='monthly');
+  const rows=cs.map(c=>{const before=r2(S.tx.filter(t=>isBefore(t)&&t.cat===c.id&&inMonth(t,thisM)).reduce((a,t)=>a+t.amount,0));
+    return {id:c.id,label:c.name,budget:budgetOf(c,thisM),spent:r2(spent(c.id,thisM)),left:r2(catLeft(c,thisM)),before}});
+  confirmBox('Set what’s left for '+monthName(mDate(thisM)),['Type what’s really left in each category','Records what you spent before using Ledger. Your limits and account balances don’t change'],'Save',(v,sv,mv,ml)=>{
+    const plan=[];
+    for(const r of rows){if(!(r.id in ml)||Math.abs(ml[r.id]-r.left)<0.005)continue;const want=ml[r.id];
+      if(!isFinite(want)){toast(`Enter an amount for ${r.label}`);return}
+      const logged=r2(r.spent-r.before),amt=r2(r.budget-want-logged);
+      if(amt<-0.004){toast(`${r.label} can have at most ${money(Math.max(0,r.budget-logged),true)} left: its limit minus what you’ve logged. Raise the limit in Settings first.`);return}
+      plan.push({r,want,amt})}
+    if(!plan.length){toast('Nothing changed');return}
+    const snapTx=S.tx.slice();
+    for(const {r,amt} of plan){
+      S.tx=S.tx.filter(t=>!(isBefore(t)&&t.cat===r.id&&inMonth(t,thisM)));
+      if(amt>0.004)addTx({date:thisM+'-01',vendor:'Spent before Ledger',amount:amt,kind:'expense',cat:r.id,acct:null,before:true})}
+    MEMO=null;
+    logIt(['Set what’s left for '+monthName(mDate(thisM))+': '+plan.map(x=>`${x.r.label} ${money(x.r.left,true)} → ${money(x.want,true)} left`).join(', ')]);
+    render();toast(plan.length===1?`${plan[0].r.label} updated`:`Updated ${plan.length} categories`,()=>{S.tx=snapTx;MEMO=null;render();toast('Change undone')})},
+    {left:rows});
+}
+function resetLimits(){
+  const m=S.adj[thisM]||{},list=liveCats().filter(c=>Math.abs(m[c.id]||0)>0.004);
+  confirmBox('Reset this month’s limits?',['Every category goes back to its normal budget for '+monthName(mDate(thisM))].concat(list.map(c=>`${esc(c.name)}: ${money(budgetOf(c,thisM))} → ${money(c.budget)}`)),'Reset',()=>{
+    const snap=JSON.stringify(m);delete S.adj[thisM];MEMO=null;logIt(['Reset '+monthName(mDate(thisM))+' limits to normal budgets']);
+    render();toast('Limits reset',()=>{S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Reset undone')})});
 }
 function doRestore(d){resetUI();wipeSheet();{const keep=S.sec;S=d;sanitize();if(keep)S.sec=keep;else delete S.sec}S.view='home';S.log.push({ts:Date.now(),text:'Restored from a backup'});render();window.scrollTo(0,0);toast('Backup restored')}
 function doErase(){resetUI();wipeSheet();const keep=S.sec;S=blank();if(keep)S.sec=keep;render();window.scrollTo(0,0);toast('Everything erased. Let’s set things up.')}
