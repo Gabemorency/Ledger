@@ -145,11 +145,11 @@ function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
 const TYPES={checking:'Checking',cash:'Cash',savings:'Savings',retirement:'Retirement',debt:'Debt'};
-/* Kinds of savings account: same totals, goals, everything as savings; only the label differs */
-const SAVINGS_KINDS={hysa:'High-yield savings',share:'Base share'};
-const kindOf=a=>a.type==='savings'&&SAVINGS_KINDS[a.sub]?a.sub:a.type;
-const typeLabel=a=>SAVINGS_KINDS[kindOf(a)]||TYPES[a.type];
-const TYPE_CHOICES=[['checking','Checking'],['cash','Cash'],['savings','Savings'],['hysa','High-yield savings (HYSA)'],['share','Base share (credit union)'],['retirement','Retirement'],['debt','Debt']];
+/* Account kinds: a base share counts as checking, a HYSA as savings; only the label differs */
+const KINDS={share:{type:'checking',label:'Base share'},hysa:{type:'savings',label:'High-yield savings'}};
+const kindOf=a=>KINDS[a.sub]&&KINDS[a.sub].type===a.type?a.sub:a.type;
+const typeLabel=a=>(KINDS[kindOf(a)]||{}).label||TYPES[a.type];
+const TYPE_CHOICES=[['checking','Checking'],['share','Base share (credit union)'],['cash','Cash'],['savings','Savings'],['hysa','High-yield savings (HYSA)'],['retirement','Retirement'],['debt','Debt']];
 function applyTx(t,sign){MEMO=null;Model.applyTx(S,t,sign)}
 /* never let a regular account drop below $0, or below what its goals have set aside */
 function guardTx(add,rem){return Model.guardTx(S,add,rem)}
@@ -1075,7 +1075,7 @@ function reviewSec(sec){
   if(sec==='fixed'&&D.some(f=>!f.archived&&f.freq==='months'&&!(f.months||[]).length)){toast('Pick at least one month for bills due in specific months');return}
   if(sec==='fixed'&&D.some(f=>!f.archived&&f.begins&&f.end&&f.end<f.begins)){toast('A bill can\u2019t end before it starts');return}
   const fmt={freq:v=>({monthly:'every month',quarterly:'every 3 months',yearly:'once a year',months:'specific months'})[v||'monthly'],months:v=>(v||[]).map(n=>MON[n-1]).join(', ')||'none',end:v=>v?monthName(mDate(v),{month:'short',year:'numeric'}):'none',roll:v=>v?'on':'off',begins:v=>v?monthName(mDate(v),{month:'short',year:'numeric'}):'none',start:v=>v?money(v):'none',startDate:v=>v?fmtD(v):'none',accrue:v=>v?'on':'off',budget:v=>money(v||0),amount:v=>money(v||0),pct:v=>(v||0)+'%',day:v=>v?ordinal(v):'none',apr:v=>(v||0)+'%',min:v=>money(v||0),
-    pay:v=>v?'yes':'no',value:v=>money(v||0),to:v=>v?aName(v):'nowhere',sub:v=>SAVINGS_KINDS[v]?SAVINGS_KINDS[v].toLowerCase():'regular savings',type:v=>TYPES[v]||(v==='annual'?'Per year':v==='monthly'?'Per month':v),role:v=>roleName(v),acct:v=>v?aName(v):'any account',bank:v=>v||'none',card:v=>v?'yes':'no',stmt:v=>v?ordinal(v):'none',payFull:v=>v?'yes':'no',payFrom:v=>v?aName(v):'paycheck account',name:v=>v};
+    pay:v=>v?'yes':'no',value:v=>money(v||0),to:v=>v?aName(v):'nowhere',sub:v=>KINDS[v]?KINDS[v].label.toLowerCase():'standard',type:v=>TYPES[v]||(v==='annual'?'Per year':v==='monthly'?'Per month':v),role:v=>roleName(v),acct:v=>v?aName(v):'any account',bank:v=>v||'none',card:v=>v?'yes':'no',stmt:v=>v?ordinal(v):'none',payFull:v=>v?'yes':'no',payFrom:v=>v?aName(v):'paycheck account',name:v=>v};
   const names={freq:'how often',months:'months',end:'ends after',roll:'rollover',begins:'starts',start:'original amount',startDate:'start date',accrue:'estimated interest',budget:'budget',amount:'amount',pct:'percent',day:'due day',apr:'APR',min:'payment',type:sec==='accounts'?'type':'period',sub:'kind',role:'group',acct:sec==='categories'?'usually paid from':'paid from',bank:'bank',card:'credit card',stmt:'statement day',payFull:'pays in full',payFrom:'pays from',name:'name',pay:'used for purchases',value:'value',to:'goes to'};
   D.forEach(x=>{const o=old.find(y=>y.id===x.id);
     if(!o){ch.push(`Add ${label}: ${esc(x.name)}`+(sec==='categories'?`, ${money(x.budget||0)}/${x.type==='annual'?'year':'month'} in ${esc(roleName(x.role))}`:sec==='fixed'?`, ${x.pct!=null?x.pct+'% of income':money(x.amount)+'/month'}`:sec==='assets'?`, ${money(x.value||0)}`:`, ${TYPES[x.type]}, ${money(x.balance||0)}`));return}
@@ -1605,7 +1605,7 @@ function bindDraft(t){
   if(t.dataset.d!==undefined&&UI.draft){const x=UI.draft[+t.dataset.i],f=t.dataset.d;
     if(f==='mode'){if(t.value==='pct'){x.pct=x.pct!=null?x.pct:10;delete x.amount}else{x.amount=x.amount!=null?x.amount:0;delete x.pct}return true}
     if(t.type==='checkbox'){x[f]=t.checked;return !!t.dataset.rr}
-    if(f==='type'&&TYPE_CHOICES.some(([k])=>k===t.value)&&'balance' in x){if(SAVINGS_KINDS[t.value]){x.type='savings';x.sub=t.value}else{x.type=t.value;delete x.sub}return !!t.dataset.rr}
+    if(f==='type'&&TYPE_CHOICES.some(([k])=>k===t.value)&&'balance' in x){if(KINDS[t.value]){x.type=KINDS[t.value].type;x.sub=t.value}else{x.type=t.value;delete x.sub}return !!t.dataset.rr}
     if(f==='freq'){x.freq=t.value;if(t.value==='months'&&!(x.months||[]).length)x.months=[+thisM.slice(5,7)];if((t.value==='quarterly'||t.value==='yearly')&&!x.begins)x.begins=thisM;return true}
     x[f]=NUMF.includes(f)?(t.value===''?'':(f==='balance'?parseFloat(t.value):Math.max(0,parseFloat(t.value)||0))):t.value;return !!t.dataset.rr}
   if(t.dataset.df!==undefined&&UI.draft){const k=t.dataset.df;UI.draft[k]=['income','grossAnnual','pretax','net','extra'].includes(k)?Math.max(0,parseFloat(t.value)||0):t.value;return false}

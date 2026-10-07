@@ -9,7 +9,7 @@ export interface Account {
   id: string;
   name: string;
   type: AccountType;
-  /** Kind of savings account (high-yield, credit-union base share). Behaves as savings; only the label differs. */
+  /** Kind of account: "share" (credit-union base share, a checking account) or "hysa" (high-yield savings). Only the label differs. */
   sub?: "hysa" | "share";
   /** For debt accounts this is the amount owed (positive). */
   balance: number;
