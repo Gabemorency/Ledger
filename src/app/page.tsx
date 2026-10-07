@@ -1,17 +1,17 @@
-import Script from "next/script";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import LegacyApp from "./legacy-app";
 
-// Step 1 of the port: the original single-file app runs unchanged.
-// public/ledger.js renders into this static shell and keeps its data in
-// localStorage. Later steps move it into React components and Supabase.
+// The original app renders into this static shell and keeps its data in
+// localStorage. Its math comes from src/lib/model; screens move to React
+// components in later steps.
 const shell = readFileSync(path.join(process.cwd(), "src/app/shell.html"), "utf8");
 
 export default function Home() {
   return (
     <>
       <div dangerouslySetInnerHTML={{ __html: shell }} />
-      <Script src="/ledger.js" strategy="afterInteractive" />
+      <LegacyApp />
     </>
   );
 }

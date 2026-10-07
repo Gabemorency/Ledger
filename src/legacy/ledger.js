@@ -1,19 +1,21 @@
+import * as Model from "@/lib/model";
+
 (function(){
 const KEY='ledger-demo-v9';
 const now=new Date();
-const pad2=n=>String(n).padStart(2,'0');
-const mkey=d=>d.getFullYear()+'-'+pad2(d.getMonth()+1);
+function pad2(...a){return Model.pad2(...a)}
+function mkey(...a){return Model.mkey(...a)}
 const thisM=mkey(now);
 const prevDate=new Date(now.getFullYear(),now.getMonth()-1,1);
 const prevM=mkey(prevDate);
-const iso=(y,m,d)=>y+'-'+pad2(m)+'-'+pad2(d);
+function iso(...a){return Model.iso(...a)}
 const todayISO=iso(now.getFullYear(),now.getMonth()+1,now.getDate());
 const day=d=>iso(now.getFullYear(),now.getMonth()+1,Math.min(d,now.getDate()));
 const pday=d=>iso(prevDate.getFullYear(),prevDate.getMonth()+1,d);
 const monthName=(d,opt)=>d.toLocaleDateString('en-US',opt||{month:'long'});
-const money=(n,c)=>{n=+n||0;const r=c?Math.round(n*100)/100:Math.round(n);return (r<0?'-':'')+'$'+Math.abs(r).toLocaleString('en-US',{minimumFractionDigits:c?2:0,maximumFractionDigits:c?2:0})};
+function money(...a){return Model.money(...a)}
 const fmtD=d=>new Date(d+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-const r2=n=>Math.round(n*100)/100;
+function r2(...a){return Model.r2(...a)}
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let uid=1000; const id=()=>'i'+(uid++)+Math.random().toString(36).slice(2,6);
 
@@ -122,87 +124,43 @@ if(!S||!S.plan||!S.plan.inc||!S.dash)S=seed();
 sanitize();
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 
-/* ---------- core model ---------- */
+/* ---------- core model ----------
+   The math lives in src/lib/model (typed and unit-tested). These wrappers
+   bind it to the app's state S and today's month. */
 const cat=cid=>S.categories.find(c=>c.id===cid);
-const adjOf=(cid,m)=>((S.adj||{})[m]||{})[cid]||0;
-function carryOf(c,m){
-  if(!c.roll||!c.rollFrom||c.type!=='monthly'||m<=c.rollFrom)return 0;
-  const M=memo(),k=c.id+'|'+m;if(k in M.carry)return M.carry[k];
-  const d=mDate(m),pm=mkey(new Date(d.getFullYear(),d.getMonth()-1,1));
-  return M.carry[k]=r2(Math.max(0,budgetOf(c,pm)-spent(c.id,pm)));
-}
-const budgetOf=(c,m)=>c.type==='monthly'?r2(c.budget+adjOf(c.id,m||thisM)+carryOf(c,m||thisM)):c.budget;
+function adjOf(cid,m){return Model.adjustmentOf(S,cid,m)}
+function carryOf(c,m){return Model.carryOf(S,memo(),c,m||thisM)}
+function budgetOf(c,m){return Model.budgetOf(S,memo(),c,m||thisM)}
 function sanitize(){if(!S.adj)S.adj={};if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
-const acct=aid=>S.accounts.find(a=>a.id===aid);
+function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
 const TYPES={checking:'Checking',cash:'Cash',savings:'Savings',retirement:'Retirement',debt:'Debt'};
-function move(aid,delta){const a=acct(aid);if(!a)return;a.balance=r2(a.type==='debt'?a.balance-delta:a.balance+delta)}
-function applyTx(t,sign){
-  MEMO=null;
-  if(t.kind==='expense'||t.kind==='fixed'||t.kind==='goalbuy')move(t.acct,-t.amount*sign);
-  if(t.kind==='fixed'&&t.to)move(t.to,t.amount*sign);
-  else if(t.kind==='income')move(t.acct,t.amount*sign);
-  else if(t.kind==='transfer'){move(t.from,-t.amount*sign);move(t.to,t.amount*sign)}
-  else if(t.kind==='adjust')move(t.acct,t.dir*t.amount*sign);
-  else if(t.kind==='interest')move(t.acct,-t.amount*sign);
-  else if(t.kind==='gmove'&&t.acctFrom!==t.acctTo){move(t.acctFrom,-t.amount*sign);move(t.acctTo,t.amount*sign)}
-  if(t.goal&&(t.kind==='transfer'||t.kind==='assign')){const g=goal(t.goal);if(g)g.saved=r2(g.saved+t.amount*sign)}
-  if(t.kind==='unassign'){const g=goal(t.goal);if(g)g.saved=r2(g.saved-t.amount*sign)}
-  if(t.kind==='gmove'){const a=goal(t.gFrom),b=goal(t.gTo);if(a)a.saved=r2(a.saved-t.amount*sign);if(b)b.saved=r2(b.saved+t.amount*sign)}
-}
+function applyTx(t,sign){MEMO=null;Model.applyTx(S,t,sign)}
 /* never let a regular account drop below $0, or below what its goals have set aside */
-function guardTx(add,rem){
-  const d={};const acc=(t,sg)=>S.accounts.forEach(a=>{const e=effectOn(t,a.id);if(e)d[a.id]=(d[a.id]||0)+sg*e});
-  (add||[]).forEach(t=>acc(t,1));(rem||[]).forEach(t=>acc(t,-1));
-  for(const a of S.accounts){const dd=r2(d[a.id]||0);if(a.type==='debt'||dd>=-0.004)continue;
-    const nb=r2(a.balance+dd),floor=Math.max(0,r2(assigned(a.id)));
-    if(nb<floor-0.004){return nb<-0.004?`${a.name} only has ${money(Math.max(0,a.balance),true)}. This would take it below $0.`:`That would dip into ${money(floor-nb,true)} set aside for goals in ${a.name}. Move goal money back first (Goals → More → Move money).`}}
-  return null;
-}
-const catLeft=(c,m)=>r2(budgetOf(c,m)-spent(c.id,m));
+function guardTx(add,rem){return Model.guardTx(S,add,rem)}
+function catLeft(c,m){return Model.categoryLeft(S,memo(),c,m||thisM)}
 function addTx(t){t.id=id();S.tx.push(t);applyTx(t,1);return t}
 const inMonth=(t,m)=>t.date.slice(0,7)===m;
 let MEMO=null;
-function memo(){
-  if(MEMO)return MEMO;
-  const m={catM:{},catY:{},inc:{},fix:{},carry:{}};
-  for(const t of S.tx){const mo=t.date.slice(0,7),y=t.date.slice(0,4);
-    if(t.kind==='expense'){m.catM[mo+'|'+t.cat]=(m.catM[mo+'|'+t.cat]||0)+t.amount;m.catY[y+'|'+t.cat]=(m.catY[y+'|'+t.cat]||0)+t.amount}
-    else if(t.kind==='income')m.inc[mo]=(m.inc[mo]||0)+t.amount;
-    else if(t.kind==='fixed')m.fix[mo+'|'+t.fixedId]=(m.fix[mo+'|'+t.fixedId]||0)+t.amount}
-  return MEMO=m;
-}
-function spent(cid,scope){
-  const c=cat(cid),m=scope||thisM,M=memo();
-  return c&&c.type==='annual'?(M.catY[m.slice(0,4)+'|'+cid]||0):(M.catM[m+'|'+cid]||0);
-}
-function spentSlow(cid,scope){
-  const c=cat(cid);const m=scope||thisM;
-  return S.tx.filter(t=>t.kind==='expense'&&t.cat===cid&&(c.type==='annual'?t.date.slice(0,4)===m.slice(0,4):inMonth(t,m))).reduce((a,t)=>a+t.amount,0);
-}
-const incomeIn=m=>memo().inc[m]||0;
+function memo(){return MEMO||(MEMO=Model.buildIndex(S.tx))}
+function spent(cid,scope){return Model.spent(S,memo(),cid,scope||thisM)}
+function incomeIn(m){return Model.incomeIn(memo(),m)}
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const mIdx=m=>+m.slice(0,4)*12+(+m.slice(5,7)-1);
-const perYear=f=>({monthly:12,quarterly:4,yearly:1,months:(f.months||[]).length})[f.freq||'monthly'];
-function dueIn(f,m){
-  m=m||thisM;if(f.begins&&m<f.begins)return false;if(f.end&&m>f.end)return false;
-  const fr=f.freq||'monthly';
-  if(fr==='monthly')return true;
-  if(fr==='months')return (f.months||[]).includes(+m.slice(5,7));
-  const a=f.begins||m,step=fr==='quarterly'?3:12;return ((mIdx(m)-mIdx(a))%step+step)%step===0;
-}
-function nextDue(f,m){let d=mDate(m||thisM);for(let k=1;k<=24;k++){const x=mkey(new Date(d.getFullYear(),d.getMonth()+k,1));if(dueIn(f,x))return x}return null}
-const ended=f=>!!(f.end&&f.end<thisM);
+function mIdx(...a){return Model.mIdx(...a)}
+function perYear(...a){return Model.perYear(...a)}
+function dueIn(f,m){return Model.dueIn(f,m||thisM)}
+function nextDue(f,m){return Model.nextDue(f,m||thisM)}
+function ended(f){return Model.hasEnded(f,thisM)}
 function schedText(f){const fr=f.freq||'monthly';
   const base=fr==='monthly'?'Every month':fr==='quarterly'?`Every 3 months from ${MON[+(f.begins||thisM).slice(5,7)-1]}`:fr==='yearly'?`Every ${MON[+(f.begins||thisM).slice(5,7)-1]}`:`In ${(f.months||[]).slice().sort((a,b)=>a-b).map(n=>MON[n-1]).join(', ')||'no months'}`;
   return base+(f.end?`, until ${monthName(mDate(f.end),{month:'short',year:'numeric'})}`:'')+(f.begins&&f.begins>thisM&&fr==='monthly'?`, starting ${monthName(mDate(f.begins),{month:'short',year:'numeric'})}`:'')}
-const fixedDue=(f,m)=>!dueIn(f,m)?0:f.pct?r2(incomeIn(m||thisM)*f.pct/100):f.amount;
-const fixedPlan=f=>ended(f)?0:f.pct?S.plan.income*f.pct/100:r2(f.amount*perYear(f)/12);
-const fixedPaid=(f,m)=>memo().fix[(m||thisM)+'|'+f.id]||0;
+function fixedDue(f,m){return Model.fixedDue(memo(),f,m||thisM)}
+function fixedPlan(f){return Model.fixedPlanned(S,f,thisM)}
+function fixedPaid(f,m){return Model.fixedPaid(memo(),f,m||thisM)}
 const isSpend=t=>t.kind==='expense'||t.kind==='interest'||(t.kind==='fixed'&&!t.to);
 const isPlanned=t=>t.kind==='goalbuy';
-const fixedOwe=(f,m)=>{if(!dueIn(f,m))return 0;const paid=fixedPaid(f,m);return f.pct!=null?r2(fixedDue(f,m)-paid):(paid>0?0:f.amount)};
+function fixedOwe(f,m){return Model.fixedOwed(memo(),f,m||thisM)}
 function openMonths(){
   const keys=S.closed.slice().sort(),last=keys[keys.length-1];
   let start;
@@ -214,129 +172,46 @@ function openMonths(){
 }
 const closeTarget=()=>openMonths()[0]||null;
 const latestClosed=()=>S.closed.slice().sort().pop()||null;
-const mDate=m=>new Date(m+'-01T00:00');
+function mDate(...a){return Model.mDate(...a)}
 const existedBy=(a,m)=>!a.opened||a.opened.slice(0,7)<=m;
-const lastDayOf=m=>{const d=mDate(m);return iso(d.getFullYear(),d.getMonth()+1,new Date(d.getFullYear(),d.getMonth()+1,0).getDate())};
-function effectOn(t,aid){
-  let d=0;
-  if((t.kind==='expense'||t.kind==='fixed'||t.kind==='goalbuy')&&t.acct===aid)d-=t.amount;
-  if(t.kind==='fixed'&&t.to===aid)d+=t.amount;
-  if(t.kind==='income'&&t.acct===aid)d+=t.amount;
-  if(t.kind==='transfer'){if(t.from===aid)d-=t.amount;if(t.to===aid)d+=t.amount}
-  if(t.kind==='adjust'&&t.acct===aid)d+=t.dir*t.amount;
-  if(t.kind==='interest'&&t.acct===aid)d-=t.amount;
-  if(t.kind==='gmove'&&t.acctFrom!==t.acctTo){if(t.acctFrom===aid)d-=t.amount;if(t.acctTo===aid)d+=t.amount}
-  return d;
-}
-function balAt(a,m){
-  if(a.opened&&m<a.opened.slice(0,7)){m=a.opened.slice(0,7)}
-  const after=S.tx.filter(t=>t.date.slice(0,7)>m).reduce((s,t)=>s+effectOn(t,a.id),0);
-  return r2(a.type==='debt'?a.balance+after:a.balance-after);
-}
+function lastDayOf(...a){return Model.lastDayOf(...a)}
+function effectOn(...a){return Model.effectOn(...a)}
+function balAt(a,m){return Model.balanceAtMonthEnd(S,a,m)}
 function openedBlock(date,ids){
   for(const id of ids){const a=acct(id);if(a&&a.opened&&date<a.opened)return `${a.name} was added on ${fmtD(a.opened)}. Its starting balance already includes anything earlier, so pick that date or later.`}
   return null;
 }
-const activeGoals=()=>S.goals.filter(g=>!g.done);
-const kids=g=>S.goals.filter(x=>x.parent===g.id);
-const liveKids=g=>kids(g).filter(x=>!x.done);
-const isParent=g=>!g.parent&&kids(g).length>0;
-const topGoals=()=>activeGoals().filter(g=>!g.parent);
-const family=g=>[g].concat(kids(g));
-function famProgress(g){
-  const ids=family(g).map(x=>x.id);
-  const paidTx=S.tx.filter(t=>t.kind==='goalbuy'&&ids.includes(t.goal));
-  const paid=r2(paidTx.reduce((a,t)=>a+t.amount,0));
-  const aside=r2((g.done?0:g.saved)+liveKids(g).reduce((a,x)=>a+x.saved,0));
-  const covered=r2(paid+aside),remaining=r2(Math.max(0,g.target-covered));
-  return {paid,aside,covered,remaining,payments:paidTx.length,pctPaid:g.target?Math.min(100,paid/g.target*100):0,pctCov:g.target?Math.min(100,covered/g.target*100):0};
-}
-const liveCats=()=>S.categories.filter(c=>!c.archived);
-const liveFixed=()=>S.fixed.filter(f=>!f.archived);
-const liveAccts=()=>S.accounts.filter(a=>!a.archived);
+function activeGoals(){return Model.activeGoals(S)}
+function kids(g){return Model.subGoals(S,g)}
+function liveKids(g){return Model.liveSubGoals(S,g)}
+function isParent(g){return Model.isParent(S,g)}
+function topGoals(){return Model.topGoals(S)}
+function family(g){return Model.goalFamily(S,g)}
+function famProgress(g){return Model.familyProgress(S,g)}
+function liveCats(){return Model.liveCategories(S)}
+function liveFixed(){return Model.liveFixed(S)}
+function liveAccts(){return Model.liveAccounts(S)}
 const payAccts=()=>liveAccts().filter(a=>a.pay);
 const firstSavings=()=>(liveAccts().find(a=>a.type==='savings')||liveAccts().find(a=>a.type!=='debt')||{}).id;
-const assigned=aid=>activeGoals().filter(g=>g.acct===aid).reduce((s,g)=>s+g.saved,0);
-const unassigned=aid=>r2((acct(aid)||{balance:0}).balance-assigned(aid));
-const sumType=(types,bal)=>S.accounts.filter(a=>types.includes(a.type)).reduce((s,a)=>s+(bal?(bal[a.id]||0):a.balance),0);
-const othNow=()=>(S.assets||[]).filter(x=>!x.archived).reduce((a,x)=>a+(x.value||0),0);
-const othOf=snap=>snap?(snap.oth||0):othNow();
-const netOf=(bal,snap)=>sumType(['checking','cash','savings','retirement'],bal)-sumType(['debt'],bal)+(bal?(snap?othOf(snap):(bal.__oth||0)):othNow());
+function assigned(aid){return Model.assigned(S,aid)}
+function unassigned(aid){return Model.unassigned(S,aid)}
+function sumType(types,bal){return Model.sumType(S,types,bal)}
+function othNow(){return Model.otherAssetsNow(S)}
+function netOf(bal,snap){return Model.netWorth(S,bal,snap)}
 function pctClass(p){return p>100?'over':p>=80?'warn':''}
 
-const monthsTo=d=>Math.max(1,(new Date(d+'T00:00')-now)/(1000*60*60*24*30.44));
-function goalInfo(g){
-  if(isParent(g))return parentInfo(g);
-  const t0=new Date(g.created+'T00:00'), t1=new Date(g.date+'T00:00');
-  const total=Math.max(1,t1-t0), elapsed=Math.min(total,Math.max(0,now-t0));
-  const expected=g.target*elapsed/total;
-  const remaining=Math.max(0,g.target-g.saved);
-  const monthsLeft=Math.max(1,(t1-now)/(1000*60*60*24*30.44));
-  const perMonth=Math.ceil(remaining/monthsLeft);
-  let status='on track';
-  if(g.saved>=g.target)status='funded';
-  else if(g.saved>=expected+g.target*.05)status='ahead';
-  else if(g.saved<expected-g.target*.05)status='behind';
-  return {perMonth,status,remaining,expected:r2(Math.min(g.target,expected)),diff:r2(g.saved-expected),cur:g.saved};
-}
-/* a big goal must have money ready before each sub-goal's due date, and the whole total by its own date */
-function parentInfo(g){
-  const fp=famProgress(g);
-  let need=Math.ceil(fp.remaining/monthsTo(g.date)),cum=0,nextShort=null;
-  const cover={};
-  liveKids(g).slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(k=>{
-    cum+=Math.max(0,k.target-k.saved);
-    const gap=cum-g.saved;cover[k.id]=gap<=0.004?0:r2(Math.min(gap,k.target-k.saved));
-    if(gap>0){need=Math.max(need,Math.ceil(gap/monthsTo(k.date)));if(!nextShort)nextShort={k,gap:r2(gap)}}
-  });
-  const t0=new Date(g.created+'T00:00'),t1=new Date(g.date+'T00:00');
-  const total=Math.max(1,t1-t0),elapsed=Math.min(total,Math.max(0,now-t0)),expected=g.target*elapsed/total;
-  let status='on track';
-  if(fp.covered>=g.target-0.004)status='funded';
-  else if(fp.covered>=expected+g.target*.05)status='ahead';
-  else if(fp.covered<expected-g.target*.05)status='behind';
-  return {perMonth:need,status,remaining:fp.remaining,fp,nextShort,cover,expected:r2(Math.min(g.target,expected)),diff:r2(fp.covered-expected),cur:fp.covered};
-}
-/* pay-yourself-first plan: income -> fixed -> goals (by priority) -> guilt-free */
-function monthPlan(){
-  const income=S.plan.income;
-  const fixedTotal=liveFixed().reduce((a,f)=>a+fixedPlan(f),0);
-  let avail=income-fixedTotal;
-  const goals=topGoals().map(g=>{const need=goalInfo(g).perMonth;const funded=Math.max(0,Math.min(need,avail));avail-=funded;return {g,need,funded}});
-  const goalTotal=goals.reduce((a,x)=>a+x.funded,0);
-  const guilt=avail;
-  const budgets=liveCats().reduce((a,c)=>a+(c.type==='monthly'?c.budget:c.budget/12),0);
-  return {income,fixedTotal,goals,goalTotal,guilt,budgets,unplanned:guilt-budgets};
-}
+function monthsTo(d){return Model.monthsTo(d,now)}
+function goalInfo(g){return Model.goalInfo(S,g,now)}
+function parentInfo(g){return Model.parentInfo(S,g,now)}
+function monthPlan(){return Model.monthPlan(S,now)}
 
 /* ---------- plan frameworks ---------- */
-const FW={
-  csp:{name:'Conscious Spending Plan',desc:'Ramit Sethi\u2019s method: fixed costs, investments, savings, then guilt-free spending.',buckets:[
-    {name:'Fixed costs',roles:['need'],min:50,max:60},{name:'Investments',roles:['invest'],min:10,max:10},
-    {name:'Savings',roles:['save'],min:5,max:10},{name:'Guilt-free spending',roles:['want'],min:20,max:35}]},
-  r503020:{name:'50/30/20',desc:'Half to needs, 30% to wants, 20% to savings and investing.',buckets:[
-    {name:'Needs',roles:['need'],min:50,max:50},{name:'Wants',roles:['want'],min:30,max:30},{name:'Savings & investing',roles:['save','invest'],min:20,max:20}]},
-  zero:{name:'Zero-based',desc:'No percentage targets. Every dollar of income gets a job until nothing is unplanned.',zero:true,buckets:[
-    {name:'Needs',roles:['need']},{name:'Investing',roles:['invest']},{name:'Savings',roles:['save']},{name:'Spending',roles:['want']}]},
-  custom:{name:'Custom',desc:'Your own group names and target ranges.',buckets:null}
-};
-const ROLES=['need','invest','save','want'];
-function buckets(fw,custom){fw=fw||S.plan.framework;return fw==='custom'?(custom||S.plan.custom):FW[fw].buckets}
-function roleName(role,fw,custom){const b=buckets(fw,custom).find(b=>b.roles.includes(role));return b?b.name:role}
+const FW=Model.FRAMEWORKS;
+const ROLES=Model.ROLES;
+function buckets(fw,custom){return Model.buckets(S,fw,custom)}
+function roleName(role,fw,custom){return Model.roleName(S,role,fw,custom)}
 const aheadOk=b=>b.roles.length&&b.roles.every(r=>r==='save'||r==='invest');
-function planCheck(){
-  const inc=S.plan.income||1, P=monthPlan();
-  const amt={need:0,invest:0,save:0,want:0},items={need:[],invest:[],save:[],want:[]};
-  const add=(r,n,v,note)=>{amt[r]+=v;if(v>0.004)items[r].push({n,v,note})};
-  liveFixed().forEach(f=>add(f.role||'need',f.name,fixedPlan(f),(f.freq&&f.freq!=='monthly')?'spread monthly':''));
-  liveCats().forEach(c=>add(c.role||'want',c.name,c.type==='monthly'?c.budget:c.budget/12,c.type==='annual'?'1/12 of yearly':''));
-  P.goals.forEach(x=>add('save',x.g.name,x.funded,'goal'));
-  add('invest','Pre-tax retirement',(S.plan.inc&&S.plan.inc.pretax)||0,'from paycheck');
-  return {P,rows:buckets().map((b,i)=>{const v=b.roles.reduce((s,r)=>s+amt[r],0),pct=v/inc*100;
-    const its=b.roles.reduce((a,r)=>a.concat(items[r]),[]).sort((x,y)=>y.v-x.v);
-    let st='',lo=null,hi=null;if(b.min!=null){lo=b.min===b.max?b.min-3:b.min;hi=b.min===b.max?b.max+3:b.max;st=pct<lo?'below':pct>hi?(aheadOk(b)?'ahead':'above'):'ok'}
-    return {b,i,v,pct,st,lo,hi,its}})};
-}
+function planCheck(){return Model.planCheck(S,now)}
 
 /* ---------- UI helpers ---------- */
 let bT,tT;
@@ -584,13 +459,8 @@ V.home=()=>{
 `;
 };
 
-function debtPay(a){return a.min||(liveFixed().find(f=>f.to===a.id&&f.pct==null)||{}).amount||0}
-function debtProg(a){
-  const interest=r2(S.tx.filter(t=>t.kind==='interest'&&t.acct===a.id).reduce((s,t)=>s+t.amount,0));
-  if(!(a.start>0))return {has:false,interest};
-  const paid=r2(Math.max(0,a.start-a.balance));
-  return {has:true,paid,left:a.balance,pct:Math.min(100,paid/a.start*100),interest};
-}
+function debtPay(a){return Model.debtPayment(S,a)}
+function debtProg(a){return Model.debtProgress(S,a)}
 function cardInfo(a){
   const d=a.stmt||1,t=now,y=t.getFullYear(),m=t.getMonth();
   const closeDate=t.getDate()>=d?new Date(y,m,Math.min(d,new Date(y,m+1,0).getDate())):new Date(y,m-1,Math.min(d,new Date(y,m,0).getDate()));
@@ -617,11 +487,7 @@ function debtBlock(a,compact){
     +(d.interest>0?`<p class="sub" style="font-size:13px;margin:2px 0 0">Interest paid so far: ${money(d.interest)} (estimated) ${tip('interest')}</p>`:'');
 }
 /* when a payment lands on a loan that charges interest, part of it covers that month's interest */
-function interestFor(debtId,date,payAmt){
-  const a=acct(debtId);if(!a||a.type!=='debt'||!a.accrue||!(a.apr>0))return 0;
-  if(S.tx.some(t=>t.kind==='interest'&&t.acct===debtId&&t.date.slice(0,7)===date.slice(0,7)))return 0;
-  return r2(Math.min(balAt(a,date.slice(0,7))*a.apr/1200,payAmt));
-}
+function interestFor(debtId,date,payAmt){return Model.interestFor(S,debtId,date,payAmt)}
 function payDebt(base){
   const i=interestFor(base.to,base.date,base.amount),a=acct(base.to);
   const owed=r2(balAtDay(a,base.date)+i);
@@ -632,16 +498,13 @@ function payDebt(base){
   if(a.balance<=0.004)setTimeout(()=>notify(a.name+' is paid off','Archive it and its payment in Settings when you\u2019re ready.'),800);
   return {tx:p,note};
 }
-function balAtDay(a,date){const after=S.tx.filter(t=>t.date>date).reduce((s,t)=>s+effectOn(t,a.id),0);return r2(a.type==='debt'?a.balance+after:a.balance-after)}
+function balAtDay(a,date){return Model.balanceAtDay(S,a,date)}
 function payoff(a){
-  const r=(a.apr||0)/1200,B=a.balance,P=debtPay(a);
-  if(B<=0)return {txt:'Paid off'};
-  if(!P)return {txt:'Add a monthly payment to see a payoff date'};
-  if(r>0&&P<=r*B)return {txt:'This payment doesn\u2019t cover the interest'};
-  const n=r>0?Math.ceil(-Math.log(1-r*B/P)/Math.log(1+r)):Math.ceil(B/P);
-  const interest=Math.max(0,n*P-B);
-  const d=new Date(now.getFullYear(),now.getMonth()+n,1);
-  return {txt:`Paid off ${d.toLocaleDateString('en-US',{month:'short',year:'numeric'})}, about ${money(interest)} in interest`};
+  const p=Model.payoff(S,a,now);
+  if(p.kind==='paid')return {txt:'Paid off'};
+  if(p.kind==='no-payment')return {txt:'Add a monthly payment to see a payoff date'};
+  if(p.kind==='interest-only')return {txt:'This payment doesn\u2019t cover the interest'};
+  return {txt:`Paid off ${p.date.toLocaleDateString('en-US',{month:'short',year:'numeric'})}, about ${money(p.interest)} in interest`};
 }
 V.accounts=()=>{
   const E=UI.editAccts;

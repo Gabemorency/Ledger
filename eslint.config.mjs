@@ -12,8 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Legacy prototype script, ported as-is; replaced in step 2.
-    "public/ledger.js",
+    // Original prototype screens; replaced by React components over time.
+    "src/legacy/**",
   ]),
 ]);
 
