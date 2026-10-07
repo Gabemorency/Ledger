@@ -1838,7 +1838,11 @@ function handleAct(t){
   if(a==='gsSkip'){S.gsSkip=(S.gsSkip||[]).concat(t.dataset.k);render();return}
   if(a==='gsHide'){confirmBox('Hide the getting-started checklist?',['You can bring it back from Help'],'Hide it',()=>{S.gsHidden=true;render();toast('Checklist hidden. Bring it back from Help.')});return}
   if(a==='gsShow'){S.gsHidden=false;resetUI();S.view='home';render();window.scrollTo(0,0);return}
-  if(a==='checkDone'){S.lastCheck=todayISO;logIt(['Weekly check-in done']);render();toast('Nice. See you next week.');return}
+  if(a==='checkDone'){
+    const open=document.querySelectorAll('.dc-checkin .ckrow.warn').length;
+    confirmBox('Done with this week’s check-in?',['This card hides for 7 days, then comes back next week','Nothing about your money changes. The check-in is just a reminder to look things over'].concat(open?[`${open} item${open===1?' is':'s are'} still marked • on the card. You can come back to ${open===1?'it':'them'} anytime`]:[]),'Yes, I’m done',()=>{
+      S.lastCheck=todayISO;logIt(['Weekly check-in done']);render();toast('Nice. See you next week.')},{cancel:'Not yet'});
+    return}
   if(a==='pdClear'){const left=(S.payday||[]).filter(x=>!x.done).length;const go=()=>{S.payday=[];render()};if(left)confirmBox('Clear the transfer list?',[`${left} transfer${left===1?' isn’t':'s aren’t'} ticked yet`,'The app already counted them. If you skip one in your bank, fix the balance at the monthly close'],'Clear list',go);else go();return}
   if(a==='pinSet'){if(!SEC().email){toast('Add your account email first, so you can reset a forgotten PIN');const i=document.getElementById('secEmail');if(i)i.focus();return}lockOpen('set1','new');return}
   if(a==='pinChange'){lockOpen('verify','change');return}
