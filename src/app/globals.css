@@ -473,3 +473,16 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 .uacard .uatot{border-top:1px solid var(--line);margin-top:4px;padding-top:8px;font-weight:600}
 .uacard.short{box-shadow:inset 0 0 0 1.5px var(--over)}
 .uamini{margin-top:8px}.uamini .uabar{height:6px;margin:4px 0 0}
+
+/* monthly breakdown */
+.bkmonth{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0 10px}
+.bkmonth b{font:700 18px var(--display);color:var(--ink);text-align:center;flex:1}
+.bkmonth .x{width:40px;height:40px;font-size:22px}
+.bkstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.bkstats>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.bkstats .sub{font-size:12px}.bkstats b{font-size:14px;color:var(--ink);overflow-wrap:anywhere}
+.bkrow{border-bottom:1px solid var(--line);padding:10px 0}.bkrow:last-child{border-bottom:0}
+.bkrow summary{list-style:none;cursor:pointer}.bkrow summary::-webkit-details-marker{display:none}
+.bkrow .cols{font-size:12px}
+.bkrow[open] .cols span:last-child{opacity:.6}
+.bkitems{padding:4px 0 2px 10px;border-left:2px solid var(--line);margin-top:6px}

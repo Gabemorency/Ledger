@@ -815,6 +815,48 @@ V.unassigned=()=>{
   </div>`}).join('')||'<div class="panel emptycard"><b>No accounts yet</b><p class="sub">Add checking, cash or savings accounts in Settings.</p></div>'}
   <p class="sub" style="font-size:13px;margin-top:12px">Categories without a “Usually paid from” account count against ${esc(aName(routeAcct(S.plan.payDefault)||routeAcct(S.plan.deposit))||'your main account')}. Retirement accounts and debts aren’t listed.</p>`;
 };
+/* ---------- monthly breakdown: what you spent, from where, on what ---------- */
+const BK={m:null};
+function bkMonths(){const first=S.tx.reduce((a,t)=>t.date<a?t.date:a,todayISO).slice(0,7),out=[];let d=new Date(first+'-01T00:00');
+  while(mkey(d)<=thisM){out.push(mkey(d));d=new Date(d.getFullYear(),d.getMonth()+1,1)}return out}
+/* every dollar that counts as spending in a month, the same way Trends counts it */
+function bkLines(m){return S.tx.filter(t=>inMonth(t,m)&&(t.kind==='expense'||t.kind==='interest'||(t.kind==='fixed'&&!t.to))).map(t=>{
+  if(t.kind==='expense'){const c=cat(t.cat);return {t,what:'c:'+t.cat,whatName:c?c.name:'Uncategorized',item:t.vendor||'Purchase',from:t.before?'before':t.acct,role:(c&&c.role)||'want'}}
+  if(t.kind==='fixed'){const f=S.fixed.find(x=>x.id===t.fixedId);return {t,what:'bills',whatName:'Bills (fixed costs)',item:t.vendor||(f&&f.name)||'Bill',from:t.acct,role:(f&&f.role)||'need'}}
+  return {t,what:'interest',whatName:'Loan and card interest',item:aName(t.acct),from:t.acct,role:'need'}})}
+const BKC=['var(--accent)','var(--plan)','var(--warn)','var(--ahead)','var(--above)','var(--over)','var(--muted)'];
+function bkGroup(lines,key,name){const g={};lines.forEach(l=>{const k=l[key];(g[k]=g[k]||{k,name:name(l),tot:0,n:0,items:{}});g[k].tot+=l.t.amount;g[k].n++;const sub=key==='what'?l.item:l.whatName;g[k].items[sub]=(g[k].items[sub]||0)+l.t.amount});
+  return Object.values(g).map(x=>({...x,tot:r2(x.tot)})).sort((a,b)=>b.tot-a.tot)}
+function bkRows(list,tot,subLabel){return list.map((x,i)=>{const pc=tot?x.tot/tot*100:0,items=Object.entries(x.items).sort((a,b)=>b[1]-a[1]);
+  return `<details class="bkrow"><summary><div class="rowtop"><b>${esc(x.name)}</b><span class="num">${money(x.tot,true)}</span></div>
+    <div class="bar"><i style="width:${pc}%;background:${BKC[i%BKC.length]}"></i></div>
+    <div class="cols"><span>${Math.round(pc)}% of spending</span><span>${x.n} ${x.n===1?'entry':'entries'} ⌄</span></div></summary>
+    <div class="bkitems"><p class="lbl" style="margin:6px 0 2px">${subLabel}</p>${items.map(([n,v])=>`<div class="rorow"><span>${esc(n)}</span><b class="num">${money(v,true)}</b></div>`).join('')}</div></details>`}).join('')}
+V.breakdown=()=>{
+  const ms=bkMonths();if(!BK.m||!ms.includes(BK.m))BK.m=thisM;const m=BK.m,i=ms.indexOf(m);
+  const L=bkLines(m),tot=r2(L.reduce((a,l)=>a+l.t.amount,0)),prev=i>0?r2(bkLines(ms[i-1]).reduce((a,l)=>a+l.t.amount,0)):null;
+  const st=monthStats(m),what=bkGroup(L,'what',l=>l.whatName),from=bkGroup(L,'from',l=>l.from==='before'?'Before you started Ledger':aName(l.from));
+  const bs=buckets(),grp=bs.map(b=>({b,v:r2(L.filter(l=>b.roles.includes(l.role)).reduce((a,l)=>a+l.t.amount,0))})).filter(x=>x.v>0.004);
+  const other=r2(tot-grp.reduce((a,x)=>a+x.v,0));if(other>0.004)grp.push({b:{name:'Other'},v:other});
+  const big=L.filter(l=>l.t.kind==='expense').sort((a,b)=>b.t.amount-a.t.amount).slice(0,5);
+  const budget=r2(liveCats().filter(c=>c.type==='monthly').reduce((a,c)=>a+budgetOf(c,m),0));
+  const catSpent=r2(L.filter(l=>l.t.kind==='expense'&&(cat(l.t.cat)||{}).type==='monthly').reduce((a,l)=>a+l.t.amount,0));
+  return `<button class="btn small ghost" data-go="trends" style="margin-bottom:8px">Back to trends</button><h1>Monthly breakdown</h1>
+  <p class="sub">Everything you spent in a month: what it went to and which account it came from.</p>
+  <div class="bkmonth"><button class="x" data-bm="-1" aria-label="Previous month" ${i>0?'':'disabled'}>‹</button><b>${esc(mFull(m))}</b><button class="x" data-bm="1" aria-label="Next month" ${i<ms.length-1?'':'disabled'}>›</button></div>
+  <div class="panel networth"><span class="sub">Spent</span><div class="num" style="font:800 40px/1.1 var(--display)">${money(tot,true)}</div>
+    ${prev!=null?`<p class="sub" style="font-size:13px;margin:4px 0 0">${m===thisM?`Month in progress. ${esc(mLabel(ms[i-1]))} came to ${money(prev,true)} in total.`:tot>prev?`${money(tot-prev,true)} more than ${esc(mLabel(ms[i-1]))}`:tot<prev?`${money(prev-tot,true)} less than ${esc(mLabel(ms[i-1]))}`:`Same as ${esc(mLabel(ms[i-1]))}`}</p>`:''}
+    <div class="bkstats"><div><span class="sub">Income</span><b class="num">${money(st.income,true)}</b></div><div><span class="sub">Kept</span><b class="num ${st.income-tot>=0?'okc':'overtxt'}">${money(st.income-tot,true)}</b></div><div><span class="sub">Category budgets</span><b class="num">${money(catSpent,true)} of ${money(budget,true)}</b></div></div>
+    ${grp.length?`<div class="uabar" style="margin-top:14px">${grp.map((x,j)=>`<i style="width:${x.v/tot*100}%;background:${BKC[j%BKC.length]}"></i>`).join('')}</div>
+    <div class="ualegend" style="margin:6px 0 0">${grp.map((x,j)=>`<span><i class="uadot" style="background:${BKC[j%BKC.length]}"></i>${esc(x.b.name)} ${money(x.v,true)}</span>`).join('')}</div>`:''}</div>
+  ${L.length?`<h2>What it went to</h2><div class="panel">${bkRows(what,tot,'Where')}</div>
+  <h2>Where it came from</h2><div class="panel">${bkRows(from,tot,'Spent on')}</div>
+  ${big.length?`<h2>Biggest purchases</h2><div class="panel">${big.map(l=>txLine(l.t)).join('')}</div>`:''}`
+  :'<div class="panel emptycard" style="margin-top:14px"><b>Nothing spent this month.</b><p class="sub">Purchases, paid bills and interest show up here as you log them.</p></div>'}
+  ${st.planned>0.004?`<p class="sub" style="font-size:13px;margin-top:12px">${money(st.planned,true)} in planned purchases paid from goals isn’t counted as spending. ${tip('planned')}</p>`:''}
+  <p class="sub" style="font-size:13px;margin-top:12px">Counts purchases, paid bills and loan interest. Transfers and money set aside for goals aren’t spending.</p>
+  <button class="btn ghost full" data-see="${m}" style="margin-top:10px">See every entry for ${esc(mLabel(m))}</button>`;
+};
 V.close=()=>{
   const T=closeTarget(),open=openMonths();
   if(!T)return `<button class="btn small ghost" data-go="activity" style="margin-bottom:8px">Back to activity</button><h1>All caught up</h1><p class="sub">Every finished month is closed. The next one opens for closing on the 1st.</p>`;
@@ -1281,6 +1323,7 @@ V.trends=()=>{
   const stat=(l,v,sub,cls)=>`<div class="ov"><div class="sub">${l}</div><div class="ovv num ${cls||''}">${v}</div><span class="sub" style="font-size:12px">${sub}</span></div>`;
   const fwName=S.plan.framework==='custom'?'custom plan':FW[S.plan.framework].name;
   return `<h1>Trends</h1><p class="sub">How your money has moved over time. * marks the current month, still in progress.</p>
+  <button class="loglink" data-go="breakdown" style="margin-top:12px"><span><b>◔ Monthly breakdown</b><small>What you spent each month, on what, and from which account</small></span><span class="chev">›</span></button>
   <div class="chips" style="margin:14px 0">${chips}</div>
   <div class="ovgrid">
     ${stat('Net worth change',(nwChg>=0?'+':'')+money(nwChg),`across ${nwVals.length} recorded months`,nwChg>=0?'up':'down')}
@@ -1553,8 +1596,8 @@ function setupStepCheck(st){
 
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
-  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned'};
-  const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['unassigned','Unassigned','◇'],['help','Help','?'],['guide','Guide','✦']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
+  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Monthly breakdown'};
+  const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['unassigned','Unassigned','◇'],['breakdown','Monthly breakdown','◔'],['help','Help','?'],['guide','Guide','✦']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
   return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${!!UI.menu}" aria-label="Menu">☰ Menu</button>
     ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}${BOOT?`<div class="who">Signed in as ${esc(maskEmail(BOOT.email))}</div><button role="menuitem" data-signout><span class="mi">⎋</span>Sign out</button>`:''}</div>`:''}</div>`;
 }
@@ -1805,6 +1848,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.see){setMonth(t.dataset.see);F.cat=t.dataset.seecat||'all';F.q=t.dataset.seeq||'';F.type='all';F.acct='all';resetUI();S.view='activity';render();window.scrollTo(0,0);return}
   if(t.dataset.range){Object.keys(CH).forEach(k=>delete CH[k]);TR.range=t.dataset.range==='all'?'all':+t.dataset.range;render();return}
   if(t.dataset.menu!==undefined){UI.menu=!UI.menu;render();return}
+  if(t.dataset.bm){const ms=bkMonths(),i=ms.indexOf(BK.m)+(+t.dataset.bm);if(i>=0&&i<ms.length){BK.m=ms[i];render()}return}
   if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
   if(t.dataset.gjump){const el=document.getElementById('g-'+t.dataset.gjump);guideMark(t.dataset.gjump);if(el){el.classList.add('in');el.scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}return}
   if(t.dataset.signout!==undefined&&BOOT){BOOT.signOut();return}
