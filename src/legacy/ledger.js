@@ -843,35 +843,44 @@ function moneyFlow(m){
   tx.forEach(t=>{const v=t.amount;
     if(t.kind==='income'&&isL(t.acct))add(src,'inc:'+(t.vendor||'Income'),t.vendor||'Income',v);
     else if(t.kind==='expense'&&isL(t.acct)){const c=cat(t.cat);add(use,'g:'+grpOf((c&&c.role)||'want'),grpOf((c&&c.role)||'want'),v)}
-    else if(t.kind==='fixed'&&isL(t.acct)){if(!t.to)add(use,'bills','Bills',v);else if(!isL(t.to)){const d=acct(t.to);add(use,d&&d.type==='debt'?'debt':'ret',d&&d.type==='debt'?'Paid toward debts':'Moved to retirement',v)}}
-    else if(t.kind==='fixed'&&t.to&&isL(t.to)&&!isL(t.acct))add(src,'other','From your other accounts',v);
-    else if(t.kind==='goalbuy'&&isL(t.acct))add(use,'planned','Planned purchases from goals',v);
+    else if(t.kind==='fixed'&&isL(t.acct)){if(!t.to)add(use,'bills','Bills',v);else if(!isL(t.to)){const d=acct(t.to);add(use,d&&d.type==='debt'?'debt':'ret',d&&d.type==='debt'?'Debt payments':'To retirement',v)}}
+    else if(t.kind==='fixed'&&t.to&&isL(t.to)&&!isL(t.acct))add(src,'other','Other accounts',v);
+    else if(t.kind==='goalbuy'&&isL(t.acct))add(use,'planned','Planned purchases',v);
     else if(t.kind==='transfer'){const f=isL(t.from),to=isL(t.to);
-      if(f&&!to){const d=acct(t.to);add(use,d&&d.type==='debt'?'debt':'ret',d&&d.type==='debt'?'Paid toward debts':'Moved to retirement',v)}
-      else if(!f&&to)add(src,'other','From your other accounts',v)}
+      if(f&&!to){const d=acct(t.to);add(use,d&&d.type==='debt'?'debt':'ret',d&&d.type==='debt'?'Debt payments':'To retirement',v)}
+      else if(!f&&to)add(src,'other','Other accounts',v)}
     else if(t.kind==='adjust'&&isL(t.acct)){if(t.dir>0)add(src,'adj','Corrections',v);else add(use,'adj','Corrections',v)}
   });
   const ins=Object.values(src).reduce((s,x)=>s+x.v,0),outs=Object.values(use).reduce((s,x)=>s+x.v,0),net=r2(ins-outs);
-  if(net<0)add(src,'drawn','From money you already had',-net,{end:true});else add(use,'kept','Added to your accounts',net,{end:true});
+  if(net<0)add(src,'drawn','Savings drawn down',-net,{end:true});else add(use,'kept','Kept',net,{end:true});
   const S_=Object.values(src).map(x=>({...x,v:r2(x.v)})).filter(x=>x.v>0.004).sort((x,y)=>(x.end?1:0)-(y.end?1:0)||y.v-x.v);
   const U=Object.values(use).map(x=>({...x,v:r2(x.v)})).filter(x=>x.v>0.004).sort((x,y)=>(x.end?1:0)-(y.end?1:0)||y.v-x.v);
   return {accts,src:S_,use:U,tx,isL,start:r2(accts.reduce((s,x)=>s+x.start,0)),end:r2(accts.reduce((s,x)=>s+x.end,0))}}
+const FLC=['--fl1','--fl2','--fl3','--fl4','--fl5','--fl6'];
 function sankey(src,use){
-  const W=340,bw=10,mx=165,tot=Math.max(src.reduce((s,x)=>s+x.v,0),use.reduce((s,x)=>s+x.v,0),0.01),sc=260/tot,minGap=30;
-  const lay=list=>{let y=4;return list.map(x=>{const h=Math.max(2,x.v*sc),o={...x,y,h};y+=Math.max(h+6,minGap);return o})};
-  const L=lay(src),R=lay(use),H=Math.max(...L.map(x=>x.y+Math.max(x.h,minGap-6)),...R.map(x=>x.y+Math.max(x.h,minGap-6)))+6;
-  const mh=tot*sc,my=Math.max(4,(H-mh)/2);
-  const band=(x1,y1,x2,y2,h,c)=>`<path d="M${x1},${y1}C${(x1+x2)/2},${y1} ${(x1+x2)/2},${y2} ${x2},${y2}L${x2},${y2+h}C${(x1+x2)/2},${y2+h} ${(x1+x2)/2},${y1+h} ${x1},${y1+h}Z" fill="${c}" opacity=".28"/>`;
-  const lc=(x,i)=>x.end?'var(--muted)':BKC[i%BKC.length];
-  let cy=my,paths='';L.forEach((x,i)=>{paths+=band(bw,x.y,mx,cy,x.h,lc(x,i));cy+=x.h});
-  cy=my;R.forEach((x,i)=>{paths+=band(mx+bw,cy,W-bw,x.y,x.h,x.end?'var(--muted)':BKC[(i+2)%BKC.length]);cy+=x.h});
-  const lbl=(x,y,anchor,a,b)=>`<text x="${x}" y="${y}" text-anchor="${anchor}" class="sk-t"><tspan class="sk-n">${esc(a)}</tspan><tspan x="${x}" dy="13" class="sk-v">${b}</tspan></text>`;
-  return `<svg class="sankey" viewBox="0 0 ${W} ${H}" role="img" aria-label="Money flow: ${src.map(x=>esc(x.name)+' '+money(x.v,true)).join(', ')} went to ${use.map(x=>esc(x.name)+' '+money(x.v,true)).join(', ')}">
-    ${paths}
-    ${L.map((x,i)=>`<rect x="0" y="${x.y}" width="${bw}" height="${x.h}" rx="2" fill="${lc(x,i)}"/>`+lbl(bw+6,x.y+10,'start',x.name,money(x.v,true))).join('')}
-    <rect x="${mx}" y="${my}" width="${bw}" height="${mh}" rx="2" fill="var(--ink)"/>
-    ${R.map((x,i)=>`<rect x="${W-bw}" y="${x.y}" width="${bw}" height="${x.h}" rx="2" fill="${x.end?'var(--muted)':BKC[(i+2)%BKC.length]}"/>`+lbl(W-bw-6,x.y+10,'end',x.name,money(x.v,true))).join('')}
-  </svg>`}
+  const W=100,bw=7,mx=(W-bw)/2,tot=Math.max(src.reduce((s,x)=>s+x.v,0),use.reduce((s,x)=>s+x.v,0),0.01),sc=230/tot,gap=10;
+  const need=(x,cpl)=>20+Math.ceil(x.name.length/cpl)*15;
+  const col=(x,i,off)=>x.end?'var(--flk)':`var(${FLC[(i+off)%FLC.length]})`;
+  const lay=(list,off,cpl)=>{let y=0;return list.map((x,i)=>{const h=Math.max(3,x.v*sc),o={...x,y,h,c:col(x,i,off)};o.s=Math.max(h,need(x,cpl));y+=o.s+gap;return o})};
+  const L=lay(src,0,11),R=lay(use,1,18),ch=list=>list.length?list[list.length-1].y+list[list.length-1].s:0;
+  const H=Math.max(ch(L),ch(R),40),mh=tot*sc,my=(H-mh)/2;
+  const offL=(H-ch(L))/2,offR=(H-ch(R))/2;L.forEach(x=>x.y+=offL);R.forEach(x=>x.y+=offR);
+  const band=(x1,y1,x2,y2,h,id)=>{const k=(x2-x1)*.55;return `<path d="M${x1},${y1}C${x1+k},${y1} ${x2-k},${y2} ${x2},${y2}L${x2},${y2+h}C${x2-k},${y2+h} ${x1+k},${y1+h} ${x1},${y1+h}Z" fill="url(#${id})"/>`};
+  const grad=(id,a,b)=>`<linearGradient id="${id}" x1="0" x2="1" y1="0" y2="0"><stop offset="0" style="stop-color:${a}"/><stop offset="1" style="stop-color:${b}"/></linearGradient>`;
+  let defs='',paths='',cy=my;
+  L.forEach((x,i)=>{defs+=grad('fgl'+i,x.c,'var(--flm)');paths+=band(bw,x.y,mx,cy,x.h,'fgl'+i);cy+=x.h});
+  cy=my;R.forEach((x,i)=>{defs+=grad('fgr'+i,'var(--flm)',x.c);paths+=band(mx+bw,cy,W-bw,x.y,x.h,'fgr'+i);cy+=x.h});
+  const lab=(x,side)=>`<div class="fl-l ${side}${x.end?' fl-end':''}" style="top:${x.y+x.h/2}px"><span>${esc(x.name)}</span><b class="num">${money(x.v)}</b></div>`;
+  return `<div class="flow" role="img" aria-label="Money in: ${src.map(x=>esc(x.name)+' '+money(x.v,true)).join(', ')}. Money out: ${use.map(x=>esc(x.name)+' '+money(x.v,true)).join(', ')}">
+    <div class="fl-col" style="height:${H}px">${L.map(x=>lab(x,'left')).join('')}</div>
+    <svg class="flsvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px" aria-hidden="true"><defs>${defs}</defs>
+      <g class="fl-bands">${paths}</g>
+      ${L.map(x=>`<rect x="0" y="${x.y}" width="${bw}" height="${x.h}" rx="${Math.min(4,x.h/2)}" style="fill:${x.c}"/>`).join('')}
+      <rect x="${mx}" y="${my}" width="${bw}" height="${mh}" rx="4" style="fill:var(--flm)"/>
+      ${R.map(x=>`<rect x="${W-bw}" y="${x.y}" width="${bw}" height="${x.h}" rx="${Math.min(4,x.h/2)}" style="fill:${x.c}"/>`).join('')}
+    </svg>
+    <div class="fl-col" style="height:${H}px">${R.map(x=>lab(x,'right')).join('')}</div>
+  </div>`}
 /* one account's month: what came in, what left and where to, what was left */
 function trail(x,tx,m){const aid=x.a.id,inn=[],out=[],cats={};
   tx.forEach(t=>{const v=t.amount,d=shortD(t.date);
@@ -910,7 +919,7 @@ V.breakdown=()=>{
   <div class="bkmonth"><button class="x" data-bm="-1" aria-label="Previous month" ${i>0?'':'disabled'}>‹</button><b>${esc(mFull(m))}</b><button class="x" data-bm="1" aria-label="Next month" ${i<ms.length-1?'':'disabled'}>›</button></div>
 
   <h2>The flow ${tip('flow')}</h2>
-  <div class="panel cpanel">${F.accts.length?`<div class="skhead"><span>Money in</span><span>Your accounts</span><span>Money out</span></div>`+sankey(F.src,F.use)+`<p class="sub" style="font-size:13px;margin:8px 0 0">Your checking, savings and cash went from <b class="num">${money(F.start,true)}</b> to <b class="num">${money(F.end,true)}</b>${m===thisM?' so far':''}.</p>`:'<div class="empty">Add a checking, savings or cash account to see the flow.</div>'}
+  <div class="panel cpanel">${F.accts.length?`<div class="skhead"><span>Money in</span><span>Accounts</span><span>Money out</span></div>`+sankey(F.src,F.use)+`<p class="sub" style="font-size:13px;margin:8px 0 0">Your checking, savings and cash went from <b class="num">${money(F.start,true)}</b> to <b class="num">${money(F.end,true)}</b>${m===thisM?' so far':''}.</p>`:'<div class="empty">Add a checking, savings or cash account to see the flow.</div>'}
     ${(()=>{const fi=r2(F.src.filter(x=>!x.end).reduce((s,x)=>s+x.v,0)),fo=r2(F.use.filter(x=>!x.end).reduce((s,x)=>s+x.v,0)),d=r2(fi-fo);
       return `<div class="bkstats"><div><span class="sub">Money in</span><b class="num">${money(fi,true)}</b></div><div><span class="sub">Money out</span><b class="num">${money(fo,true)}</b></div><div><span class="sub">Change</span><b class="num ${d>=0?'okc':'overtxt'}">${d>=0?'+':'−'}${money(Math.abs(d),true)}</b></div></div>`})()}</div>
 
@@ -1508,7 +1517,7 @@ const TIPS={
   bank:['Group accounts by the bank or app they live in, like Capital One or ESFCU. Each bank shows its total, and each account shows how its money is split between goals and unassigned.','move'],
   catacct:['If you keep a separate account for this kind of spending, like a Capital One bucket for food, pick it here. New purchases in this category default to it, and the dashboard warns you if the account runs lower than what’s left in the budget.'],
   spendacct:['Tick this for an account whose whole job is everyday spending, like a Daily spending account. Anything in it beyond this month’s budgets counts as extra spending money, not unassigned money. You’ll still be warned if it has less than your budgets need.'],
-  flow:['Left: money that came into your checking, savings and cash this month. Right: where it went. If more went out than came in, the difference came from money you already had. Card purchases show up when you pay the card, as Paid toward debts. Moves between your own accounts cancel out here; follow them account by account below.'],
+  flow:['Left: money that came into your checking, savings and cash this month. Right: where it went. Kept is what stayed in your accounts. If more went out than came in, the gap shows on the left as Savings drawn down. Card purchases show up when you pay the card, as Debt payments. Moves between your own accounts cancel out here; follow them account by account below.'],
   uafree:['Each account’s balance, minus what goals hold, what’s left in this month’s spending categories that come out of it, and bills not yet paid from it. What remains is free to give a job. If the planned amounts are bigger than the balance, the account is short and a purchase or bill could bounce.'],
   bucketwarn:['This account is linked to these categories in Settings. Its real balance (minus anything set aside for goals) is less than what you still plan to spend from it this month, so a purchase could come up short.'],
   fund:['The fund is the main pot for this goal. Add money here over time. Before a payment is due, Fill from fund moves what that payment needs into it. Nothing leaves your bank until you Mark paid.','schoolread'],
