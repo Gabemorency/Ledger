@@ -410,7 +410,7 @@ function homeCards(){
       const tot=r2(L.reduce((s,x)=>s+Math.max(0,x.free),0)),neg=L.filter(x=>x.free<-0.004);
       return `<h2>Unassigned money ${tip('uafree')}</h2><div class="panel">
         <div class="rowtop"><span class="sub">Free to assign</span><b class="num" style="font:800 26px/1.1 var(--display)">${money(tot,true)}</b></div>
-        ${L.map(x=>`<div class="uamini"><div class="rorow"><span>${esc(x.a.name)}</span><b class="num ${x.free<-0.004?'overtxt':''}">${x.free<-0.004?'Short '+money(-x.free,true):money(Math.max(0,x.free),true)+' free'}</b></div>${uaBar(x)}</div>`).join('')}
+        ${L.map(x=>`<div class="uamini"><div class="rorow"><span>${esc(x.a.name)}</span><b class="num ${x.free<-0.004?'overtxt':''}">${x.free<-0.004?'Short '+money(-x.free,true):x.extra>0.004?'Spending account':money(Math.max(0,x.free),true)+' free'}</b></div>${uaBar(x)}</div>`).join('')}
         ${neg.length?`<p class="warnline">${neg.map(x=>esc(x.a.name)).join(', ')} ${neg.length===1?'doesn’t':'don’t'} have enough for what’s still planned this month.</p>`:tot>0.004?'':'<p class="okline">Every dollar has a job.</p>'}
         <div class="actions"><button class="btn small${tot>0.004||neg.length?'':' ghost'}" data-go="unassigned">${neg.length?'Fix it':tot>0.004?'Assign it':'Open'}</button></div></div>`},
     overview:()=>{const tiles=[ov('Checking',sumType(['checking']),lb?sumType(['checking'],lb):undefined,false,['checking']),
@@ -475,7 +475,8 @@ V.home=()=>{
   const C=homeCards();
   const valid=S.dash.order.filter(k=>C[k]||pinCard(k)!==null);
   if(valid.length!==S.dash.order.length)S.dash.order=valid;
-  const shown=S.dash.order.filter(k=>!S.dash.hidden.includes(k));
+  let shown=S.dash.order.filter(k=>!S.dash.hidden.includes(k));
+  if(shown.includes('unassigned')&&!uaAccts().map(uaInfo).some(x=>Math.abs(x.free)>0.004))shown=shown.filter(k=>k!=='unassigned').concat('unassigned');
   return `
   <p class="sub">${monthName(now,{month:'long',year:'numeric'})}</p>
   <h1>Dashboard</h1>
@@ -776,11 +777,12 @@ function spendNeedCats(aid){return liveCats().filter(c=>c.type==='monthly'&&catH
 function billNeed(aid){return r2(liveFixed().filter(f=>f.acct===aid).reduce((s,f)=>s+fixedOwe(f),0))}
 /* money in an account that no goal holds and that this month's spending and bills won't need */
 function uaInfo(a){const held=r2(assigned(a.id)),cs=S.closed.includes(thisM)?[]:spendNeedCats(a.id),spend=r2(cs.reduce((s,x)=>s+x.left,0)),bills=S.closed.includes(thisM)?0:billNeed(a.id);
-  return {a,held,cs,spend,bills,free:r2(a.balance-held-spend-bills)}}
+  const left=r2(a.balance-held-spend-bills),own=!!a.spend&&left>0.004;
+  return {a,held,cs,spend,bills,extra:own?left:0,free:own?0:left}}
 function uaBar(x){const tot=Math.max(x.a.balance,x.held+x.spend+x.bills,0.01),w=v=>Math.max(0,v)/tot*100;
   const short=Math.max(0,-x.free);
   return `<div class="uabar" role="img" aria-label="${esc(x.a.name)}: ${money(x.held,true)} for goals, ${money(x.spend,true)} still to spend, ${money(x.bills,true)} in bills, ${x.free>=0?money(x.free,true)+' free':money(short,true)+' short'}">
-    <i class="ua-g" style="width:${w(x.held)}%"></i><i class="ua-s" style="width:${w(x.spend)}%"></i><i class="ua-b" style="width:${w(x.bills)}%"></i>${x.free>0.004?`<i class="ua-f" style="width:${w(x.free)}%"></i>`:''}${short>0.004?`<i class="ua-x" style="width:${w(short)}%"></i>`:''}</div>`}
+    <i class="ua-g" style="width:${w(x.held)}%"></i><i class="ua-s" style="width:${w(x.spend)}%"></i><i class="ua-b" style="width:${w(x.bills)}%"></i>${x.extra>0.004?`<i class="ua-e" style="width:${w(x.extra)}%"></i>`:''}${x.free>0.004?`<i class="ua-f" style="width:${w(x.free)}%"></i>`:''}${short>0.004?`<i class="ua-x" style="width:${w(short)}%"></i>`:''}</div>`}
 function uaRow(cls,label,v,extra){return `<div class="rorow"><span><i class="uadot ${cls}"></i>${label}${extra||''}</span><b class="num">${money(v,true)}</b></div>`}
 V.unassigned=()=>{
   const list=uaAccts().map(uaInfo),gs=activeGoals(),open=!S.closed.includes(thisM);
@@ -795,13 +797,15 @@ V.unassigned=()=>{
   <p class="sub">Money that no goal holds and that this month’s spending and bills won’t need. Give it a job: a goal, more room in a category, or cover an account that’s running short.</p>
   <div class="panel networth"><span class="sub">Free to assign</span><div class="num" style="font:800 40px/1.1 var(--display)">${money(tot,true)}</div>
     ${shorts.length?`<p class="warnline" style="margin:6px 0 0">${shorts.map(x=>`${esc(x.a.name)} is short ${money(-x.free,true)}`).join('. ')}.</p>`:''}</div>
-  <div class="ualegend"><span><i class="uadot ua-g"></i>Goals</span><span><i class="uadot ua-s"></i>Still to spend</span><span><i class="uadot ua-b"></i>Bills due</span><span><i class="uadot ua-f"></i>Free</span><span><i class="uadot ua-x"></i>Short</span></div>
+  <div class="ualegend"><span><i class="uadot ua-g"></i>Goals</span><span><i class="uadot ua-s"></i>Still to spend</span><span><i class="uadot ua-b"></i>Bills due</span><span><i class="uadot ua-e"></i>Extra spending</span><span><i class="uadot ua-f"></i>Free</span><span><i class="uadot ua-x"></i>Short</span></div>
   ${list.map(x=>{const a=x.a,o=opts(x);return `<div class="panel uacard ${x.free<-0.004?'short':''}"><div class="rowtop"><b>${esc(a.name)}</b><span class="num">${money(a.balance,true)}</span></div>
     ${uaBar(x)}
     ${x.held>0.004?uaRow('ua-g','Set aside for goals',x.held):''}
     ${x.spend>0.004?uaRow('ua-s','Still to spend this month',x.spend,`<small>${x.cs.map(y=>esc(y.c.name)+' '+money(y.left,true)).join(', ')}</small>`):''}
     ${x.bills>0.004?uaRow('ua-b','Bills still due',x.bills):''}
+    ${x.extra>0.004?uaRow('ua-e','Extra spending money',x.extra):''}
     <div class="rorow uatot"><span>${x.free<-0.004?'Short':'Free to assign'}</span><b class="num ${x.free<-0.004?'overtxt':x.free>0.004?'okc':''}">${money(Math.abs(x.free),true)}</b></div>
+    ${a.spend&&x.free>=-0.004?`<p class="sub" style="font-size:13px;margin:6px 0 0">This is a spending account, so its money already has a job. Change that in Settings → Accounts.</p>`:''}
     ${x.free<-0.004?`<p class="warnline">${esc(a.name)} doesn’t have enough for what’s still planned from it this month.${srcs.length?' Move money in:':' Lower a budget (Dashboard → Move budget) or move goal money out (Goals → More → Move money).'}</p>
       ${srcs.length?`<div class="uaform"><label class="field"><span>Move in from</span><select data-ua-src="${a.id}">${srcs.map(y=>`<option value="${y.a.id}">${esc(y.a.name)}, ${money(y.free,true)} free</option>`).join('')}</select></label>
       <div class="inline"><input type="number" inputmode="decimal" data-ua-cov="${a.id}" value="${Math.min(-x.free,srcs[0].free)}" aria-label="Amount to move into ${esc(a.name)}"><button class="btn" data-act="uaCover" data-acct="${a.id}">Cover it</button></div></div>`:''}`
@@ -1017,6 +1021,7 @@ function acctEdit(D){const live=D.map((a,i)=>({a,i})).filter(x=>!x.a.archived),a
     ${isNew?`<label class="field"><span>${a.type==='debt'?'Amount owed today':'Balance today'} ${tip('opened')}</span>${inp(i,'balance',a.balance,'number')}</label>`:''}
     <label class="field"><span>Bank or app ${tip('bank')}</span><input type="text" list="bankList" data-d="bank" data-i="${i}" value="${esc(a.bank||'')}" placeholder="e.g. Capital One"></label>
     <label class="checkrow"><input type="checkbox" data-d="pay" data-i="${i}" ${a.pay?'checked':''}> Use for purchases and bills</label>
+    ${a.type!=='debt'&&a.type!=='retirement'?`<label class="checkrow"><input type="checkbox" data-d="spend" data-i="${i}" ${a.spend?'checked':''}> Everything in it is spending money ${tip('spendacct')}</label>`:''}
     ${a.type==='debt'?`<div class="two"><label class="field"><span>APR %</span>${inp(i,'apr',a.apr,'number')}</label><label class="field"><span>Monthly payment</span>${inp(i,'min',a.min,'number')}</label></div>
     <div class="two"><label class="field"><span>Original amount ${tip('debtstart')}</span>${inp(i,'start',a.start,'number','Optional')}</label><label class="field"><span>Started on</span><input type="date" data-d="startDate" data-i="${i}" value="${a.startDate||''}"></label></div>
     <label class="checkrow"><input type="checkbox" data-d="accrue" data-i="${i}" ${a.accrue?'checked':''}> Add estimated interest when I make a payment ${tip('accrue')}</label>
@@ -1150,8 +1155,8 @@ function reviewSec(sec){
   if(sec==='fixed'&&D.some(f=>!f.archived&&f.freq==='months'&&!(f.months||[]).length)){toast('Pick at least one month for bills due in specific months');return}
   if(sec==='fixed'&&D.some(f=>!f.archived&&f.begins&&f.end&&f.end<f.begins)){toast('A bill can\u2019t end before it starts');return}
   const fmt={freq:v=>({monthly:'every month',quarterly:'every 3 months',yearly:'once a year',months:'specific months'})[v||'monthly'],months:v=>(v||[]).map(n=>MON[n-1]).join(', ')||'none',end:v=>v?monthName(mDate(v),{month:'short',year:'numeric'}):'none',roll:v=>v?'on':'off',begins:v=>v?monthName(mDate(v),{month:'short',year:'numeric'}):'none',start:v=>v?money(v):'none',startDate:v=>v?fmtD(v):'none',accrue:v=>v?'on':'off',budget:v=>money(v||0),amount:v=>money(v||0),pct:v=>(v||0)+'%',day:v=>v?ordinal(v):'none',apr:v=>(v||0)+'%',min:v=>money(v||0),
-    pay:v=>v?'yes':'no',value:v=>money(v||0),to:v=>v?aName(v):'nowhere',sub:v=>KINDS[v]?KINDS[v].label.toLowerCase():'standard',type:v=>TYPES[v]||(v==='annual'?'Per year':v==='monthly'?'Per month':v),role:v=>roleName(v),acct:v=>v?aName(v):'any account',bank:v=>v||'none',card:v=>v?'yes':'no',stmt:v=>v?ordinal(v):'none',payFull:v=>v?'yes':'no',payFrom:v=>v?aName(v):'paycheck account',name:v=>v};
-  const names={freq:'how often',months:'months',end:'ends after',roll:'rollover',begins:'starts',start:'original amount',startDate:'start date',accrue:'estimated interest',budget:'budget',amount:'amount',pct:'percent',day:'due day',apr:'APR',min:'payment',type:sec==='accounts'?'type':'period',sub:'kind',role:'group',acct:sec==='categories'?'usually paid from':'paid from',bank:'bank',card:'credit card',stmt:'statement day',payFull:'pays in full',payFrom:'pays from',name:'name',pay:'used for purchases',value:'value',to:'goes to'};
+    pay:v=>v?'yes':'no',value:v=>money(v||0),to:v=>v?aName(v):'nowhere',sub:v=>KINDS[v]?KINDS[v].label.toLowerCase():'standard',type:v=>TYPES[v]||(v==='annual'?'Per year':v==='monthly'?'Per month':v),role:v=>roleName(v),acct:v=>v?aName(v):'any account',bank:v=>v||'none',card:v=>v?'yes':'no',stmt:v=>v?ordinal(v):'none',payFull:v=>v?'yes':'no',spend:v=>v?'yes':'no',payFrom:v=>v?aName(v):'paycheck account',name:v=>v};
+  const names={freq:'how often',months:'months',end:'ends after',roll:'rollover',begins:'starts',start:'original amount',startDate:'start date',accrue:'estimated interest',budget:'budget',amount:'amount',pct:'percent',day:'due day',apr:'APR',min:'payment',type:sec==='accounts'?'type':'period',sub:'kind',role:'group',acct:sec==='categories'?'usually paid from':'paid from',bank:'bank',card:'credit card',stmt:'statement day',payFull:'pays in full',spend:'spending account',payFrom:'pays from',name:'name',pay:'used for purchases',value:'value',to:'goes to'};
   D.forEach(x=>{const o=old.find(y=>y.id===x.id);
     if(!o){ch.push(`Add ${label}: ${esc(x.name)}`+(sec==='categories'?`, ${money(x.budget||0)}/${x.type==='annual'?'year':'month'} in ${esc(roleName(x.role))}`:sec==='fixed'?`, ${x.pct!=null?x.pct+'% of income':money(x.amount)+'/month'}`:sec==='assets'?`, ${money(x.value||0)}`:`, ${TYPES[x.type]}, ${money(x.balance||0)}`));return}
     if(!!x.archived!==!!o.archived){ch.push((x.archived?'Archive ':'Restore ')+label+': '+esc(o.name));return}
@@ -1381,6 +1386,7 @@ const TIPS={
   buyby:['When you need the money. The app spreads what’s left over the months until then to get the monthly amount.','goal'],
   bank:['Group accounts by the bank or app they live in, like Capital One or ESFCU. Each bank shows its total, and each account shows how its money is split between goals and unassigned.','move'],
   catacct:['If you keep a separate account for this kind of spending, like a Capital One bucket for food, pick it here. New purchases in this category default to it, and the dashboard warns you if the account runs lower than what’s left in the budget.'],
+  spendacct:['Tick this for an account whose whole job is everyday spending, like a Daily spending account. Anything in it beyond this month’s budgets counts as extra spending money, not unassigned money. You’ll still be warned if it has less than your budgets need.'],
   uafree:['Each account’s balance, minus what goals hold, what’s left in this month’s spending categories that come out of it, and bills not yet paid from it. What remains is free to give a job. If the planned amounts are bigger than the balance, the account is short and a purchase or bill could bounce.'],
   bucketwarn:['This account is linked to these categories in Settings. Its real balance (minus anything set aside for goals) is less than what you still plan to spend from it this month, so a purchase could come up short.'],
   fund:['The fund is the main pot for this goal. Add money here over time. Before a payment is due, Fill from fund moves what that payment needs into it. Nothing leaves your bank until you Mark paid.','schoolread'],
