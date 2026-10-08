@@ -21,12 +21,12 @@ function r2(...a){return Model.r2(...a)}
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let uid=1000; const id=()=>BOOT?'i'+crypto.randomUUID().replace(/-/g,''):'i'+(uid++)+Math.random().toString(36).slice(2,6);
 
-const DASH_CARDS={start:'Getting started',payday:'Payday transfers',checkin:'Weekly check-in',cardpay:'Credit card statement',networth:'Net worth',unassigned:'Unassigned money',overview:'Account totals',plan:'Plan check',spending:'Spending',fixed:'Fixed costs',annual:'Annual budgets',latest:'Latest entries'};
-const defaultDash=()=>({order:['start','payday','checkin','cardpay','spending','networth','unassigned','goal:g3','plan','overview','fixed','debt:a6','annual','latest'],hidden:[]});
+const DASH_CARDS={start:'Getting started',payday:'Payday transfers',checkin:'Weekly check-in',notes:'Pinned notes',cardpay:'Credit card statement',networth:'Net worth',unassigned:'Unassigned money',overview:'Account totals',plan:'Plan check',spending:'Spending',fixed:'Fixed costs',annual:'Annual budgets',latest:'Latest entries'};
+const defaultDash=()=>({order:['start','payday','checkin','notes','cardpay','spending','networth','unassigned','goal:g3','plan','overview','fixed','debt:a6','annual','latest'],hidden:[]});
 function blankPlan(){return {income:0,deposit:null,payDefault:null,framework:'csp',inc:{grossAnnual:0,pretax:0,net:0,extra:0},
   custom:[{name:'Fixed costs',roles:['need'],min:50,max:60},{name:'Investments',roles:['invest'],min:10,max:10},{name:'Savings',roles:['save'],min:5,max:10},{name:'Guilt-free spending',roles:['want'],min:20,max:35}]}}
 function blank(){
-  return {view:'setup',setupDone:false,tips:true,did:{},payday:[],gsSkip:[],plan:blankPlan(),categories:[],fixed:[],accounts:[],assets:[],tx:[],goals:[],snapshots:[],closed:[],log:[],
+  return {view:'setup',setupDone:false,tips:true,did:{},payday:[],gsSkip:[],plan:blankPlan(),categories:[],fixed:[],accounts:[],assets:[],tx:[],goals:[],snapshots:[],closed:[],log:[],notes:[],
     dash:{order:['spending','networth','unassigned','plan','overview','fixed','annual','latest'],hidden:[]},
     notif:{b80:true,over:true,goals:true,due:true,close:true,daily:false,weekly:true}};
 }
@@ -117,6 +117,8 @@ function seed(){
       {id:'g2',name:'Luggage',target:800,saved:saved('g2'),date:'2027-03-01',created:'2026-04-01',acct:'a3',done:false}
     ],
     snapshots,closed,log:[],dash:defaultDash(),
+    notes:[{id:'n1',title:'Next paycheck plan',body:'Rent $650\nMove $150 to Grad school\nTop up Daily spending to $300',color:'green',pinned:true,at:Date.parse('2026-10-03T12:00:00Z'),up:Date.parse('2026-10-03T12:00:00Z')},
+      {id:'n2',title:'Last paycheck',body:'Paycheck $1,250.00 on Oct 1 into Capital One Checking.\nPaid tithe and phone the same day.',color:'blue',pinned:false,at:Date.parse('2026-10-01T12:00:00Z'),up:Date.parse('2026-10-01T12:00:00Z')}],
     notif:{b80:true,over:true,goals:true,due:true,close:true,daily:false,weekly:true}
   };
 }
@@ -140,7 +142,7 @@ const cat=cid=>S.categories.find(c=>c.id===cid);
 function adjOf(cid,m){return Model.adjustmentOf(S,cid,m)}
 function carryOf(c,m){return Model.carryOf(S,memo(),c,m||thisM)}
 function budgetOf(c,m){return Model.budgetOf(S,memo(),c,m||thisM)}
-function sanitize(){if(!S.adj)S.adj={};if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
+function sanitize(){if(!S.adj)S.adj={};if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
 function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
@@ -400,6 +402,8 @@ function homeCards(){
       it.push(behind.length?[`${behind.length} goal${behind.length===1?'':'s'} behind`,behind.map(x=>esc(x.g.name)+' ('+money(Math.abs(x.k.diff))+')').join(', '),'warn']:['Goals on pace','Nothing behind right now.','ok']);
       return `<h2>Weekly check-in ${tip('checkin')}</h2><div class="panel">${it.map(([a,b,c])=>`<div class="ckrow ${c}"><span class="ckdot" aria-hidden="true">${c==='ok'?'✓':'•'}</span><div><b>${a}</b><small>${b}</small></div></div>`).join('')}
         <div class="actions"><button class="btn small" data-act="checkDone">Done for this week</button></div></div>`},
+    notes:()=>{const P=(S.notes||[]).filter(n=>n.pinned).slice(0,3);if(!P.length)return '';
+      return `<h2>Pinned notes</h2><div class="ngrid dash">${P.map(n=>`<button class="ncard nmini nc-${esc(n.color||'plain')}" data-go="notes" data-nfocus="${esc(n.id)}">${n.title?`<b>${esc(n.title)}</b>`:''}<span class="ntext clamp">${noteHTML(n.body)}</span></button>`).join('')}</div>`},
     cardpay:()=>{const cs=liveAccts().filter(a=>a.type==='debt'&&a.card&&a.payFull);if(!cs.length)return '';
       return `<h2>Credit card ${tip('card')}</h2>${cs.map(a=>`<div class="panel" style="margin-bottom:10px"><div class="rowtop"><b>${esc(a.name)}</b><span class="sub">Statement closes the ${ordinal(a.stmt||1)}</span></div>${cardBlock(a)}</div>`).join('')}`},
     networth:()=>`<div class="panel networth">
@@ -956,6 +960,39 @@ V.breakdown=()=>{
   ${st.planned>0.004?`<p class="sub" style="font-size:13px;margin-top:12px">${money(st.planned,true)} in planned purchases paid from goals isn’t counted as spending. ${tip('planned')}</p>`:''}
   <button class="btn ghost full" data-see="${m}" style="margin-top:14px">See every entry for ${esc(mLabel(m))}</button>`;
 };
+/* ---------- notes ---------- */
+const NCOL=[['plain','Plain'],['green','Green'],['blue','Blue'],['amber','Amber'],['rose','Rose'],['violet','Violet']];
+const noteHTML=b=>esc(b||'').replace(/\n/g,'<br>');
+const noteWhen=n=>new Date(n.up||n.at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:new Date(n.up||n.at).getFullYear()===now.getFullYear()?undefined:'numeric'});
+function noteTemplate(k){
+  if(k==='paid'){const p=S.tx.filter(t=>t.kind==='income').sort((a,b)=>b.date.localeCompare(a.date))[0];
+    return {title:'Last paycheck',body:p?`${p.vendor||'Paycheck'} ${money(p.amount,true)} on ${shortD(p.date)} into ${aName(p.acct)}.\n\nWhat I did with it:\n- `:'Amount:\nDate:\n\nWhat I did with it:\n- ',color:'blue'}}
+  if(k==='plan'){const p=S.tx.filter(t=>t.kind==='income').sort((a,b)=>b.date.localeCompare(a.date))[0];
+    const bills=liveFixed().filter(f=>fixedOwe(f)>0.004).map(f=>`- ${f.name} ${money(fixedOwe(f),true)}`);
+    return {title:'Next paycheck plan',body:`${p?`Expecting about ${money(p.amount,true)}.\n\n`:''}${bills.length?'Bills still due:\n'+bills.join('\n')+'\n\n':''}Where it goes:\n- Savings: \n- Spending: \n- Goals: `,color:'green'}}
+  return {title:'',body:'',color:'plain'}}
+function noteCard(n){const open=UI.noteOpen===n.id;
+  return `<article class="ncard nc-${esc(n.color||'plain')} ${open?'open':''}" data-note="${esc(n.id)}">
+    <div class="nhead"><button class="nmain" data-nopen="${esc(n.id)}" aria-expanded="${open}">${n.title?`<b>${esc(n.title)}</b>`:''}<span class="ntext ${open?'':'clamp'}">${noteHTML(n.body)||'<i>Empty note</i>'}</span><small>${n.pinned?'📌 ':''}${noteWhen(n)}</small></button>
+    <span class="ngrip" data-ngrip="${esc(n.id)}" role="button" aria-label="Drag to move ${esc(n.title||'note')}" title="Drag to move">⠿</span></div>
+    ${open?`<div class="nacts"><button class="btn small ghost" data-act="nEdit" data-id="${esc(n.id)}">Edit</button><button class="btn small ghost" data-act="nPin" data-id="${esc(n.id)}">${n.pinned?'Unpin':'Pin'}</button>
+      <button class="x" data-act="nMove" data-id="${esc(n.id)}" data-dir="-1" aria-label="Move earlier">↑</button><button class="x" data-act="nMove" data-id="${esc(n.id)}" data-dir="1" aria-label="Move later">↓</button>
+      <button class="btn small dangerline" data-act="nDel" data-id="${esc(n.id)}" style="margin-left:auto">Delete</button></div>`:''}
+  </article>`}
+function noteComposer(){const d=UI.note;
+  return `<div class="panel ncompose nc-${esc(d.color||'plain')}"><p class="lbl" style="margin:4px 0 6px">${d.id?'Edit note':'New note'}</p>
+    <input id="nTitle" data-nf="title" type="text" maxlength="80" placeholder="Title (optional)" value="${esc(d.title)}" aria-label="Note title">
+    <textarea id="nBody" data-nf="body" rows="7" maxlength="4000" placeholder="Write anything: what came in, what’s due, where the next paycheck should go…" aria-label="Note text">${esc(d.body)}</textarea>
+    <div class="ncolors" role="group" aria-label="Color">${NCOL.map(([k,l])=>`<button class="ncol nc-${k}" data-ncol="${k}" aria-pressed="${(d.color||'plain')===k}" aria-label="${l}"></button>`).join('')}</div>
+    <div class="actions"><button class="btn ghost" data-act="nCancel">Cancel</button><button class="btn" data-act="nSave" style="flex:1">${d.id?'Save changes':'Save note'}</button></div></div>`}
+V.notes=()=>{const N=S.notes||[],pins=N.filter(n=>n.pinned),rest=N.filter(n=>!n.pinned);
+  return `<button class="btn small ghost" data-go="home" style="margin-bottom:8px">Back to dashboard</button><h1>Notes</h1>
+  <p class="sub">Reminders for yourself, like what your last paycheck did or where the next one should go.</p>
+  ${UI.note?noteComposer():`<div class="nnew"><button class="btn" data-act="nNew">＋ New note</button><button class="chip" data-act="nNew" data-tpl="paid">Last paycheck</button><button class="chip" data-act="nNew" data-tpl="plan">Next paycheck plan</button></div>`}
+  ${pins.length?`<p class="lbl" style="margin:18px 0 8px">📌 Pinned</p><div class="ngrid" data-ngroup="1">${pins.map(noteCard).join('')}</div>`:''}
+  ${rest.length?`${pins.length?'<p class="lbl" style="margin:18px 0 8px">Other notes</p>':''}<div class="ngrid" data-ngroup="0" ${pins.length?'':'style="margin-top:16px"'}>${rest.map(noteCard).join('')}</div>`:''}
+  ${!N.length&&!UI.note?'<div class="panel emptycard" style="margin-top:16px"><b>No notes yet.</b><p class="sub">Start with a blank note or one of the paycheck templates above.</p></div>':''}
+  ${N.length?'<p class="sub" style="font-size:13px;margin-top:14px">Tap a note to open it. Drag ⠿ to move it around. Pinned notes also show on your dashboard.</p>':''}`};
 V.close=()=>{
   const T=closeTarget(),open=openMonths();
   if(!T)return `<button class="btn small ghost" data-go="activity" style="margin-bottom:8px">Back to activity</button><h1>All caught up</h1><p class="sub">Every finished month is closed. The next one opens for closing on the 1st.</p>`;
@@ -1696,8 +1733,8 @@ function setupStepCheck(st){
 
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
-  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money'};
-  const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['unassigned','Unassigned','◇'],['breakdown','Follow the money','◔'],['help','Help','?'],['guide','Guide','✦']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
+  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes'};
+  const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['unassigned','Unassigned','◇'],['breakdown','Follow the money','◔'],['notes','Notes','✎'],['help','Help','?'],['guide','Guide','✦']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
   return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${!!UI.menu}" aria-label="Menu">☰ Menu</button>
     ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}${BOOT?`<div class="who">Signed in as ${esc(maskEmail(BOOT.email))}</div><button role="menuitem" data-signout><span class="mi">⎋</span>Sign out</button>`:''}</div>`:''}</div>`;
 }
@@ -1799,6 +1836,23 @@ function render(){
   const gd=document.getElementById('gDate');if(gd){const d=new Date(now);d.setMonth(d.getMonth()+6);gd.value=d.toISOString().slice(0,10)}
   save();
 }
+
+/* ---------- notes: drag a card by its grip to move it ---------- */
+let ND=null;
+document.getElementById('app').addEventListener('pointerdown',e=>{const g=e.target.closest('[data-ngrip]');if(!g)return;
+  const card=g.closest('.ncard'),r=card.getBoundingClientRect();e.preventDefault();
+  ND={card,grid:card.parentElement,gx:e.clientX-r.left,gy:e.clientY-r.top,tx:0,ty:0,moved:false};card.classList.add('dragging');try{g.setPointerCapture(e.pointerId)}catch(_){}});
+document.addEventListener('pointermove',e=>{if(!ND)return;const c=ND.card;
+  const r=c.getBoundingClientRect(),nl=r.left-ND.tx,nt=r.top-ND.ty;
+  const over=document.elementsFromPoint(e.clientX,e.clientY).map(el=>el.closest&&el.closest('.ncard')).find(el=>el&&el!==c&&el.parentElement===ND.grid);
+  if(over){const o=over.getBoundingClientRect(),after=(e.clientY-o.top)/o.height+(e.clientX-o.left)/o.width/4>.6;ND.grid.insertBefore(c,after?over.nextSibling:over);ND.moved=true}
+  const r2_=c.getBoundingClientRect(),bl=r2_.left-ND.tx,bt=r2_.top-ND.ty;
+  ND.tx=e.clientX-ND.gx-(over?bl:nl);ND.ty=e.clientY-ND.gy-(over?bt:nt);c.style.transform=`translate(${ND.tx}px,${ND.ty}px)`});
+const ndEnd=()=>{if(!ND)return;const {card,grid,moved}=ND;ND=null;card.classList.remove('dragging');card.style.transform='';
+  if(!moved)return;const ids=[...grid.querySelectorAll('.ncard')].map(el=>el.dataset.note),pin=grid.dataset.ngroup==='1';
+  const grp=S.notes.filter(n=>!!n.pinned===pin),slots=S.notes.map((n,i)=>!!n.pinned===pin?i:-1).filter(i=>i>=0);
+  const by=Object.fromEntries(grp.map(n=>[n.id,n]));ids.forEach((nid,k)=>{if(by[nid])S.notes[slots[k]]=by[nid]});render()};
+document.addEventListener('pointerup',ndEnd);document.addEventListener('pointercancel',ndEnd);
 
 /* ---------- goal money movement ---------- */
 function moveGoalMoney(g,to,v,quiet){
@@ -1921,6 +1975,7 @@ function bindDraft(t){
   return false;
 }
 document.getElementById('app').addEventListener('input',e=>{const t=e.target;bindDraft(t);
+  if(t.dataset.nf&&UI.note)UI.note[t.dataset.nf]=t.value;
   if(t.id==='fq'){F.q=t.value;document.getElementById('actList').innerHTML=activityList()}
   if(t.id==='logq'){LG.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('logq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}});
 document.getElementById('app').addEventListener('change',e=>{const t=e.target;
@@ -1941,6 +1996,7 @@ document.getElementById('app').addEventListener('click',e=>{
   const hit=e.target.closest('[data-hit]');if(hit){selectPoint(hit.dataset.hit,+hit.dataset.i);return}
   {const d=e.target.closest('details[data-trail]');if(d&&e.target.closest('summary'))UI.trail=d.open?null:d.dataset.trail}
   const t=e.target.closest('button');if(!t)return;
+  if(t.dataset.nfocus)UI.noteOpen=t.dataset.nfocus;
   if(t.dataset.pickmonth){setMonth(t.dataset.pickmonth);render();const l=document.getElementById('actList');if(l)l.scrollIntoView({block:'start'});return}
   if(t.dataset.logk){LG.k=t.dataset.logk;render();return}
   if(t.dataset.logall){LG.all[t.dataset.logall]=true;render();return}
@@ -1949,6 +2005,8 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.see){setMonth(t.dataset.see);F.cat=t.dataset.seecat||'all';F.q=t.dataset.seeq||'';F.type='all';F.acct='all';resetUI();S.view='activity';render();window.scrollTo(0,0);return}
   if(t.dataset.range){Object.keys(CH).forEach(k=>delete CH[k]);TR.range=t.dataset.range==='all'?'all':+t.dataset.range;render();return}
   if(t.dataset.menu!==undefined){UI.menu=!UI.menu;render();return}
+  if(t.dataset.nopen){UI.noteOpen=UI.noteOpen===t.dataset.nopen?null:t.dataset.nopen;render();return}
+  if(t.dataset.ncol&&UI.note){UI.note.color=t.dataset.ncol;render();return}
   if(t.dataset.bm){const ms=bkMonths(),i=ms.indexOf(BK.m)+(+t.dataset.bm);if(i>=0&&i<ms.length){BK.m=ms[i];render()}return}
   if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
   if(t.dataset.gjump){const el=document.getElementById('g-'+t.dataset.gjump);guideMark(t.dataset.gjump);if(el){el.classList.add('in');el.scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}return}
@@ -2101,6 +2159,19 @@ function handleAct(t){
     logIt([`Assigned ${money(v,true)} from ${aName(aid)} to ${g.name}`+(same?'':` (transfer to ${aName(g.acct)})`)]);
     render();toast(same?`${money(v,true)} set aside for ${g.name}`:`${money(v,true)} to ${g.name}. Make the transfer to ${aName(g.acct)} in your bank too`,()=>{removeTx(nt);render();toast('Undone')});
     return}
+  if(a==='nNew'){UI.note=Object.assign({id:null},noteTemplate(t.dataset.tpl));UI.noteOpen=null;render();const b=document.getElementById(t.dataset.tpl?'nBody':'nTitle');if(b){b.focus();if(t.dataset.tpl)b.setSelectionRange(b.value.length,b.value.length)}return}
+  if(a==='nCancel'){UI.note=null;render();return}
+  if(a==='nSave'){const d=UI.note;if(!d)return;const title=(d.title||'').trim().slice(0,80),body=(d.body||'').replace(/\s+$/,'').slice(0,4000);
+    if(!title&&!body.trim()){toast('Write something first');return}
+    if(d.id){const n=(S.notes||[]).find(x=>x.id===d.id);if(n)Object.assign(n,{title,body,color:d.color||'plain',up:Date.now()});UI.noteOpen=d.id}
+    else{const n={id:id(),title,body,color:d.color||'plain',pinned:false,at:Date.now(),up:Date.now()};S.notes.unshift(n)}
+    logIt([d.id?'Notes — edited a note':'Notes — added a note']);UI.note=null;render();toast(d.id?'Note saved':'Note added');return}
+  if(a==='nEdit'){const n=S.notes.find(x=>x.id===t.dataset.id);if(!n)return;UI.note={id:n.id,title:n.title||'',body:n.body||'',color:n.color||'plain'};render();window.scrollTo(0,0);const b=document.getElementById('nBody');if(b)b.focus();return}
+  if(a==='nPin'){const n=S.notes.find(x=>x.id===t.dataset.id);if(!n)return;n.pinned=!n.pinned;render();toast(n.pinned?'Pinned. It shows on your dashboard too':'Unpinned');return}
+  if(a==='nMove'){const n=S.notes.find(x=>x.id===t.dataset.id);if(!n)return;const grp=S.notes.filter(x=>!!x.pinned===!!n.pinned),i=grp.indexOf(n),j=i+(+t.dataset.dir);if(j<0||j>=grp.length)return;
+    const a1=S.notes.indexOf(grp[i]),a2=S.notes.indexOf(grp[j]);[S.notes[a1],S.notes[a2]]=[S.notes[a2],S.notes[a1]];render();return}
+  if(a==='nDel'){const i=S.notes.findIndex(x=>x.id===t.dataset.id);if(i<0)return;const [n]=S.notes.splice(i,1);UI.noteOpen=null;logIt(['Notes — deleted a note']);render();
+    toast('Note deleted',()=>{S.notes.splice(Math.min(i,S.notes.length),0,n);render();toast('Note restored')});return}
   if(a==='uaCover'){
     const to=t.dataset.acct,src=(document.querySelector(`[data-ua-src="${to}"]`)||{}).value,v=r2(parseFloat((document.querySelector(`[data-ua-cov="${to}"]`)||{}).value));
     if(!src){toast('Pick an account to move from');return}if(!(v>0)){toast('Enter an amount');return}
