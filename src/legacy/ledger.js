@@ -406,13 +406,13 @@ function homeCards(){
       <div class="rowtop"><span class="sub">Net worth ${tip('networth')}</span><button class="btn small ghost" data-go="accounts">Accounts</button></div>
       <div class="num" style="font:800 46px/1.05 var(--display);letter-spacing:-.03em">${money(netOf())}</div>
       ${delta(netOf(),lb?netOf(lb):null)}</div>`,
-    unassigned:()=>{const L=uaAccts().map(a=>({a,free:unassigned(a.id)}));if(!L.length)return '';
+    unassigned:()=>{const L=uaAccts().map(uaInfo);if(!L.length)return '';
       const tot=r2(L.reduce((s,x)=>s+Math.max(0,x.free),0)),neg=L.filter(x=>x.free<-0.004);
-      return `<h2>Unassigned money ${tip('unassigned')}</h2><div class="panel">
-        <div class="rowtop"><span class="sub">Not set aside for any goal</span><b class="num" style="font:800 26px/1.1 var(--display)">${money(tot,true)}</b></div>
-        ${L.filter(x=>Math.abs(x.free)>0.004).map(x=>`<div class="rorow"><span>${esc(x.a.name)}</span><b class="num ${x.free<0?'overtxt':''}">${money(x.free,true)}</b></div>`).join('')}
-        ${neg.length?`<p class="warnline">${neg.map(x=>esc(x.a.name)).join(', ')} ${neg.length===1?'has':'have'} less than ${neg.length===1?'its':'their'} goals hold.</p>`:tot>0.004?'':'<p class="okline">Every dollar has a job.</p>'}
-        <div class="actions"><button class="btn small${tot>0.004?'':' ghost'}" data-go="unassigned">${tot>0.004?'Assign it':'Open'}</button></div></div>`},
+      return `<h2>Unassigned money ${tip('uafree')}</h2><div class="panel">
+        <div class="rowtop"><span class="sub">Free to assign</span><b class="num" style="font:800 26px/1.1 var(--display)">${money(tot,true)}</b></div>
+        ${L.map(x=>`<div class="uamini"><div class="rorow"><span>${esc(x.a.name)}</span><b class="num ${x.free<-0.004?'overtxt':''}">${x.free<-0.004?'Short '+money(-x.free,true):money(Math.max(0,x.free),true)+' free'}</b></div>${uaBar(x)}</div>`).join('')}
+        ${neg.length?`<p class="warnline">${neg.map(x=>esc(x.a.name)).join(', ')} ${neg.length===1?'doesn’t':'don’t'} have enough for what’s still planned this month.</p>`:tot>0.004?'':'<p class="okline">Every dollar has a job.</p>'}
+        <div class="actions"><button class="btn small${tot>0.004||neg.length?'':' ghost'}" data-go="unassigned">${neg.length?'Fix it':tot>0.004?'Assign it':'Open'}</button></div></div>`},
     overview:()=>{const tiles=[ov('Checking',sumType(['checking']),lb?sumType(['checking'],lb):undefined,false,['checking']),
       ov('Liquid savings',sumType(['savings','cash']),lb?sumType(['savings','cash'],lb):undefined,false,['savings','cash']),
       ov('Retirement',sumType(['retirement']),lb?sumType(['retirement'],lb):undefined,false,['retirement']),
@@ -434,7 +434,7 @@ function homeCards(){
       const bk=[...new Set(monthly.map(c=>c.acct).filter(Boolean))].map(id=>{const a=acct(id);if(!a||a.archived)return null;const cs=monthly.filter(c=>c.acct===id);const need=r2(cs.reduce((s,c)=>s+Math.max(0,B(c)-spent(c.id)),0));const have=a.type==='debt'?null:unassigned(id);return {a,cs,need,have}}).filter(Boolean);
       const bkWarn=bk.filter(x=>x.have!=null&&x.have<x.need-0.5);
       return `<h2>Spending</h2>
-      ${bkWarn.map(x=>`<div class="note">${esc(x.a.name)} has ${money(x.have,true)}, but ${money(x.need,true)} is still budgeted for ${x.cs.map(c=>esc(c.name)).join(', ')} this month. Move ${money(x.need-x.have,true)} into it, or lower those budgets. ${tip('bucketwarn')}</div>`).join('')}
+      ${bkWarn.map(x=>`<div class="note">${esc(x.a.name)} has ${money(x.have,true)}, but ${money(x.need,true)} is still budgeted for ${x.cs.map(c=>esc(c.name)).join(', ')} this month. Move ${money(x.need-x.have,true)} into it, or lower those budgets. ${tip('bucketwarn')}<div class="actions" style="margin-top:8px"><button class="btn small" data-go="unassigned">Cover it</button></div></div>`).join('')}
       <div class="panel"><div class="row"><div class="rowtop"><b>Left to spend</b><span class="num" style="font-size:16px;color:${left<0?'var(--over)':'var(--ink)'};font-weight:700">${money(left)} of ${money(budget)}</span></div></div></div>
       <div class="actions" style="margin-top:8px"><button class="btn small ghost" data-act="moveBudget">Move budget ${tip('movebudget')}</button><button class="btn small ghost" data-act="setLeft">Set what’s left ${tip('setleft')}</button>${Object.values(S.adj[thisM]||{}).some(v=>Math.abs(v)>0.004)?`<button class="btn small ghost" data-act="resetLimits">Reset this month’s limits</button>`:''}</div>
       ${groups.map(x=>`<p class="lbl" style="margin:14px 0 6px">${esc(x.b.name)}</p><div class="panel">${x.cats.map(c=>row(c,true)).join('')}</div>`).join('')}
@@ -544,7 +544,7 @@ V.accounts=()=>{
   const bal=a=>E?`<input class="balin num" type="number" inputmode="decimal" data-acct="${a.id}" value="${a.balance}" aria-label="${esc(a.name)} balance">`:`<span class="num" style="font:700 17px var(--display);color:var(--ink)">${money(a.balance,true)}</span>`;
   return `<button class="btn small ghost" data-go="home" style="margin-bottom:8px">Back to dashboard</button><h1>Accounts</h1>
   ${E?`<div class="editbar"><b>Editing accounts</b><span>Use this for corrections. Day-to-day changes come from your entries. Nothing saves until you review it. ${tip('correction')}</span></div>`:`<div class="lockrow"><p class="sub">🔒 Balances update from your entries.</p><button class="btn small ghost" data-act="editAccts">Edit</button></div>`}
-  ${!E&&uaAccts().some(a=>unassigned(a.id)>0.004)?`<button class="loglink" data-go="unassigned" style="margin-top:12px"><span><b>◇ Unassigned money</b><small>${money(r2(uaAccts().reduce((s,a)=>s+Math.max(0,unassigned(a.id)),0)),true)} not set aside for any goal. Give it a job</small></span><span class="chev">›</span></button>`:''}
+  ${!E&&uaAccts().length?`<button class="loglink" data-go="unassigned" style="margin-top:12px"><span><b>◇ Unassigned money</b><small>${(()=>{const L=uaAccts().map(uaInfo),n=L.filter(x=>x.free<-0.004).length;return money(r2(L.reduce((s,x)=>s+Math.max(0,x.free),0)),true)+' free to assign'+(n?`, ${n} account${n===1?'':'s'} short`:'')})()}</small></span><span class="chev">›</span></button>`:''}
   ${(()=>{const all=liveAccts().slice().sort((x,y)=>groups.indexOf(x.type)-groups.indexOf(y.type));const banks=[...new Set(all.map(a=>a.bank||''))].sort((x,y)=>(x==='')-(y===''));
     const grouped=banks.some(b=>b);
     return `<h2>${grouped?'By bank':'Your accounts'} ${tip('bank')}</h2>`+banks.map(bk=>{const list=all.filter(a=>(a.bank||'')===bk);const held=list.filter(a=>a.type!=='debt').reduce((s,a)=>s+a.balance,0),owed=list.filter(a=>a.type==='debt').reduce((s,a)=>s+a.balance,0);
@@ -770,22 +770,46 @@ function leftoverPlan(T){const N=nextMonthOf(T);return leftoversFor(T).filter(x=
   return {...x,to:'stay'}})}
 /* Unassigned: money in an account that no goal holds, with a quick way to give it a job */
 function uaAccts(){return liveAccts().filter(a=>['checking','cash','savings'].includes(a.type))}
+/* where a category's spending comes out of: its linked account, else the usual pay-from account */
+function catHome(c){const h=leftoverSource(c),a=h&&acct(h);return a&&!a.archived&&a.type!=='debt'?h:null}
+function spendNeedCats(aid){return liveCats().filter(c=>c.type==='monthly'&&catHome(c)===aid).map(c=>({c,left:r2(Math.max(0,budgetOf(c,thisM)-spent(c.id)))})).filter(x=>x.left>0.004)}
+function billNeed(aid){return r2(liveFixed().filter(f=>f.acct===aid).reduce((s,f)=>s+fixedOwe(f),0))}
+/* money in an account that no goal holds and that this month's spending and bills won't need */
+function uaInfo(a){const held=r2(assigned(a.id)),cs=S.closed.includes(thisM)?[]:spendNeedCats(a.id),spend=r2(cs.reduce((s,x)=>s+x.left,0)),bills=S.closed.includes(thisM)?0:billNeed(a.id);
+  return {a,held,cs,spend,bills,free:r2(a.balance-held-spend-bills)}}
+function uaBar(x){const tot=Math.max(x.a.balance,x.held+x.spend+x.bills,0.01),w=v=>Math.max(0,v)/tot*100;
+  const short=Math.max(0,-x.free);
+  return `<div class="uabar" role="img" aria-label="${esc(x.a.name)}: ${money(x.held,true)} for goals, ${money(x.spend,true)} still to spend, ${money(x.bills,true)} in bills, ${x.free>=0?money(x.free,true)+' free':money(short,true)+' short'}">
+    <i class="ua-g" style="width:${w(x.held)}%"></i><i class="ua-s" style="width:${w(x.spend)}%"></i><i class="ua-b" style="width:${w(x.bills)}%"></i>${x.free>0.004?`<i class="ua-f" style="width:${w(x.free)}%"></i>`:''}${short>0.004?`<i class="ua-x" style="width:${w(short)}%"></i>`:''}</div>`}
+function uaRow(cls,label,v,extra){return `<div class="rorow"><span><i class="uadot ${cls}"></i>${label}${extra||''}</span><b class="num">${money(v,true)}</b></div>`}
 V.unassigned=()=>{
-  const list=uaAccts().map(a=>({a,free:unassigned(a.id),held:r2(assigned(a.id))}));
-  const tot=r2(list.reduce((s,x)=>s+Math.max(0,x.free),0));const gs=activeGoals();
-  return `<button class="btn small ghost" data-go="accounts" style="margin-bottom:8px">Back to accounts</button><h1>Unassigned ${tip('unassigned')}</h1>
-  <p class="sub">Money in your accounts that no goal is holding. Give it a job, or leave it as spending money.</p>
-  <div class="panel networth"><span class="sub">Unassigned across accounts</span><div class="num" style="font:800 40px/1.1 var(--display)">${money(tot,true)}</div></div>
-  ${list.map(({a,free,held})=>`<div class="panel uacard"><div class="rowtop"><b>${esc(a.name)}</b><span class="num">${money(a.balance,true)}</span></div>
-    <div class="rorow"><span>Set aside for goals</span><b class="num">${money(held,true)}</b></div>
-    <div class="rorow"><span>Unassigned</span><b class="num ${free<-0.004?'overtxt':free>0.004?'okc':''}">${money(free,true)}</b></div>
-    ${free<-0.004?`<p class="warnline">This account has less than its goals hold. Move goal money out (Goals → More → Move money) or add money to the account.</p>`
-    :free>0.004&&gs.length?`<div class="uaform"><label class="field"><span>Assign to</span><select data-ua-goal="${a.id}">${gs.filter(g=>g.acct===a.id).concat(gs.filter(g=>g.acct!==a.id)).map(g=>`<option value="${g.id}">${esc(g.name)}${g.acct===a.id?'':` (moves to ${esc(aName(g.acct))})`}</option>`).join('')}</select></label>
-      <div class="inline"><input type="number" inputmode="decimal" data-ua-amt="${a.id}" value="${a.type==='savings'?free:''}" placeholder="Up to ${money(free,true)}" aria-label="Amount to assign from ${esc(a.name)}"><button class="btn" data-act="uaAssign" data-acct="${a.id}">Assign</button></div>
-      ${a.type==='savings'?'':`<p class="sub" style="font-size:13px;margin:8px 0 0">${esc(a.name)} also pays your bills and everyday spending, so only assign what’s truly spare.</p>`}</div>`
-    :free>0.004?`<p class="sub" style="font-size:13px;margin:8px 0 0">Create a goal on the Goals tab to give this money a job.</p>`:''}
-  </div>`).join('')||'<div class="panel emptycard"><b>No accounts yet</b><p class="sub">Add checking, cash or savings accounts in Settings.</p></div>'}
-  <p class="sub" style="font-size:13px;margin-top:12px">Retirement accounts and debts aren’t listed, since goal money doesn’t live there.</p>`;
+  const list=uaAccts().map(uaInfo),gs=activeGoals(),open=!S.closed.includes(thisM);
+  const tot=r2(list.reduce((s,x)=>s+Math.max(0,x.free),0)),shorts=list.filter(x=>x.free<-0.004),srcs=list.filter(x=>x.free>0.004);
+  const cats=open?liveCats().filter(c=>c.type==='monthly'):[];
+  const opts=x=>{const aid=x.a.id;
+    const g=gs.filter(g=>g.acct===aid).concat(gs.filter(g=>g.acct!==aid)).map(g=>`<option value="g:${g.id}">${esc(g.name)}${g.acct===aid?'':` (moves to ${esc(aName(g.acct))})`}</option>`).join('');
+    const c=cats.map(c=>{const h=catHome(c);return `<option value="c:${c.id}">${esc(c.name)}, ${money(Math.max(0,catLeft(c,thisM)),true)} left${h&&h!==aid?` (moves to ${esc(aName(h))})`:''}</option>`}).join('');
+    const sh=shorts.filter(y=>y.a.id!==aid).map(y=>`<option value="a:${y.a.id}">${esc(y.a.name)}, short ${money(-y.free,true)}</option>`).join('');
+    return (sh?`<optgroup label="Cover a short account">${sh}</optgroup>`:'')+(g?`<optgroup label="Goals">${g}</optgroup>`:'')+(c?`<optgroup label="Add to this month’s spending">${c}</optgroup>`:'')};
+  return `<button class="btn small ghost" data-go="home" style="margin-bottom:8px">Back to dashboard</button><h1>Unassigned ${tip('uafree')}</h1>
+  <p class="sub">Money that no goal holds and that this month’s spending and bills won’t need. Give it a job: a goal, more room in a category, or cover an account that’s running short.</p>
+  <div class="panel networth"><span class="sub">Free to assign</span><div class="num" style="font:800 40px/1.1 var(--display)">${money(tot,true)}</div>
+    ${shorts.length?`<p class="warnline" style="margin:6px 0 0">${shorts.map(x=>`${esc(x.a.name)} is short ${money(-x.free,true)}`).join('. ')}.</p>`:''}</div>
+  <div class="ualegend"><span><i class="uadot ua-g"></i>Goals</span><span><i class="uadot ua-s"></i>Still to spend</span><span><i class="uadot ua-b"></i>Bills due</span><span><i class="uadot ua-f"></i>Free</span><span><i class="uadot ua-x"></i>Short</span></div>
+  ${list.map(x=>{const a=x.a,o=opts(x);return `<div class="panel uacard ${x.free<-0.004?'short':''}"><div class="rowtop"><b>${esc(a.name)}</b><span class="num">${money(a.balance,true)}</span></div>
+    ${uaBar(x)}
+    ${x.held>0.004?uaRow('ua-g','Set aside for goals',x.held):''}
+    ${x.spend>0.004?uaRow('ua-s','Still to spend this month',x.spend,`<small>${x.cs.map(y=>esc(y.c.name)+' '+money(y.left,true)).join(', ')}</small>`):''}
+    ${x.bills>0.004?uaRow('ua-b','Bills still due',x.bills):''}
+    <div class="rorow uatot"><span>${x.free<-0.004?'Short':'Free to assign'}</span><b class="num ${x.free<-0.004?'overtxt':x.free>0.004?'okc':''}">${money(Math.abs(x.free),true)}</b></div>
+    ${x.free<-0.004?`<p class="warnline">${esc(a.name)} doesn’t have enough for what’s still planned from it this month.${srcs.length?' Move money in:':' Lower a budget (Dashboard → Move budget) or move goal money out (Goals → More → Move money).'}</p>
+      ${srcs.length?`<div class="uaform"><label class="field"><span>Move in from</span><select data-ua-src="${a.id}">${srcs.map(y=>`<option value="${y.a.id}">${esc(y.a.name)}, ${money(y.free,true)} free</option>`).join('')}</select></label>
+      <div class="inline"><input type="number" inputmode="decimal" data-ua-cov="${a.id}" value="${Math.min(-x.free,srcs[0].free)}" aria-label="Amount to move into ${esc(a.name)}"><button class="btn" data-act="uaCover" data-acct="${a.id}">Cover it</button></div></div>`:''}`
+    :x.free>0.004&&o?`<div class="uaform"><label class="field"><span>Give it a job</span><select data-ua-goal="${a.id}">${o}</select></label>
+      <div class="inline"><input type="number" inputmode="decimal" data-ua-amt="${a.id}" value="${(()=>{const sh=shorts.find(y=>y.a.id!==a.id);return sh?r2(Math.min(-sh.free,x.free)):a.type==='savings'?x.free:''})()}" placeholder="Up to ${money(x.free,true)}" aria-label="Amount to assign from ${esc(a.name)}"><button class="btn" data-act="uaAssign" data-acct="${a.id}">Assign</button></div></div>`
+    :x.free>0.004?`<p class="sub" style="font-size:13px;margin:8px 0 0">Create a goal on the Goals tab to give this money a job.</p>`:''}
+  </div>`}).join('')||'<div class="panel emptycard"><b>No accounts yet</b><p class="sub">Add checking, cash or savings accounts in Settings.</p></div>'}
+  <p class="sub" style="font-size:13px;margin-top:12px">Categories without a “Usually paid from” account count against ${esc(aName(routeAcct(S.plan.payDefault)||routeAcct(S.plan.deposit))||'your main account')}. Retirement accounts and debts aren’t listed.</p>`;
 };
 V.close=()=>{
   const T=closeTarget(),open=openMonths();
@@ -1357,6 +1381,7 @@ const TIPS={
   buyby:['When you need the money. The app spreads what’s left over the months until then to get the monthly amount.','goal'],
   bank:['Group accounts by the bank or app they live in, like Capital One or ESFCU. Each bank shows its total, and each account shows how its money is split between goals and unassigned.','move'],
   catacct:['If you keep a separate account for this kind of spending, like a Capital One bucket for food, pick it here. New purchases in this category default to it, and the dashboard warns you if the account runs lower than what’s left in the budget.'],
+  uafree:['Each account’s balance, minus what goals hold, what’s left in this month’s spending categories that come out of it, and bills not yet paid from it. What remains is free to give a job. If the planned amounts are bigger than the balance, the account is short and a purchase or bill could bounce.'],
   bucketwarn:['This account is linked to these categories in Settings. Its real balance (minus anything set aside for goals) is less than what you still plan to spend from it this month, so a purchase could come up short.'],
   fund:['The fund is the main pot for this goal. Add money here over time. Before a payment is due, Fill from fund moves what that payment needs into it. Nothing leaves your bank until you Mark paid.','schoolread'],
   coveredfund:['The fund has enough for this payment, after first setting aside what the earlier payments need. Fill from fund moves it over when you’re ready.','schoolread'],
@@ -1905,14 +1930,33 @@ function handleAct(t){
     openSetLeft();return}
   if(a==='resetLimits'){resetLimits();return}
   if(a==='uaAssign'){
-    const aid=t.dataset.acct,g=goal((document.querySelector(`[data-ua-goal="${aid}"]`)||{}).value),v=r2(parseFloat((document.querySelector(`[data-ua-amt="${aid}"]`)||{}).value));
-    if(!g){toast('Pick a goal');return}if(!(v>0)){toast('Enter an amount');return}
-    const free=unassigned(aid);if(v>free+0.004){toast(`Only ${money(free,true)} is unassigned in ${aName(aid)}`);return}
+    const aid=t.dataset.acct,pick=(document.querySelector(`[data-ua-goal="${aid}"]`)||{}).value||'',v=r2(parseFloat((document.querySelector(`[data-ua-amt="${aid}"]`)||{}).value));
+    const [k,tid]=pick.split(':');if(!tid){toast('Pick where it goes');return}if(!(v>0)){toast('Enter an amount');return}
+    const free=uaInfo(acct(aid)).free;if(v>free+0.004){toast(`Only ${money(free,true)} in ${aName(aid)} is free to assign`);return}
+    if(k==='a'){const short=-uaInfo(acct(tid)).free;if(!(short>0.004)){toast(aName(tid)+' isn’t short anymore');return}
+      const nt=addTx({date:todayISO,kind:'transfer',from:aid,to:tid,amount:v,note:'Cover shortfall'});
+      logIt([`Moved ${money(v,true)} from ${aName(aid)} to ${aName(tid)} to cover this month`]);
+      render();toast(`${money(v,true)} to ${aName(tid)}. Make the transfer in your bank too`,()=>{removeTx(nt);render();toast('Undone')});return}
+    if(k==='c'){if(S.closed.includes(thisM)){toast('This month is closed');return}
+      const c=cat(tid),h=catHome(c),m=S.adj[thisM]=S.adj[thisM]||{},snap=JSON.stringify(m);
+      const nt=h&&h!==aid?addTx({date:todayISO,kind:'transfer',from:aid,to:h,amount:v,note:'For '+c.name}):null;
+      m[c.id]=r2((m[c.id]||0)+v);MEMO=null;
+      logIt([`Added ${money(v,true)} from ${aName(aid)} to ${c.name} for ${monthName(mDate(thisM))}`+(nt?` (transfer to ${aName(h)})`:'')]);
+      render();toast(`${c.name} gets ${money(v,true)} more this month${nt?`. Make the transfer to ${aName(h)} in your bank too`:''}`,()=>{if(nt)removeTx(nt);S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Undone')});return}
+    const g=goal(tid);if(!g){toast('Pick where it goes');return}
     const same=g.acct===aid,n=S.tx.length;
     if(!contributeGoal(g,v,same?'unassigned':aid))return;
     const nt=S.tx[S.tx.length-1];if(S.tx.length===n)return;
     logIt([`Assigned ${money(v,true)} from ${aName(aid)} to ${g.name}`+(same?'':` (transfer to ${aName(g.acct)})`)]);
     render();toast(same?`${money(v,true)} set aside for ${g.name}`:`${money(v,true)} to ${g.name}. Make the transfer to ${aName(g.acct)} in your bank too`,()=>{removeTx(nt);render();toast('Undone')});
+    return}
+  if(a==='uaCover'){
+    const to=t.dataset.acct,src=(document.querySelector(`[data-ua-src="${to}"]`)||{}).value,v=r2(parseFloat((document.querySelector(`[data-ua-cov="${to}"]`)||{}).value));
+    if(!src){toast('Pick an account to move from');return}if(!(v>0)){toast('Enter an amount');return}
+    const free=uaInfo(acct(src)).free;if(v>free+0.004){toast(`Only ${money(free,true)} in ${aName(src)} is free`);return}
+    const nt=addTx({date:todayISO,kind:'transfer',from:src,to,amount:v,note:'Cover shortfall'});
+    logIt([`Moved ${money(v,true)} from ${aName(src)} to ${aName(to)} to cover this month`]);
+    render();toast(`${money(v,true)} moved to ${aName(to)}. Make the transfer in your bank too`,()=>{removeTx(nt);render();toast('Undone')});
     return}
   if(a==='moveBudget'){
     if(S.closed.includes(thisM)){toast('This month is closed');return}
