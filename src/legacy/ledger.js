@@ -21,13 +21,13 @@ function r2(...a){return Model.r2(...a)}
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let uid=1000; const id=()=>BOOT?'i'+crypto.randomUUID().replace(/-/g,''):'i'+(uid++)+Math.random().toString(36).slice(2,6);
 
-const DASH_CARDS={start:'Getting started',payday:'Payday transfers',checkin:'Weekly check-in',cardpay:'Credit card statement',networth:'Net worth',overview:'Account totals',plan:'Plan check',spending:'Spending',fixed:'Fixed costs',annual:'Annual budgets',latest:'Latest entries'};
-const defaultDash=()=>({order:['start','payday','checkin','cardpay','spending','networth','goal:g3','plan','overview','fixed','debt:a6','annual','latest'],hidden:[]});
+const DASH_CARDS={start:'Getting started',payday:'Payday transfers',checkin:'Weekly check-in',cardpay:'Credit card statement',networth:'Net worth',unassigned:'Unassigned money',overview:'Account totals',plan:'Plan check',spending:'Spending',fixed:'Fixed costs',annual:'Annual budgets',latest:'Latest entries'};
+const defaultDash=()=>({order:['start','payday','checkin','cardpay','spending','networth','unassigned','goal:g3','plan','overview','fixed','debt:a6','annual','latest'],hidden:[]});
 function blankPlan(){return {income:0,deposit:null,payDefault:null,framework:'csp',inc:{grossAnnual:0,pretax:0,net:0,extra:0},
   custom:[{name:'Fixed costs',roles:['need'],min:50,max:60},{name:'Investments',roles:['invest'],min:10,max:10},{name:'Savings',roles:['save'],min:5,max:10},{name:'Guilt-free spending',roles:['want'],min:20,max:35}]}}
 function blank(){
   return {view:'setup',setupDone:false,tips:true,did:{},payday:[],gsSkip:[],plan:blankPlan(),categories:[],fixed:[],accounts:[],assets:[],tx:[],goals:[],snapshots:[],closed:[],log:[],
-    dash:{order:['spending','networth','plan','overview','fixed','annual','latest'],hidden:[]},
+    dash:{order:['spending','networth','unassigned','plan','overview','fixed','annual','latest'],hidden:[]},
     notif:{b80:true,over:true,goals:true,due:true,close:true,daily:false,weekly:true}};
 }
 function seed(){
@@ -140,7 +140,7 @@ const cat=cid=>S.categories.find(c=>c.id===cid);
 function adjOf(cid,m){return Model.adjustmentOf(S,cid,m)}
 function carryOf(c,m){return Model.carryOf(S,memo(),c,m||thisM)}
 function budgetOf(c,m){return Model.budgetOf(S,memo(),c,m||thisM)}
-function sanitize(){if(!S.adj)S.adj={};if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
+function sanitize(){if(!S.adj)S.adj={};if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
 function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
@@ -406,6 +406,13 @@ function homeCards(){
       <div class="rowtop"><span class="sub">Net worth ${tip('networth')}</span><button class="btn small ghost" data-go="accounts">Accounts</button></div>
       <div class="num" style="font:800 46px/1.05 var(--display);letter-spacing:-.03em">${money(netOf())}</div>
       ${delta(netOf(),lb?netOf(lb):null)}</div>`,
+    unassigned:()=>{const L=uaAccts().map(a=>({a,free:unassigned(a.id)}));if(!L.length)return '';
+      const tot=r2(L.reduce((s,x)=>s+Math.max(0,x.free),0)),neg=L.filter(x=>x.free<-0.004);
+      return `<h2>Unassigned money ${tip('unassigned')}</h2><div class="panel">
+        <div class="rowtop"><span class="sub">Not set aside for any goal</span><b class="num" style="font:800 26px/1.1 var(--display)">${money(tot,true)}</b></div>
+        ${L.filter(x=>Math.abs(x.free)>0.004).map(x=>`<div class="rorow"><span>${esc(x.a.name)}</span><b class="num ${x.free<0?'overtxt':''}">${money(x.free,true)}</b></div>`).join('')}
+        ${neg.length?`<p class="warnline">${neg.map(x=>esc(x.a.name)).join(', ')} ${neg.length===1?'has':'have'} less than ${neg.length===1?'its':'their'} goals hold.</p>`:tot>0.004?'':'<p class="okline">Every dollar has a job.</p>'}
+        <div class="actions"><button class="btn small${tot>0.004?'':' ghost'}" data-go="unassigned">${tot>0.004?'Assign it':'Open'}</button></div></div>`},
     overview:()=>{const tiles=[ov('Checking',sumType(['checking']),lb?sumType(['checking'],lb):undefined,false,['checking']),
       ov('Liquid savings',sumType(['savings','cash']),lb?sumType(['savings','cash'],lb):undefined,false,['savings','cash']),
       ov('Retirement',sumType(['retirement']),lb?sumType(['retirement'],lb):undefined,false,['retirement']),
@@ -762,7 +769,7 @@ function leftoverPlan(T){const N=nextMonthOf(T);return leftoversFor(T).filter(x=
   if(ch.startsWith('goal:')){const g=goal(ch.slice(5));if(g&&!g.done)return {...x,to:'goal',g,from:leftoverSource(x.c)}}
   return {...x,to:'stay'}})}
 /* Unassigned: money in an account that no goal holds, with a quick way to give it a job */
-const uaAccts=()=>liveAccts().filter(a=>['checking','cash','savings'].includes(a.type));
+function uaAccts(){return liveAccts().filter(a=>['checking','cash','savings'].includes(a.type))}
 V.unassigned=()=>{
   const list=uaAccts().map(a=>({a,free:unassigned(a.id),held:r2(assigned(a.id))}));
   const tot=r2(list.reduce((s,x)=>s+Math.max(0,x.free),0));const gs=activeGoals();
