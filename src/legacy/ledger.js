@@ -832,30 +832,108 @@ function bkRows(list,tot,subLabel){return list.map((x,i)=>{const pc=tot?x.tot/to
     <div class="bar"><i style="width:${pc}%;background:${BKC[i%BKC.length]}"></i></div>
     <div class="cols"><span>${Math.round(pc)}% of spending</span><span>${x.n} ${x.n===1?'entry':'entries'} ⌄</span></div></summary>
     <div class="bkitems"><p class="lbl" style="margin:6px 0 2px">${subLabel}</p>${items.map(([n,v])=>`<div class="rorow"><span>${esc(n)}</span><b class="num">${money(v,true)}</b></div>`).join('')}</div></details>`}).join('')}
+const LIQ=['checking','cash','savings'];
+/* how one entry moves money for the month's flow: in from outside, out to the world, or between your own accounts */
+function flowAccts(m){return S.accounts.filter(a=>LIQ.includes(a.type)&&existedBy(a,m)&&(!a.archived||S.tx.some(t=>inMonth(t,m)&&Model.effectOn(t,a.id))))}
+function moneyFlow(m){
+  const A=flowAccts(m),ids=new Set(A.map(a=>a.id)),isL=id=>ids.has(id),tx=S.tx.filter(t=>inMonth(t,m));
+  const accts=A.map(a=>{const end=balAt(a,m),net=r2(tx.reduce((s,t)=>s+Model.effectOn(t,a.id),0));return {a,start:r2(end-net),end}});
+  const src={},use={},add=(o,k,name,v,extra)=>{if(Math.abs(v)<0.005)return;(o[k]=o[k]||Object.assign({name,v:0},extra||{})).v+=v};
+  const bk=buckets(),grpOf=role=>(bk.find(b=>b.roles.includes(role))||{name:'Other spending'}).name;
+  tx.forEach(t=>{const v=t.amount;
+    if(t.kind==='income'&&isL(t.acct))add(src,'inc:'+(t.vendor||'Income'),t.vendor||'Income',v);
+    else if(t.kind==='expense'&&isL(t.acct)){const c=cat(t.cat);add(use,'g:'+grpOf((c&&c.role)||'want'),grpOf((c&&c.role)||'want'),v)}
+    else if(t.kind==='fixed'&&isL(t.acct)){if(!t.to)add(use,'bills','Bills',v);else if(!isL(t.to)){const d=acct(t.to);add(use,d&&d.type==='debt'?'debt':'ret',d&&d.type==='debt'?'Paid toward debts':'Moved to retirement',v)}}
+    else if(t.kind==='fixed'&&t.to&&isL(t.to)&&!isL(t.acct))add(src,'other','From your other accounts',v);
+    else if(t.kind==='goalbuy'&&isL(t.acct))add(use,'planned','Planned purchases from goals',v);
+    else if(t.kind==='transfer'){const f=isL(t.from),to=isL(t.to);
+      if(f&&!to){const d=acct(t.to);add(use,d&&d.type==='debt'?'debt':'ret',d&&d.type==='debt'?'Paid toward debts':'Moved to retirement',v)}
+      else if(!f&&to)add(src,'other','From your other accounts',v)}
+    else if(t.kind==='adjust'&&isL(t.acct)){if(t.dir>0)add(src,'adj','Corrections',v);else add(use,'adj','Corrections',v)}
+  });
+  const ins=Object.values(src).reduce((s,x)=>s+x.v,0),outs=Object.values(use).reduce((s,x)=>s+x.v,0),net=r2(ins-outs);
+  if(net<0)add(src,'drawn','From money you already had',-net,{end:true});else add(use,'kept','Added to your accounts',net,{end:true});
+  const S_=Object.values(src).map(x=>({...x,v:r2(x.v)})).filter(x=>x.v>0.004).sort((x,y)=>(x.end?1:0)-(y.end?1:0)||y.v-x.v);
+  const U=Object.values(use).map(x=>({...x,v:r2(x.v)})).filter(x=>x.v>0.004).sort((x,y)=>(x.end?1:0)-(y.end?1:0)||y.v-x.v);
+  return {accts,src:S_,use:U,tx,isL,start:r2(accts.reduce((s,x)=>s+x.start,0)),end:r2(accts.reduce((s,x)=>s+x.end,0))}}
+function sankey(src,use){
+  const W=340,bw=10,mx=165,tot=Math.max(src.reduce((s,x)=>s+x.v,0),use.reduce((s,x)=>s+x.v,0),0.01),sc=260/tot,minGap=30;
+  const lay=list=>{let y=4;return list.map(x=>{const h=Math.max(2,x.v*sc),o={...x,y,h};y+=Math.max(h+6,minGap);return o})};
+  const L=lay(src),R=lay(use),H=Math.max(...L.map(x=>x.y+Math.max(x.h,minGap-6)),...R.map(x=>x.y+Math.max(x.h,minGap-6)))+6;
+  const mh=tot*sc,my=Math.max(4,(H-mh)/2);
+  const band=(x1,y1,x2,y2,h,c)=>`<path d="M${x1},${y1}C${(x1+x2)/2},${y1} ${(x1+x2)/2},${y2} ${x2},${y2}L${x2},${y2+h}C${(x1+x2)/2},${y2+h} ${(x1+x2)/2},${y1+h} ${x1},${y1+h}Z" fill="${c}" opacity=".28"/>`;
+  const lc=(x,i)=>x.end?'var(--muted)':BKC[i%BKC.length];
+  let cy=my,paths='';L.forEach((x,i)=>{paths+=band(bw,x.y,mx,cy,x.h,lc(x,i));cy+=x.h});
+  cy=my;R.forEach((x,i)=>{paths+=band(mx+bw,cy,W-bw,x.y,x.h,x.end?'var(--muted)':BKC[(i+2)%BKC.length]);cy+=x.h});
+  const lbl=(x,y,anchor,a,b)=>`<text x="${x}" y="${y}" text-anchor="${anchor}" class="sk-t"><tspan class="sk-n">${esc(a)}</tspan><tspan x="${x}" dy="13" class="sk-v">${b}</tspan></text>`;
+  return `<svg class="sankey" viewBox="0 0 ${W} ${H}" role="img" aria-label="Money flow: ${src.map(x=>esc(x.name)+' '+money(x.v,true)).join(', ')} went to ${use.map(x=>esc(x.name)+' '+money(x.v,true)).join(', ')}">
+    ${paths}
+    ${L.map((x,i)=>`<rect x="0" y="${x.y}" width="${bw}" height="${x.h}" rx="2" fill="${lc(x,i)}"/>`+lbl(bw+6,x.y+10,'start',x.name,money(x.v,true))).join('')}
+    <rect x="${mx}" y="${my}" width="${bw}" height="${mh}" rx="2" fill="var(--ink)"/>
+    ${R.map((x,i)=>`<rect x="${W-bw}" y="${x.y}" width="${bw}" height="${x.h}" rx="2" fill="${x.end?'var(--muted)':BKC[(i+2)%BKC.length]}"/>`+lbl(W-bw-6,x.y+10,'end',x.name,money(x.v,true))).join('')}
+  </svg>`}
+/* one account's month: what came in, what left and where to, what was left */
+function trail(x,tx,m){const aid=x.a.id,inn=[],out=[],cats={};
+  tx.forEach(t=>{const v=t.amount,d=shortD(t.date);
+    if(t.kind==='income'&&t.acct===aid)inn.push([`${esc(t.vendor||'Income')}`,d,v]);
+    if(t.kind==='transfer'&&t.to===aid)inn.push([`From ${esc(aName(t.from))}${t.goal?' for '+esc((goal(t.goal)||{}).name||'a goal'):t.note?', '+esc(t.note):''}`,d,v]);
+    if(t.kind==='transfer'&&t.from===aid){const to=acct(t.to);out.push([`To ${esc(aName(t.to))}${t.goal?' for '+esc((goal(t.goal)||{}).name||'a goal'):to&&to.type==='debt'?' (payment)':t.note?', '+esc(t.note):''}`,d,v])}
+    if(t.kind==='fixed'&&t.acct===aid)out.push([`${esc(t.vendor||'Bill')}${t.to?' → '+esc(aName(t.to)):''}`,d,v]);
+    if(t.kind==='fixed'&&t.to===aid)inn.push([`${esc(t.vendor||'Bill')} from ${esc(aName(t.acct))}`,d,v]);
+    if(t.kind==='expense'&&t.acct===aid){const k=t.cat;(cats[k]=cats[k]||{n:0,v:0}).n++;cats[k].v+=v}
+    if(t.kind==='goalbuy'&&t.acct===aid)out.push([`${esc(t.vendor||'Planned purchase')} (from a goal)`,d,v]);
+    if(t.kind==='gmove'&&t.acctFrom!==t.acctTo){if(t.acctFrom===aid)out.push(['Goal money moved to '+esc(aName(t.acctTo)),d,v]);if(t.acctTo===aid)inn.push(['Goal money from '+esc(aName(t.acctFrom)),d,v])}
+    if(t.kind==='adjust'&&t.acct===aid)(t.dir>0?inn:out).push([t.closeOf?'Correction at close':'Balance correction',d,v]);
+  });
+  Object.entries(cats).sort((a,b)=>b[1].v-a[1].v).forEach(([k,c])=>out.push([`${esc((cat(k)||{}).name||'Purchases')}`,`${c.n} purchase${c.n===1?'':'s'}`,r2(c.v)]));
+  const tin=r2(inn.reduce((s,r)=>s+r[2],0)),tout=r2(out.reduce((s,r)=>s+r[2],0));
+  const row=(r,sign)=>`<div class="trow"><span>${r[0]}<small>${r[1]}</small></span><b class="num ${sign==='+'?'okc':''}">${sign}${money(r[2],true)}</b></div>`;
+  return `<details class="trail" ${UI.trail===aid?'open':''} data-trail="${aid}"><summary><div class="rowtop"><b>${esc(x.a.name)}</b><span class="num">${money(x.start,true)} → ${money(x.end,true)}</span></div>
+    <div class="cols"><span>+${money(tin,true)} in, −${money(tout,true)} out</span><span>⌄</span></div></summary>
+    <div class="tbody"><div class="trow tedge"><span>Started with</span><b class="num">${money(x.start,true)}</b></div>
+    ${inn.length?`<p class="lbl">Came in</p>${inn.map(r=>row(r,'+')).join('')}`:''}
+    ${out.length?`<p class="lbl">Went out</p>${out.map(r=>row(r,'−')).join('')}`:''}
+    ${!inn.length&&!out.length?'<p class="sub" style="font-size:13px;margin:6px 0">No money moved in or out this month.</p>':''}
+    <div class="trow tedge"><span>${m===thisM?'Now':'Ended with'}</span><b class="num">${money(x.end,true)}</b></div></div></details>`}
 V.breakdown=()=>{
   const ms=bkMonths();if(!BK.m||!ms.includes(BK.m))BK.m=thisM;const m=BK.m,i=ms.indexOf(m);
-  const L=bkLines(m),tot=r2(L.reduce((a,l)=>a+l.t.amount,0)),prev=i>0?r2(bkLines(ms[i-1]).reduce((a,l)=>a+l.t.amount,0)):null;
-  const st=monthStats(m),what=bkGroup(L,'what',l=>l.whatName),from=bkGroup(L,'from',l=>l.from==='before'?'Before you started Ledger':aName(l.from));
-  const bs=buckets(),grp=bs.map(b=>({b,v:r2(L.filter(l=>b.roles.includes(l.role)).reduce((a,l)=>a+l.t.amount,0))})).filter(x=>x.v>0.004);
-  const other=r2(tot-grp.reduce((a,x)=>a+x.v,0));if(other>0.004)grp.push({b:{name:'Other'},v:other});
+  const F=moneyFlow(m),L=bkLines(m),tot=r2(L.reduce((a,l)=>a+l.t.amount,0)),st=monthStats(m);
+  const what=bkGroup(L,'what',l=>l.whatName),from=bkGroup(L,'from',l=>l.from==='before'?'Before you started Ledger':aName(l.from));
   const big=L.filter(l=>l.t.kind==='expense').sort((a,b)=>b.t.amount-a.t.amount).slice(0,5);
-  const budget=r2(liveCats().filter(c=>c.type==='monthly').reduce((a,c)=>a+budgetOf(c,m),0));
-  const catSpent=r2(L.filter(l=>l.t.kind==='expense'&&(cat(l.t.cat)||{}).type==='monthly').reduce((a,l)=>a+l.t.amount,0));
-  return `<button class="btn small ghost" data-go="trends" style="margin-bottom:8px">Back to trends</button><h1>Monthly breakdown</h1>
-  <p class="sub">Everything you spent in a month: what it went to and which account it came from.</p>
+  const gl={};F.tx.forEach(t=>{const g=t.goal&&goal(t.goal);if(!g)return;const k=g.parent?goal(g.parent)||g:g;
+    if(t.kind==='assign'||t.kind==='transfer')(gl[k.id]=gl[k.id]||{g:k,v:0}).v+=t.amount;if(t.kind==='unassign')(gl[k.id]=gl[k.id]||{g:k,v:0}).v-=t.amount});
+  const goalsM=Object.values(gl).filter(x=>Math.abs(x.v)>0.004).sort((a,b)=>b.v-a.v),goalsTot=r2(goalsM.reduce((s,x)=>s+x.v,0));
+  const cs=liveCats().filter(c=>c.type==='monthly'),budTot=r2(cs.reduce((s,c)=>s+budgetOf(c,m),0)),spTot=r2(cs.reduce((s,c)=>s+spent(c.id,m),0));
+  const ua=m===thisM?uaAccts().map(uaInfo):null;
+  return `<button class="btn small ghost" data-go="trends" style="margin-bottom:8px">Back to trends</button><h1>Follow the money</h1>
+  <p class="sub">Where your money started, where it came from, where it went, and the jobs you gave it.</p>
   <div class="bkmonth"><button class="x" data-bm="-1" aria-label="Previous month" ${i>0?'':'disabled'}>‹</button><b>${esc(mFull(m))}</b><button class="x" data-bm="1" aria-label="Next month" ${i<ms.length-1?'':'disabled'}>›</button></div>
-  <div class="panel networth"><span class="sub">Spent</span><div class="num" style="font:800 40px/1.1 var(--display)">${money(tot,true)}</div>
-    ${prev!=null?`<p class="sub" style="font-size:13px;margin:4px 0 0">${m===thisM?`Month in progress. ${esc(mLabel(ms[i-1]))} came to ${money(prev,true)} in total.`:tot>prev?`${money(tot-prev,true)} more than ${esc(mLabel(ms[i-1]))}`:tot<prev?`${money(prev-tot,true)} less than ${esc(mLabel(ms[i-1]))}`:`Same as ${esc(mLabel(ms[i-1]))}`}</p>`:''}
-    <div class="bkstats"><div><span class="sub">Income</span><b class="num">${money(st.income,true)}</b></div><div><span class="sub">Kept</span><b class="num ${st.income-tot>=0?'okc':'overtxt'}">${money(st.income-tot,true)}</b></div><div><span class="sub">Category budgets</span><b class="num">${money(catSpent,true)} of ${money(budget,true)}</b></div></div>
-    ${grp.length?`<div class="uabar" style="margin-top:14px">${grp.map((x,j)=>`<i style="width:${x.v/tot*100}%;background:${BKC[j%BKC.length]}"></i>`).join('')}</div>
-    <div class="ualegend" style="margin:6px 0 0">${grp.map((x,j)=>`<span><i class="uadot" style="background:${BKC[j%BKC.length]}"></i>${esc(x.b.name)} ${money(x.v,true)}</span>`).join('')}</div>`:''}</div>
+
+  <h2>The flow ${tip('flow')}</h2>
+  <div class="panel cpanel">${F.accts.length?`<div class="skhead"><span>Money in</span><span>Your accounts</span><span>Money out</span></div>`+sankey(F.src,F.use)+`<p class="sub" style="font-size:13px;margin:8px 0 0">Your checking, savings and cash went from <b class="num">${money(F.start,true)}</b> to <b class="num">${money(F.end,true)}</b>${m===thisM?' so far':''}.</p>`:'<div class="empty">Add a checking, savings or cash account to see the flow.</div>'}
+    ${(()=>{const fi=r2(F.src.filter(x=>!x.end).reduce((s,x)=>s+x.v,0)),fo=r2(F.use.filter(x=>!x.end).reduce((s,x)=>s+x.v,0)),d=r2(fi-fo);
+      return `<div class="bkstats"><div><span class="sub">Money in</span><b class="num">${money(fi,true)}</b></div><div><span class="sub">Money out</span><b class="num">${money(fo,true)}</b></div><div><span class="sub">Change</span><b class="num ${d>=0?'okc':'overtxt'}">${d>=0?'+':'−'}${money(Math.abs(d),true)}</b></div></div>`})()}</div>
+
+  <h2>Account by account</h2>
+  <p class="sub" style="font-size:14px;margin:-4px 0 8px">Tap an account to follow every dollar in and out.</p>
+  <div class="panel">${F.accts.map(x=>trail(x,F.tx,m)).join('')||'<div class="empty">No accounts yet.</div>'}</div>
+
+  <h2>Allocations</h2>
+  <div class="panel"><div class="row"><div class="rowtop"><b>Spending budgets</b><span class="num">${money(spTot,true)} of ${money(budTot,true)}</span></div>
+    <div class="bar"><i class="${pctClass(budTot?spTot/budTot*100:0)}" style="width:${Math.min(100,budTot?spTot/budTot*100:0)}%"></i></div>
+    <details class="bkitems2"><summary class="cols"><span>${budTot-spTot>=0?money(budTot-spTot,true)+' not spent':money(spTot-budTot,true)+' over'}</span><span>By category ⌄</span></summary>
+    ${cs.map(c=>{const b=budgetOf(c,m),sp=spent(c.id,m);return `<div class="rorow"><span>${esc(c.name)}</span><b class="num ${sp>b+0.004?'overtxt':''}">${money(sp,true)} of ${money(b,true)}</b></div>`}).join('')}</details></div>
+    <div class="row"><div class="rowtop"><b>Set aside for goals</b><span class="num">${money(goalsTot,true)}</span></div>
+    ${goalsM.length?goalsM.map(x=>`<div class="rorow"><span>${esc(x.g.name)}</span><b class="num">${x.v<0?'−':''}${money(Math.abs(x.v),true)}</b></div>`).join(''):'<p class="sub" style="font-size:13px;margin:4px 0 0">Nothing set aside this month.</p>'}</div>
+    ${ua?`<div class="row"><div class="rowtop"><b>Free to assign now</b><span class="num">${money(r2(ua.reduce((s,x)=>s+Math.max(0,x.free),0)),true)}</span></div>
+      ${ua.some(x=>x.free<-0.004)?`<p class="warnline" style="margin:4px 0 0">${ua.filter(x=>x.free<-0.004).map(x=>esc(x.a.name)+' is short '+money(-x.free,true)).join('. ')}.</p>`:''}
+      <div class="actions" style="margin-top:6px"><button class="btn small ghost" data-go="unassigned">Open Unassigned</button></div></div>`:''}</div>
+
   ${L.length?`<h2>What it went to</h2><div class="panel">${bkRows(what,tot,'Where')}</div>
-  <h2>Where it came from</h2><div class="panel">${bkRows(from,tot,'Spent on')}</div>
-  ${big.length?`<h2>Biggest purchases</h2><div class="panel">${big.map(l=>txLine(l.t)).join('')}</div>`:''}`
-  :'<div class="panel emptycard" style="margin-top:14px"><b>Nothing spent this month.</b><p class="sub">Purchases, paid bills and interest show up here as you log them.</p></div>'}
+  <h2>Paid with</h2><div class="panel">${bkRows(from,tot,'Spent on')}</div>
+  ${big.length?`<h2>Biggest purchases</h2><div class="panel">${big.map(l=>txLine(l.t)).join('')}</div>`:''}`:''}
   ${st.planned>0.004?`<p class="sub" style="font-size:13px;margin-top:12px">${money(st.planned,true)} in planned purchases paid from goals isn’t counted as spending. ${tip('planned')}</p>`:''}
-  <p class="sub" style="font-size:13px;margin-top:12px">Counts purchases, paid bills and loan interest. Transfers and money set aside for goals aren’t spending.</p>
-  <button class="btn ghost full" data-see="${m}" style="margin-top:10px">See every entry for ${esc(mLabel(m))}</button>`;
+  <button class="btn ghost full" data-see="${m}" style="margin-top:14px">See every entry for ${esc(mLabel(m))}</button>`;
 };
 V.close=()=>{
   const T=closeTarget(),open=openMonths();
@@ -1323,7 +1401,7 @@ V.trends=()=>{
   const stat=(l,v,sub,cls)=>`<div class="ov"><div class="sub">${l}</div><div class="ovv num ${cls||''}">${v}</div><span class="sub" style="font-size:12px">${sub}</span></div>`;
   const fwName=S.plan.framework==='custom'?'custom plan':FW[S.plan.framework].name;
   return `<h1>Trends</h1><p class="sub">How your money has moved over time. * marks the current month, still in progress.</p>
-  <button class="loglink" data-go="breakdown" style="margin-top:12px"><span><b>◔ Monthly breakdown</b><small>What you spent each month, on what, and from which account</small></span><span class="chev">›</span></button>
+  <button class="loglink" data-go="breakdown" style="margin-top:12px"><span><b>◔ Follow the money</b><small>Each month: where money came from, where it went, and the jobs you gave it</small></span><span class="chev">›</span></button>
   <div class="chips" style="margin:14px 0">${chips}</div>
   <div class="ovgrid">
     ${stat('Net worth change',(nwChg>=0?'+':'')+money(nwChg),`across ${nwVals.length} recorded months`,nwChg>=0?'up':'down')}
@@ -1430,6 +1508,7 @@ const TIPS={
   bank:['Group accounts by the bank or app they live in, like Capital One or ESFCU. Each bank shows its total, and each account shows how its money is split between goals and unassigned.','move'],
   catacct:['If you keep a separate account for this kind of spending, like a Capital One bucket for food, pick it here. New purchases in this category default to it, and the dashboard warns you if the account runs lower than what’s left in the budget.'],
   spendacct:['Tick this for an account whose whole job is everyday spending, like a Daily spending account. Anything in it beyond this month’s budgets counts as extra spending money, not unassigned money. You’ll still be warned if it has less than your budgets need.'],
+  flow:['Left: money that came into your checking, savings and cash this month. Right: where it went. If more went out than came in, the difference came from money you already had. Card purchases show up when you pay the card, as Paid toward debts. Moves between your own accounts cancel out here; follow them account by account below.'],
   uafree:['Each account’s balance, minus what goals hold, what’s left in this month’s spending categories that come out of it, and bills not yet paid from it. What remains is free to give a job. If the planned amounts are bigger than the balance, the account is short and a purchase or bill could bounce.'],
   bucketwarn:['This account is linked to these categories in Settings. Its real balance (minus anything set aside for goals) is less than what you still plan to spend from it this month, so a purchase could come up short.'],
   fund:['The fund is the main pot for this goal. Add money here over time. Before a payment is due, Fill from fund moves what that payment needs into it. Nothing leaves your bank until you Mark paid.','schoolread'],
@@ -1596,8 +1675,8 @@ function setupStepCheck(st){
 
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
-  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Monthly breakdown'};
-  const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['unassigned','Unassigned','◇'],['breakdown','Monthly breakdown','◔'],['help','Help','?'],['guide','Guide','✦']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
+  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money'};
+  const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['unassigned','Unassigned','◇'],['breakdown','Follow the money','◔'],['help','Help','?'],['guide','Guide','✦']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
   return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${!!UI.menu}" aria-label="Menu">☰ Menu</button>
     ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}${BOOT?`<div class="who">Signed in as ${esc(maskEmail(BOOT.email))}</div><button role="menuitem" data-signout><span class="mi">⎋</span>Sign out</button>`:''}</div>`:''}</div>`;
 }
@@ -1839,6 +1918,7 @@ document.getElementById('app').addEventListener('change',e=>{const t=e.target;
   if(bindDraft(t))render();});
 document.getElementById('app').addEventListener('click',e=>{
   const hit=e.target.closest('[data-hit]');if(hit){selectPoint(hit.dataset.hit,+hit.dataset.i);return}
+  {const d=e.target.closest('details[data-trail]');if(d&&e.target.closest('summary'))UI.trail=d.open?null:d.dataset.trail}
   const t=e.target.closest('button');if(!t)return;
   if(t.dataset.pickmonth){setMonth(t.dataset.pickmonth);render();const l=document.getElementById('actList');if(l)l.scrollIntoView({block:'start'});return}
   if(t.dataset.logk){LG.k=t.dataset.logk;render();return}

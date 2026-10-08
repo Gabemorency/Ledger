@@ -486,3 +486,17 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 .bkrow .cols{font-size:12px}
 .bkrow[open] .cols span:last-child{opacity:.6}
 .bkitems{padding:4px 0 2px 10px;border-left:2px solid var(--line);margin-top:6px}
+.sankey{width:100%;height:auto;display:block;margin:4px 0 2px;overflow:visible}
+.sk-t{font:600 11px var(--body);fill:var(--ink);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+.sk-v{font-weight:700;fill:var(--muted)}
+.trail{border-bottom:1px solid var(--line);padding:10px 0}.trail:last-child{border-bottom:0}
+.trail summary{list-style:none;cursor:pointer}.trail summary::-webkit-details-marker{display:none}
+.trail .cols{font-size:12px}
+.tbody{margin-top:8px}.tbody .lbl{margin:10px 0 2px}
+.trow{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:14px;color:var(--body)}
+.trow span{min-width:0;overflow-wrap:anywhere}.trow small{display:block;font-size:12px;color:var(--muted)}
+.trow b{white-space:nowrap;color:var(--ink)}
+.trow.tedge{font-weight:700;color:var(--ink);border-top:1px dashed var(--line);border-bottom:1px dashed var(--line)}
+.bkitems2 summary{list-style:none;cursor:pointer;font-size:12px}.bkitems2 summary::-webkit-details-marker{display:none}
+.bkitems2[open] summary{margin-bottom:4px}
+.skhead{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 0 6px}
