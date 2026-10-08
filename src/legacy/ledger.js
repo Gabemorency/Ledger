@@ -800,7 +800,7 @@ V.unassigned=()=>{
   <div class="ualegend"><span><i class="uadot ua-g"></i>Goals</span><span><i class="uadot ua-s"></i>Still to spend</span><span><i class="uadot ua-b"></i>Bills due</span><span><i class="uadot ua-e"></i>Extra spending</span><span><i class="uadot ua-f"></i>Free</span><span><i class="uadot ua-x"></i>Short</span></div>
   ${list.map(x=>{const a=x.a,o=opts(x);return `<div class="panel uacard ${x.free<-0.004?'short':''}"><div class="rowtop"><b>${esc(a.name)}</b><span class="num">${money(a.balance,true)}</span></div>
     ${uaBar(x)}
-    ${x.held>0.004?uaRow('ua-g','Set aside for goals',x.held):''}
+    ${x.held>0.004?uaRow('ua-g','Set aside for goals',x.held,`<small>${activeGoals().filter(g=>g.acct===a.id&&g.saved>0.004).map(g=>esc(g.name)+' '+money(g.saved,true)).join(', ')}</small>`):''}
     ${x.spend>0.004?uaRow('ua-s','Still to spend this month',x.spend,`<small>${x.cs.map(y=>esc(y.c.name)+' '+money(y.left,true)).join(', ')}</small>`):''}
     ${x.bills>0.004?uaRow('ua-b','Bills still due',x.bills):''}
     ${x.extra>0.004?uaRow('ua-e','Extra spending money',x.extra):''}
