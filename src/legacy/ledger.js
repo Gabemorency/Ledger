@@ -918,6 +918,18 @@ V.breakdown=()=>{
   <p class="sub">Where your money started, where it came from, where it went, and the jobs you gave it.</p>
   <div class="bkmonth"><button class="x" data-bm="-1" aria-label="Previous month" ${i>0?'':'disabled'}>‹</button><b>${esc(mFull(m))}</b><button class="x" data-bm="1" aria-label="Next month" ${i<ms.length-1?'':'disabled'}>›</button></div>
 
+  ${(()=>{const made=r2(st.income),kept=r2(made-tot),mx=Math.max(made,tot,0.01),ret=r2((F.use.find(x=>x.name==='To retirement')||{v:0}).v);
+    const rate=made>0.004?Math.round(kept/made*100):null,rest=r2(kept-Math.max(0,goalsTot)-ret);
+    return `<div class="panel mvs"><div class="mvsrow"><span>Made</span><div class="mvsbar"><i class="mk" style="width:${made/mx*100}%"></i></div><b class="num">${money(made,true)}</b></div>
+      <div class="mvsrow"><span>Spent</span><div class="mvsbar"><i class="sp" style="width:${tot/mx*100}%"></i></div><b class="num">${money(tot,true)}</b></div>
+      <div class="mvstot ${kept<0?'neg':''}"><div><span class="sub">${kept>=0?'Saved':'Spent more than you made'}</span><div class="num mvsbig">${money(Math.abs(kept),true)}</div></div>
+        ${rate!=null?`<div class="mvsrate"><b class="num">${rate}%</b><span class="sub">of income</span></div>`:''}</div>
+      ${kept>0.004?`<div class="mvssplit">${goalsTot>0.004?`<div class="rorow"><span>Set aside for goals</span><b class="num">${money(goalsTot,true)}</b></div>`:''}
+        ${ret>0.004?`<div class="rorow"><span>Moved to retirement</span><b class="num">${money(ret,true)}</b></div>`:''}
+        ${goalsTot>0.004||ret>0.004?`<div class="rorow"><span>${rest>=0?'Still in your accounts':'Taken from earlier savings'}</span><b class="num">${money(Math.abs(rest),true)}</b></div>`:''}</div>`:''}
+      <p class="sub" style="font-size:13px;margin:8px 0 0">${m===thisM?'Month in progress. ':''}Spent means purchases (including on cards), bills and interest. Money moved into savings, goals or retirement isn’t spending.${st.planned>0.004?` ${money(st.planned,true)} of planned purchases paid from goals isn’t counted either.`:''}</p>
+      <button class="loglink" data-go="trends" style="margin-top:10px"><span><b>See it over time</b><small>Income vs. spending and your savings rate, month by month</small></span><span class="chev">›</span></button></div>`})()}
+
   <h2>The flow ${tip('flow')}</h2>
   <div class="panel cpanel">${F.accts.length?`<div class="skhead"><span>Money in</span><span>Accounts</span><span>Money out</span></div>`+sankey(F.src,F.use)+`<p class="sub" style="font-size:13px;margin:8px 0 0">Your checking, savings and cash went from <b class="num">${money(F.start,true)}</b> to <b class="num">${money(F.end,true)}</b>${m===thisM?' so far':''}.</p>`:'<div class="empty">Add a checking, savings or cash account to see the flow.</div>'}
     ${(()=>{const fi=r2(F.src.filter(x=>!x.end).reduce((s,x)=>s+x.v,0)),fo=r2(F.use.filter(x=>!x.end).reduce((s,x)=>s+x.v,0)),d=r2(fi-fo);

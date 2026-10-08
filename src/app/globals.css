@@ -517,3 +517,14 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 @keyframes flowIn{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
 @keyframes flowLbl{from{opacity:0}to{opacity:1}}
 .skhead span:first-child{text-align:right;padding-right:8px}.skhead span:nth-child(2){text-align:center}.skhead span:last-child{padding-left:8px}
+/* made vs spent */
+.mvs{padding:16px}
+.mvsrow{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:10px;margin:4px 0}
+.mvsrow span{font-size:13px;color:var(--muted)}.mvsrow b{font:700 15px var(--display);color:var(--ink);min-width:92px;text-align:right}
+.mvsbar{height:12px;border-radius:7px;background:var(--line);overflow:hidden}
+.mvsbar i{display:block;height:100%;border-radius:7px;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+.mvsbar .mk{background:var(--fl1)}.mvsbar .sp{background:var(--fl3)}
+.mvstot{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.mvsbig{font:800 34px/1.1 var(--display);color:var(--accent)}.mvstot.neg .mvsbig{color:var(--over)}
+.mvsrate{display:flex;flex-direction:column;align-items:flex-end}.mvsrate b{font:800 22px var(--display);color:var(--ink)}
+.mvssplit{margin-top:8px}
