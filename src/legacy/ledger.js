@@ -280,7 +280,7 @@ function confirmBox(title,lines,okLabel,onOk,opt){
   lastFocus=document.activeElement;mOk=onOk;document.getElementById('mBg').classList.add('open');(document.getElementById('mIn')||document.getElementById('mWord')||(mWord?document.getElementById('mNo'):y)).focus();
 }
 let lastFocus=null,mMulti=null,mWord=null;
-function updMulti(){const el=document.getElementById('mcTot');if(!el||!mMulti)return;const tot=r2([...document.querySelectorAll('.mcIn')].reduce((a,i)=>a+(parseFloat(i.value)||0),0));if(!mMulti.need){el.innerHTML=`Moving <b>${money(tot,true)}</b>`;el.className='mctot'+(tot>0?' good':'');return}el.innerHTML=`Covering <b>${money(tot,true)}</b> of ${money(mMulti.need,true)}${tot>mMulti.need+0.004?' (more than needed)':tot<mMulti.need-0.004?`, ${money(mMulti.need-tot,true)} still over`:', fully covered'}`;el.className='mctot'+(tot>mMulti.need+0.004?' bad':tot>=mMulti.need-0.004?' good':'')}
+function updMulti(){const el=document.getElementById('mcTot');if(!el||!mMulti)return;const tot=r2([...document.querySelectorAll('.mcIn')].reduce((a,i)=>a+(parseFloat(i.value)||0),0));if(!mMulti.need){el.innerHTML=`Moving <b>${money(tot,true)}</b>`;el.className='mctot'+(tot>0?' good':'');return}el.innerHTML=`Covering <b>${money(tot,true)}</b> of ${money(mMulti.need,true)}${tot>mMulti.need+0.004?' (more than needed)':tot<mMulti.need-0.004?`, ${money(mMulti.need-tot,true)} still ${mMulti.word||'over'}`:', fully covered'}`;el.className='mctot'+(tot>mMulti.need+0.004?' bad':tot>=mMulti.need-0.004?' good':'')}
 document.getElementById('mX').addEventListener('change',e=>{if(e.target.id==='mSel'&&mMulti&&!mMulti.need){document.querySelectorAll('#mX .mcrow').forEach(r=>{const i=r.querySelector('.mcIn');const hide=i&&i.dataset.id===e.target.value;r.hidden=hide;if(hide){i.value=''}});updMulti()}});
 document.getElementById('mX').addEventListener('input',e=>{if(e.target.classList.contains('mcIn'))updMulti();if(e.target.id==='mWord')document.getElementById('mYes').disabled=e.target.value.trim().toLowerCase()!==mWord});
 function closeModal(){document.getElementById('mBg').classList.remove('open');mOk=null;if(lastFocus&&document.contains(lastFocus))lastFocus.focus()}
@@ -295,21 +295,29 @@ function lowBalanceCheck(v){
   const a=acct(A.acct);if(!a||!LIQ.includes(a.type))return false;
   const held=r2(assigned(a.id)),free=r2(a.balance-held),after=r2(free-v),bal=r2(a.balance-v);
   const leftLine=held>0.004?`${esc(a.name)} will have <b>${money(bal,true)}</b>. ${money(held,true)} of that is set aside for goals, so <b>${money(after,true)}</b> is free to spend`:`${esc(a.name)} will have <b>${money(after,true)}</b> left`;
-  if(after<-0.004){const short=-after;
-    const src=liveAccts().filter(x=>x.id!==a.id&&LIQ.includes(x.type)).map(x=>({x,f:r2(unassigned(x.id))})).filter(o=>o.f>0.004).sort((p,q)=>q.f-p.f);
-    const room=r2(src.reduce((s_,o)=>s_+o.f,0));
-    if(!src.length||src[0].f<short-0.004){toast(`${a.name} is ${money(short,true)} short for this, and ${src.length?'no single account has enough free':'no other account has money free'} to move in. Lower the amount or pay from another account.`);return true}
-    const sug=r2(Math.min(short+LOW_LEFT,src[0].f));
-    confirmBox(`Not enough in ${esc(a.name)}`,[`This purchase is <b>${money(v,true)}</b>, but ${esc(a.name)} only has <b>${money(Math.max(0,free),true)}</b>${held>0.004?' that isn’t set aside for goals':''}`,
-      `It would leave the account <b>${money(short,true)}</b> short`,`Move money in first, then the purchase is logged. Moving <b>${money(sug,true)}</b> keeps your ${money(LOW_LEFT)} cushion; the least you can move is ${money(short,true)}`,'Make the same transfer in your bank'],
-      'Move it and log purchase',(amt,from)=>{
-        const s2=acct(from),n=r2(amt);if(!s2){toast('Pick an account to move from');return}
-        if(!(n>=short-0.004)){toast(`Move at least ${money(short,true)} to cover it`);return}
-        if(n>unassigned(s2.id)+0.004){toast(`${s2.name} only has ${money(unassigned(s2.id),true)} free`);return}
-        addTx({date:A.date,kind:'transfer',from:s2.id,to:a.id,amount:n,note:'Cover a purchase'});
-        logIt([`Moved ${money(n,true)} from ${s2.name} to ${a.name} to cover a purchase`]);
+  if(after<-0.004){const short=-after,M=A.date.slice(0,7),pc=cat(A.cat);
+    /* other categories can cover it only with money that sits in a different account: their budget moves to this purchase's category and the cash moves with it */
+    const room={};const src=liveCats().filter(c=>c.type==='monthly'&&c.id!==A.cat).map(c=>{const h=catHome(c);return {c,h,left:r2(Math.max(0,catLeft(c,M)))}})
+      .filter(o=>o.h&&o.h!==a.id&&o.left>0.004).map(o=>{if(room[o.h]==null)room[o.h]=Math.max(0,r2(unassigned(o.h)));const m=r2(Math.min(o.left,room[o.h]));return {...o,max:m}}).filter(o=>o.max>0.004).sort((p_,q)=>q.max-p_.max);
+    const byHome={};src.forEach(o=>byHome[o.h]=r2(Math.min(room[o.h],(byHome[o.h]||0)+o.max)));const tot=r2(Object.values(byHome).reduce((s_,n)=>s_+n,0));
+    const same=liveCats().filter(c=>c.type==='monthly'&&c.id!==A.cat&&catHome(c)===a.id&&catLeft(c,M)>0.004).map(c=>c.name);
+    if(tot<short-0.004){toast(`${a.name} is ${money(short,true)} short. ${src.length?`Categories paid from other accounts only have ${money(tot,true)} to give`:'No category paid from another account has money left to give'}${same.length?`, and ${same.join(', ')} ${same.length===1?'is':'are'} paid from ${a.name} itself`:''}. Lower the amount or pay from another account.`);return true}
+    let need=short;const rows=src.map(o=>{const vv=r2(Math.min(need,o.max));need=r2(need-vv);return {id:o.c.id,label:`${o.c.name} (in ${aName(o.h)})`,max:o.max,value:vv>0?vv:''}});
+    confirmBox(`Not enough in ${esc(a.name)}`,[`This purchase is <b>${money(v,true)}</b>, but ${esc(a.name)} only has <b>${money(Math.max(0,free),true)}</b>${held>0.004?' that isn’t set aside for goals':''}, so it’s <b>${money(short,true)}</b> short`,
+      `Pull it from other categories. Their budget moves to ${esc(pc?pc.name:'this category')} for ${esc(monthName(mDate(M)))}, and the money moves into ${esc(a.name)}`,
+      ...(same.length?[`${same.map(esc).join(', ')} ${same.length===1?'isn’t':'aren’t'} listed: ${same.length===1?'it’s':'they’re'} paid from ${esc(a.name)}, so ${same.length===1?'its':'their'} money is part of what’s missing`]:[]),
+      'Make the same transfer in your bank'],
+      'Pull it and log purchase',(x,y,mv)=>{
+        const parts=Object.entries(mv||{}).filter(([,n])=>n>0);const got=r2(parts.reduce((s_,[,n])=>s_+n,0));
+        if(got<short-0.004){toast(`Pull at least ${money(short,true)} to cover it`);return}
+        const use={};for(const [fid,n] of parts){const c=cat(fid),h=catHome(c);if(!h||h===a.id){toast(`${c.name} can’t cover this`);return}
+          if(n>catLeft(c,M)+0.004){toast(`${c.name} only has ${money(catLeft(c,M),true)} left`);return}use[h]=r2((use[h]||0)+n)}
+        for(const [h,n] of Object.entries(use))if(n>unassigned(h)+0.004){toast(`${aName(h)} only has ${money(unassigned(h),true)} free`);return}
+        const m=S.adj[M]=S.adj[M]||{};parts.forEach(([fid,n])=>{m[fid]=r2((m[fid]||0)-n);if(pc&&pc.type==='monthly')m[pc.id]=r2((m[pc.id]||0)+n)});MEMO=null;
+        Object.entries(use).forEach(([h,n])=>addTx({date:A.date,kind:'transfer',from:h,to:a.id,amount:n,note:'Cover a purchase'}));
+        logIt([`Pulled ${money(got,true)} into ${pc?pc.name:'a purchase'} from ${parts.map(([fid,n])=>cat(fid).name+' '+money(n,true)).join(', ')} (moved into ${a.name})`]);
         resave()},
-      {select:{label:'Move from',options:src.filter(o=>o.f>=short-0.004).map(o=>[o.x.id,`${o.x.name}, ${money(o.f,true)} free`])},input:{label:`Amount to move into ${esc(a.name)}`,value:sug},cancel:'Go back'});
+      {multi:{label:'Pull from',rows,need:short,word:'short'},cancel:'Go back'});
     return true}
   if(after<LOW_LEFT-0.004){
     confirmBox(`Only ${money(after,true)} left after this`,[`Purchase: <b>${money(v,true)}</b> from ${esc(a.name)}`,leftLine,`That’s under your ${money(LOW_LEFT)} cushion. Log it anyway?`],'Yes, log it',resave,{cancel:'Go back'});
