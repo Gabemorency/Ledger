@@ -457,3 +457,9 @@ details *{box-sizing:border-box}
 input[type=date],input[type=month]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;min-height:46px;line-height:1.2;text-align:left;color:var(--ink)}
 input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-and-time-value{text-align:left;margin:0}
 @media (max-width:359px){.two{grid-template-columns:minmax(0,1fr)}}
+/* Unassigned screen */
+.uacard{padding:14px 16px;margin-top:10px}
+.uacard .rowtop b{font:700 17px var(--display)}
+.uaform{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.uaform .inline{align-items:stretch}
+.uaform .inline input{flex:1;min-width:0}

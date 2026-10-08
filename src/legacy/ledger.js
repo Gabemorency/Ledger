@@ -537,6 +537,7 @@ V.accounts=()=>{
   const bal=a=>E?`<input class="balin num" type="number" inputmode="decimal" data-acct="${a.id}" value="${a.balance}" aria-label="${esc(a.name)} balance">`:`<span class="num" style="font:700 17px var(--display);color:var(--ink)">${money(a.balance,true)}</span>`;
   return `<button class="btn small ghost" data-go="home" style="margin-bottom:8px">Back to dashboard</button><h1>Accounts</h1>
   ${E?`<div class="editbar"><b>Editing accounts</b><span>Use this for corrections. Day-to-day changes come from your entries. Nothing saves until you review it. ${tip('correction')}</span></div>`:`<div class="lockrow"><p class="sub">🔒 Balances update from your entries.</p><button class="btn small ghost" data-act="editAccts">Edit</button></div>`}
+  ${!E&&uaAccts().some(a=>unassigned(a.id)>0.004)?`<button class="loglink" data-go="unassigned" style="margin-top:12px"><span><b>◇ Unassigned money</b><small>${money(r2(uaAccts().reduce((s,a)=>s+Math.max(0,unassigned(a.id)),0)),true)} not set aside for any goal. Give it a job</small></span><span class="chev">›</span></button>`:''}
   ${(()=>{const all=liveAccts().slice().sort((x,y)=>groups.indexOf(x.type)-groups.indexOf(y.type));const banks=[...new Set(all.map(a=>a.bank||''))].sort((x,y)=>(x==='')-(y===''));
     const grouped=banks.some(b=>b);
     return `<h2>${grouped?'By bank':'Your accounts'} ${tip('bank')}</h2>`+banks.map(bk=>{const list=all.filter(a=>(a.bank||'')===bk);const held=list.filter(a=>a.type!=='debt').reduce((s,a)=>s+a.balance,0),owed=list.filter(a=>a.type==='debt').reduce((s,a)=>s+a.balance,0);
@@ -760,6 +761,25 @@ function leftoverPlan(T){const N=nextMonthOf(T);return leftoversFor(T).filter(x=
   if(ch==='next')return {...x,to:'next',N};
   if(ch.startsWith('goal:')){const g=goal(ch.slice(5));if(g&&!g.done)return {...x,to:'goal',g,from:leftoverSource(x.c)}}
   return {...x,to:'stay'}})}
+/* Unassigned: money in an account that no goal holds, with a quick way to give it a job */
+const uaAccts=()=>liveAccts().filter(a=>['checking','cash','savings'].includes(a.type));
+V.unassigned=()=>{
+  const list=uaAccts().map(a=>({a,free:unassigned(a.id),held:r2(assigned(a.id))}));
+  const tot=r2(list.reduce((s,x)=>s+Math.max(0,x.free),0));const gs=activeGoals();
+  return `<button class="btn small ghost" data-go="accounts" style="margin-bottom:8px">Back to accounts</button><h1>Unassigned ${tip('unassigned')}</h1>
+  <p class="sub">Money in your accounts that no goal is holding. Give it a job, or leave it as spending money.</p>
+  <div class="panel networth"><span class="sub">Unassigned across accounts</span><div class="num" style="font:800 40px/1.1 var(--display)">${money(tot,true)}</div></div>
+  ${list.map(({a,free,held})=>`<div class="panel uacard"><div class="rowtop"><b>${esc(a.name)}</b><span class="num">${money(a.balance,true)}</span></div>
+    <div class="rorow"><span>Set aside for goals</span><b class="num">${money(held,true)}</b></div>
+    <div class="rorow"><span>Unassigned</span><b class="num ${free<-0.004?'overtxt':free>0.004?'okc':''}">${money(free,true)}</b></div>
+    ${free<-0.004?`<p class="warnline">This account has less than its goals hold. Move goal money out (Goals → More → Move money) or add money to the account.</p>`
+    :free>0.004&&gs.length?`<div class="uaform"><label class="field"><span>Assign to</span><select data-ua-goal="${a.id}">${gs.filter(g=>g.acct===a.id).concat(gs.filter(g=>g.acct!==a.id)).map(g=>`<option value="${g.id}">${esc(g.name)}${g.acct===a.id?'':` (moves to ${esc(aName(g.acct))})`}</option>`).join('')}</select></label>
+      <div class="inline"><input type="number" inputmode="decimal" data-ua-amt="${a.id}" value="${a.type==='savings'?free:''}" placeholder="Up to ${money(free,true)}" aria-label="Amount to assign from ${esc(a.name)}"><button class="btn" data-act="uaAssign" data-acct="${a.id}">Assign</button></div>
+      ${a.type==='savings'?'':`<p class="sub" style="font-size:13px;margin:8px 0 0">${esc(a.name)} also pays your bills and everyday spending, so only assign what’s truly spare.</p>`}</div>`
+    :free>0.004?`<p class="sub" style="font-size:13px;margin:8px 0 0">Create a goal on the Goals tab to give this money a job.</p>`:''}
+  </div>`).join('')||'<div class="panel emptycard"><b>No accounts yet</b><p class="sub">Add checking, cash or savings accounts in Settings.</p></div>'}
+  <p class="sub" style="font-size:13px;margin-top:12px">Retirement accounts and debts aren’t listed, since goal money doesn’t live there.</p>`;
+};
 V.close=()=>{
   const T=closeTarget(),open=openMonths();
   if(!T)return `<button class="btn small ghost" data-go="activity" style="margin-bottom:8px">Back to activity</button><h1>All caught up</h1><p class="sub">Every finished month is closed. The next one opens for closing on the 1st.</p>`;
@@ -1495,8 +1515,8 @@ function setupStepCheck(st){
 
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
-  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log'};
-  const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['help','Help','?'],['guide','Guide','✦']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
+  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned'};
+  const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['unassigned','Unassigned','◇'],['help','Help','?'],['guide','Guide','✦']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
   return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${!!UI.menu}" aria-label="Menu">☰ Menu</button>
     ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}${BOOT?`<div class="who">Signed in as ${esc(maskEmail(BOOT.email))}</div><button role="menuitem" data-signout><span class="mi">⎋</span>Sign out</button>`:''}</div>`:''}</div>`;
 }
@@ -1521,7 +1541,7 @@ const GUIDE=[
   {id:'accounts',t:'Accounts',lead:'Every place your money lives, and every debt, grouped by bank.',tips:[
     ['Types','Checking, cash, savings, base share, HYSA, pre-tax retirement, after-tax (Roth) retirement, other retirement, and debt.'],
     ['Balances update themselves','Once an account is set up, your entries move its balance. Edit only to match a bank statement; that’s logged as a correction.'],
-    ['Money set aside','Under each savings account you’ll see what’s held for each goal and what’s unassigned.'],
+    ['Money set aside','Under each savings account you’ll see what’s held for each goal and what’s unassigned. Menu → Unassigned lets you give free money a job in one tap.'],
     ['Debts','Add the APR and payment to see a payoff date and estimated interest. Cards paid in full show the statement balance.']],go:['accounts','Open Accounts']},
   {id:'goals',t:'Goals',lead:'Name what you’re saving for and when, and Ledger turns it into a monthly number.',tips:[
     ['On track, ahead, behind','The marker on each bar is where you should be today. The pill tells you how you’re doing against it.'],
@@ -1877,6 +1897,16 @@ function handleAct(t){
     if(SEC().hash){lockOpen('verify','setleft');return}
     openSetLeft();return}
   if(a==='resetLimits'){resetLimits();return}
+  if(a==='uaAssign'){
+    const aid=t.dataset.acct,g=goal((document.querySelector(`[data-ua-goal="${aid}"]`)||{}).value),v=r2(parseFloat((document.querySelector(`[data-ua-amt="${aid}"]`)||{}).value));
+    if(!g){toast('Pick a goal');return}if(!(v>0)){toast('Enter an amount');return}
+    const free=unassigned(aid);if(v>free+0.004){toast(`Only ${money(free,true)} is unassigned in ${aName(aid)}`);return}
+    const same=g.acct===aid,n=S.tx.length;
+    if(!contributeGoal(g,v,same?'unassigned':aid))return;
+    const nt=S.tx[S.tx.length-1];if(S.tx.length===n)return;
+    logIt([`Assigned ${money(v,true)} from ${aName(aid)} to ${g.name}`+(same?'':` (transfer to ${aName(g.acct)})`)]);
+    render();toast(same?`${money(v,true)} set aside for ${g.name}`:`${money(v,true)} to ${g.name}. Make the transfer to ${aName(g.acct)} in your bank too`,()=>{removeTx(nt);render();toast('Undone')});
+    return}
   if(a==='moveBudget'){
     if(S.closed.includes(thisM)){toast('This month is closed');return}
     const cs=liveCats().filter(c=>c.type==='monthly');const src=cs.filter(c=>catLeft(c,thisM)>0.004);
