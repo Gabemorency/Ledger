@@ -287,6 +287,34 @@ function closeModal(){document.getElementById('mBg').classList.remove('open');mO
 document.getElementById('mNo').addEventListener('click',closeModal);
 document.getElementById('mBg').addEventListener('click',e=>{if(e.target.id==='mBg')closeModal()});
 document.getElementById('mYes').addEventListener('click',()=>{if(mWord){const w=document.getElementById('mWord');if(!w||w.value.trim().toLowerCase()!==mWord)return}const f=mOk;const inp=document.getElementById('mIn'),sel=document.getElementById('mSel');const v=inp?parseFloat(inp.value):null,sv=sel?sel.value:null,mv={};document.querySelectorAll('.mcIn').forEach(i=>{const n=r2(parseFloat(i.value)||0);if(n)mv[i.dataset.id]=n});const ml={};document.querySelectorAll('.mlIn').forEach(i=>{if(i.value!=='')ml[i.dataset.id]=r2(parseFloat(i.value))});closeModal();if(f)f(v,sv,mv,ml)});
+/* Before a purchase from checking, savings or cash: block it if the account can't cover it
+   (offering to move money in first), and ask for a confirm if it would leave less than LOW_LEFT. */
+const LOW_LEFT=50;let LOW_OK=false;
+const resave=()=>{LOW_OK=true;SHEET_OK=true;try{document.getElementById('aSave').click()}finally{LOW_OK=false;SHEET_OK=false}};
+function lowBalanceCheck(v){
+  const a=acct(A.acct);if(!a||!LIQ.includes(a.type))return false;
+  const held=r2(assigned(a.id)),free=r2(a.balance-held),after=r2(free-v),bal=r2(a.balance-v);
+  const leftLine=held>0.004?`${esc(a.name)} will have <b>${money(bal,true)}</b>. ${money(held,true)} of that is set aside for goals, so <b>${money(after,true)}</b> is free to spend`:`${esc(a.name)} will have <b>${money(after,true)}</b> left`;
+  if(after<-0.004){const short=-after;
+    const src=liveAccts().filter(x=>x.id!==a.id&&LIQ.includes(x.type)).map(x=>({x,f:r2(unassigned(x.id))})).filter(o=>o.f>0.004).sort((p,q)=>q.f-p.f);
+    const room=r2(src.reduce((s_,o)=>s_+o.f,0));
+    if(!src.length||src[0].f<short-0.004){toast(`${a.name} is ${money(short,true)} short for this, and ${src.length?'no single account has enough free':'no other account has money free'} to move in. Lower the amount or pay from another account.`);return true}
+    const sug=r2(Math.min(short+LOW_LEFT,src[0].f));
+    confirmBox(`Not enough in ${esc(a.name)}`,[`This purchase is <b>${money(v,true)}</b>, but ${esc(a.name)} only has <b>${money(Math.max(0,free),true)}</b>${held>0.004?' that isn’t set aside for goals':''}`,
+      `It would leave the account <b>${money(short,true)}</b> short`,`Move money in first, then the purchase is logged. Moving <b>${money(sug,true)}</b> keeps your ${money(LOW_LEFT)} cushion; the least you can move is ${money(short,true)}`,'Make the same transfer in your bank'],
+      'Move it and log purchase',(amt,from)=>{
+        const s2=acct(from),n=r2(amt);if(!s2){toast('Pick an account to move from');return}
+        if(!(n>=short-0.004)){toast(`Move at least ${money(short,true)} to cover it`);return}
+        if(n>unassigned(s2.id)+0.004){toast(`${s2.name} only has ${money(unassigned(s2.id),true)} free`);return}
+        addTx({date:A.date,kind:'transfer',from:s2.id,to:a.id,amount:n,note:'Cover a purchase'});
+        logIt([`Moved ${money(n,true)} from ${s2.name} to ${a.name} to cover a purchase`]);
+        resave()},
+      {select:{label:'Move from',options:src.filter(o=>o.f>=short-0.004).map(o=>[o.x.id,`${o.x.name}, ${money(o.f,true)} free`])},input:{label:`Amount to move into ${esc(a.name)}`,value:sug},cancel:'Go back'});
+    return true}
+  if(after<LOW_LEFT-0.004){
+    confirmBox(`Only ${money(after,true)} left after this`,[`Purchase: <b>${money(v,true)}</b> from ${esc(a.name)}`,leftLine,`That’s under your ${money(LOW_LEFT)} cushion. Log it anyway?`],'Yes, log it',resave,{cancel:'Go back'});
+    return true}
+  return false}
 const chg=(name,a,b)=>`${name}: ${a} → ${b}`;
 function delta(cur,prev,inv){if(prev==null)return '<span class="sub">No prior month</span>';const d=cur-prev;return `<span class="chg ${(inv?d>0:d<0)?'down':'up'}">${d>=0?'+':''}${money(d)} vs ${S.snapshots[S.snapshots.length-1].m}</span>`}
 
@@ -2454,7 +2482,7 @@ document.getElementById('sheet').addEventListener('click',e=>{
       closeSheet();render();toast('Entry updated');return}
     if(A.kind==='expense'){
       if(!A.cat){toast('Add a category in Settings first');return}
-      {const g=guardTx([{kind:'expense',acct:A.acct,amount:v}]);if(g){toast(g);return}}
+      {const pa=acct(A.acct);if(!pa||!LIQ.includes(pa.type)){const g=guardTx([{kind:'expense',acct:A.acct,amount:v}]);if(g){toast(g);return}}}
       if(!SHEET_OK&&cat(A.cat).type==='monthly'){const c0=cat(A.cat),M=A.date.slice(0,7),lf=catLeft(c0,M),short=r2(v-lf);
         if(short>0.004){
           const src=liveCats().filter(x=>x.type==='monthly'&&x.id!==c0.id).map(x=>({x,left:catLeft(x,M)})).filter(o=>o.left>0.004).sort((a,b)=>b.left-a.left);
@@ -2469,6 +2497,7 @@ document.getElementById('sheet').addEventListener('click',e=>{
             logIt(['Moved '+money(got,true)+' to '+c0.name+' for '+monthName(mDate(M))+' from '+parts.map(([fid,n])=>cat(fid).name+' '+money(n,true)).join(', ')]);
             SHEET_OK=true;try{document.getElementById('aSave').click()}finally{SHEET_OK=false}},{multi:{label:'Move from',rows,need:short}});
           return}}
+      if(!LOW_OK&&lowBalanceCheck(v))return;
       const c=cat(A.cat),before=budgetOf(c,thisM)?spent(c.id)/budgetOf(c,thisM):0;
       (S.did=S.did||{}).purchase=true;const nt=addTx({date:A.date,vendor:A.vendor.trim()||'Purchase',amount:v,cat:c.id,kind:'expense',acct:A.acct});
       const after=budgetOf(c,thisM)?spent(c.id)/budgetOf(c,thisM):0,left=budgetOf(c,thisM)-spent(c.id);
