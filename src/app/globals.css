@@ -556,3 +556,8 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 .nmini{text-align:left;display:flex;flex-direction:column;gap:4px;cursor:pointer;font:inherit;color:inherit}
 .nmini b{font:700 14px var(--display);color:var(--ink)}
 .nmini .ntext{font-size:13px}
+/* entry details: long values wrap inside the box instead of running past it */
+.txdet .rowtop{align-items:flex-start}
+.txdet .rowtop span:first-child{flex-shrink:0}
+.txdet .rowtop span:last-child{white-space:normal;min-width:0;overflow-wrap:anywhere;color:var(--ink)}
+.txbtn .meta span{overflow-wrap:anywhere}
