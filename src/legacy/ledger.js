@@ -142,7 +142,7 @@ const cat=cid=>S.categories.find(c=>c.id===cid);
 function adjOf(cid,m){return Model.adjustmentOf(S,cid,m)}
 function carryOf(c,m){return Model.carryOf(S,memo(),c,m||thisM)}
 function budgetOf(c,m){return Model.budgetOf(S,memo(),c,m||thisM)}
-function sanitize(){if(!S.adj)S.adj={};if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('safe'))S.dash.order.unshift('safe');if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
+function sanitize(){if(!S.adj)S.adj={};if(!Array.isArray(S.subs))S.subs=[];if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('safe'))S.dash.order.unshift('safe');if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
 function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
@@ -259,7 +259,7 @@ function removeBlock(t){
 function removeTx(t){const grp=[t].concat(S.tx.filter(x=>x.link===t.id));grp.slice().reverse().forEach(x=>applyTx(x,-1));S.tx=S.tx.filter(x=>!grp.includes(x));MEMO=null;t._grp=grp;return grp}
 function restoreTx(t){(t._grp||[t]).forEach(x=>{if(!S.tx.includes(x)){S.tx.push(x);applyTx(x,1)}});delete t._grp}
 const UI={editAccts:false,editGoal:null,addTo:null,sec:null,draft:null};
-function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;if(typeof hideTip==='function')hideTip()}
+function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.sub=null;if(typeof hideTip==='function')hideTip()}
 const LOGK={settings:'Settings',goals:'Goals',budget:'Budget moves',entries:'Entries',payday:'Routine',months:'Months'};
 function logKind(t){t=String(t);if(/paycheck|check-in/i.test(t))return 'payday';if(/^(Edited|Deleted|Restored) /.test(t))return 'entries';if(/^Moved .* (into|to) .* for /.test(t))return 'budget';if(/close|closed|reopen|month/i.test(t)&&!/goal/i.test(t))return 'months';if(/goal|Emergency fund|sub-goal|priority/i.test(t))return 'goals';return 'settings'}
 function logIt(lines){lines.forEach(t=>S.log.push({ts:Date.now(),text:t,k:logKind(t)}))}
@@ -1056,6 +1056,47 @@ function lookPanel(){const L=lookNow(),st=STYLES.find(x=>x[0]===L.style)||STYLES
     <p class="sub" style="font-size:13px;margin:10px 0 0">Tap anything above to preview it. Nothing changes until you tap Keep. Saved to your account, so every device matches.</p></div>
   ${UI.lookDraft?`<div class="lookbar" role="region" aria-label="Preview"><span>Previewing <b>${esc(st[1])}</b></span><button class="btn small ghost" data-act="lookCancel">Cancel</button><button class="btn small" data-act="lookKeep">Keep this look</button></div><div style="height:72px" aria-hidden="true"></div>`:''}`}
 
+/* ---------- subscriptions: a tracker of recurring charges (doesn't change budgets) ---------- */
+const SFREQ=[['weekly','Weekly',52/12],['monthly','Monthly',1],['yearly','Yearly',1/12]];
+const subMonthly=x=>r2((+x.amount||0)*((SFREQ.find(f=>f[0]===x.freq)||SFREQ[1])[2]));
+function subNext(x){if(!x.next)return null;let d=new Date(x.next+'T00:00');const t=new Date(todayISO+'T00:00');let guard=0;
+  while(d<t&&guard++<600){if(x.freq==='weekly')d.setDate(d.getDate()+7);else if(x.freq==='yearly')d.setFullYear(d.getFullYear()+1);else{const day=new Date(x.next+'T00:00').getDate();d=new Date(d.getFullYear(),d.getMonth()+1,1);d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()))}}
+  return iso(d.getFullYear(),d.getMonth()+1,d.getDate())}
+const subDays=x=>{const n=subNext(x);return n==null?null:Math.round((new Date(n+'T00:00')-new Date(todayISO+'T00:00'))/864e5)};
+const vkey=v=>String(v||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function subLast(x){const k=vkey(x.match||x.name);if(!k)return null;const hits=S.tx.filter(t=>(t.kind==='expense'||t.kind==='fixed')&&!t.before&&vkey(t.vendor).includes(k)).sort((a,b)=>b.date.localeCompare(a.date));return hits[0]||null}
+/* charges that look recurring: same store in 2+ of the last 4 months at about the same price, plus bills */
+function subSuggestions(){const tracked=new Set((S.subs||[]).map(x=>vkey(x.match||x.name)));const out=[];
+  const since=mkey(new Date(now.getFullYear(),now.getMonth()-3,1));const by={};
+  S.tx.filter(t=>t.kind==='expense'&&!t.before&&t.date.slice(0,7)>=since&&t.vendor).forEach(t=>{const k=vkey(t.vendor);(by[k]=by[k]||[]).push(t)});
+  Object.entries(by).forEach(([k,list])=>{if(tracked.has(k)||[...tracked].some(x=>x&&k.includes(x)))return;const months=new Set(list.map(t=>t.date.slice(0,7)));if(months.size<2)return;
+    const amts=list.map(t=>t.amount),lo=Math.min(...amts),hi=Math.max(...amts);if(hi-lo>Math.max(0.5,lo*0.02))return;
+    const days=list.map(t=>+t.date.slice(8,10)),spread=Math.max(...days)-Math.min(...days);if(spread>4&&spread<24)return;if(list.length>months.size+1)return;
+    const last=list.sort((a,b)=>b.date.localeCompare(a.date))[0];out.push({name:last.vendor,amount:last.amount,freq:'monthly',next:last.date,cat:last.cat,why:`${months.size} months in a row`})});
+  liveFixed().filter(f=>!f.to&&!ended(f)&&!f.pct&&!tracked.has(vkey(f.name))).forEach(f=>{const fr=f.freq||'monthly';if(fr!=='monthly'&&fr!=='yearly')return;
+    const d=f.day||1;out.push({name:f.name,amount:f.amount,freq:fr,next:iso(now.getFullYear(),now.getMonth()+1,Math.min(d,28)),why:'A bill in Settings'})});
+  return out.slice(0,8)}
+function subForm(){const d=UI.sub;
+  return `<div class="panel" style="padding:12px 16px 14px;margin-top:12px"><p class="lbl" style="margin:2px 0 8px">${d.id?'Edit subscription':'New subscription'}</p>
+    <label class="field"><span>Name</span><input type="text" data-sf="name" maxlength="60" value="${esc(d.name)}" placeholder="e.g. Netflix"></label>
+    <div class="two"><label class="field"><span>Price</span><input type="number" inputmode="decimal" data-sf="amount" value="${esc(d.amount)}" placeholder="0.00"></label>
+    <label class="field"><span>Renews</span><select data-sf="freq">${SFREQ.map(([k,l])=>`<option value="${k}" ${d.freq===k?'selected':''}>${l}</option>`).join('')}</select></label></div>
+    <label class="field"><span>Next renewal</span><input type="date" data-sf="next" value="${esc(d.next||'')}"></label>
+    <label class="field"><span>Note</span><input type="text" data-sf="note" maxlength="120" value="${esc(d.note||'')}" placeholder="Optional, e.g. cancel before the trial ends"></label>
+    <div class="actions">${d.id?`<button class="btn small dangerline" data-act="subDel">Delete</button>`:''}<span style="flex:1"></span><button class="btn ghost" data-act="subCancel">Cancel</button><button class="btn" data-act="subSave">Save</button></div></div>`}
+V.subs=()=>{const L=(S.subs||[]).slice().sort((a,b)=>(subDays(a)??999)-(subDays(b)??999)),mo=r2(L.reduce((t,x)=>t+subMonthly(x),0)),sug=subSuggestions();
+  return `<button class="btn small ghost" data-go="more" style="margin-bottom:8px">Back to menu</button><h1>Subscriptions</h1>
+  <p class="sub">Everything that charges you on repeat, and when it renews. Tracking here doesn’t change your budgets.</p>
+  <div class="panel networth"><span class="sub">You pay</span><div class="num" style="font:800 40px/1.1 var(--display)">${money(mo,true)}<small style="font-size:16px;font-weight:600;color:var(--muted)"> /month</small></div>
+    <p class="sub" style="margin-top:4px">${money(r2(mo*12),true)} a year across ${L.length} subscription${L.length===1?'':'s'}</p></div>
+  ${UI.sub?subForm():`<div class="actions" style="margin:12px 0 0"><button class="btn" data-act="subNew">＋ Add a subscription</button></div>`}
+  ${L.length?`<div class="panel" style="margin-top:12px">${L.map(x=>{const dd=subDays(x),last=subLast(x);
+    return `<button class="subrow" data-subedit="${esc(x.id)}"><span><b>${esc(x.name)}</b><small>${dd==null?'No renewal date':dd===0?'Renews today':dd<0?'Renewal date passed':`Renews ${shortD(subNext(x))}${dd<=7?` · in ${dd} day${dd===1?'':'s'}`:''}`}${last?` · last charged ${shortD(last.date)}`:''}${x.note?`<br>${esc(x.note)}`:''}</small></span>
+      <span class="num">${money(+x.amount||0,true)}<small>${(SFREQ.find(f=>f[0]===x.freq)||SFREQ[1])[1].toLowerCase()}</small></span></button>`}).join('')}</div>`
+    :UI.sub?'':'<div class="panel emptycard" style="margin-top:12px"><b>Nothing tracked yet.</b><p class="sub">Add one, or start from a suggestion below.</p></div>'}
+  ${L.some(x=>{const d=subDays(x);return d!=null&&d>=0&&d<=7})?`<p class="warnline" style="margin-top:8px">${L.filter(x=>{const d=subDays(x);return d!=null&&d>=0&&d<=7}).map(x=>esc(x.name)).join(', ')} renew${L.filter(x=>{const d=subDays(x);return d!=null&&d>=0&&d<=7}).length===1?'s':''} this week.</p>`:''}
+  ${sug.length?`<h2>Looks like a subscription</h2><div class="panel">${sug.map((x,i)=>`<div class="row"><div class="rowtop" style="align-items:center"><div><b>${esc(x.name)}</b><div class="sub" style="font-size:13px">${money(x.amount,true)}, ${esc(x.why)}</div></div><button class="btn small ghost" data-subsug="${i}">Track it</button></div></div>`).join('')}</div>`:''}`};
+
 /* ---------- notes ---------- */
 const NCOL=[['plain','Plain'],['green','Green'],['blue','Blue'],['amber','Amber'],['rose','Rose'],['violet','Violet']];
 const noteHTML=b=>esc(b||'').replace(/\n/g,'<br>');
@@ -1831,7 +1872,7 @@ function setupStepCheck(st){
 
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
-  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes'};
+  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions'};
   const on=S.view==='more';
   const eye=(S.look||{}).hide?`<button class="eyebtn" data-eye aria-pressed="${!!UI.reveal}" aria-label="${UI.reveal?'Hide amounts':'Show amounts'}">${UI.reveal?'🙈':'👁'}</button>`:'';
   return `<div class="appbar"><span class="brand">Ledger</span>${eye}<button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
@@ -1844,6 +1885,7 @@ V.more=()=>{const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t+Math.max(0,x
   ${grp('Money',[tile('accounts','▦','Accounts',`Net worth ${money(netOf())}`),
     tile('unassigned','◇','Unassigned',short?`${short} account${short===1?'':'s'} short`:`${money(free)} free to assign`,short?'warn':''),
     tile('breakdown','⇄','Follow the money','Where this month went'),
+    tile('subs','↻','Subscriptions',(S.subs||[]).length?`${money(r2((S.subs||[]).reduce((t,x)=>t+subMonthly(x),0)))}/month`:'Track what renews'),
     tile('notes','✎','Notes',N?`${N} note${N===1?'':'s'}`:'Reminders for yourself')])}
   ${grp('Ledger',[tile('config','⚙︎','Settings','Budgets, bills, colors'),tile('log','≡','Change log',`${(S.log||[]).length} change${(S.log||[]).length===1?'':'s'} recorded`),
     tile('guide','✦','Guide','A tour of the app'),tile('help','?','Help','Answers and tips')])}
@@ -2088,6 +2130,7 @@ function bindDraft(t){
 }
 document.getElementById('app').addEventListener('input',e=>{const t=e.target;bindDraft(t);
   if(t.dataset.nf&&UI.note)UI.note[t.dataset.nf]=t.value;
+  if(t.dataset.sf&&UI.sub)UI.sub[t.dataset.sf]=t.value;
   if(t.id==='fq'){F.q=t.value;document.getElementById('actList').innerHTML=activityList()}
   if(t.id==='logq'){LG.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('logq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}});
 document.getElementById('app').addEventListener('change',e=>{const t=e.target;
@@ -2118,6 +2161,8 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.see){setMonth(t.dataset.see);F.cat=t.dataset.seecat||'all';F.q=t.dataset.seeq||'';F.type='all';F.acct='all';resetUI();S.view='activity';render();window.scrollTo(0,0);return}
   if(t.dataset.range){Object.keys(CH).forEach(k=>delete CH[k]);TR.range=t.dataset.range==='all'?'all':+t.dataset.range;render();return}
   if(t.dataset.menu!==undefined){if(S.view==='more'){S.view=UI.back||'home'}else{UI.back=S.view;resetUI();S.view='more'}render();window.scrollTo(0,0);return}
+  if(t.dataset.subedit){const x=(S.subs||[]).find(y=>y.id===t.dataset.subedit);if(x){UI.sub=Object.assign({},x);render();window.scrollTo(0,0)}return}
+  if(t.dataset.subsug!==undefined){const x=subSuggestions()[+t.dataset.subsug];if(x){UI.sub={id:null,name:x.name,amount:x.amount,freq:x.freq,next:x.next,note:''};render();window.scrollTo(0,0)}return}
   if(t.dataset.nopen){UI.noteOpen=UI.noteOpen===t.dataset.nopen?null:t.dataset.nopen;render();return}
   if(t.dataset.ncol&&UI.note){UI.note.color=t.dataset.ncol;render();return}
   if(t.dataset.lookAccent||t.dataset.lookMode||t.dataset.lookStyle||t.dataset.lookSize){const d=t.dataset;UI.lookDraft=Object.assign({},UI.lookDraft||{},d.lookAccent?{accent:d.lookAccent}:d.lookMode?{mode:d.lookMode}:d.lookStyle?{style:d.lookStyle}:{size:d.lookSize});
@@ -2277,6 +2322,13 @@ function handleAct(t){
     logIt([`Assigned ${money(v,true)} from ${aName(aid)} to ${g.name}`+(same?'':` (transfer to ${aName(g.acct)})`)]);
     render();toast(same?`${money(v,true)} set aside for ${g.name}`:`${money(v,true)} to ${g.name}. Make the transfer to ${aName(g.acct)} in your bank too`,()=>{removeTx(nt);render();toast('Undone')});
     return}
+  if(a==='subNew'){UI.sub={id:null,name:'',amount:'',freq:'monthly',next:todayISO,note:''};render();const el=document.querySelector('[data-sf=name]');if(el)el.focus();return}
+  if(a==='subCancel'){UI.sub=null;render();return}
+  if(a==='subSave'){const d=UI.sub;if(!d)return;const name=String(d.name||'').trim().slice(0,60),amt=r2(parseFloat(d.amount));
+    if(!name){toast('Give it a name');return}if(!(amt>0)){toast('Enter the price');return}
+    const rec={id:d.id||id(),name,amount:amt,freq:['weekly','monthly','yearly'].includes(d.freq)?d.freq:'monthly',next:/^\d{4}-\d{2}-\d{2}$/.test(d.next||'')?d.next:'',note:String(d.note||'').trim().slice(0,120)};
+    const i=S.subs.findIndex(x=>x.id===rec.id);if(i>=0)S.subs[i]=rec;else S.subs.push(rec);logIt([`Subscriptions — ${i>=0?'edited':'added'} ${name}`]);UI.sub=null;render();toast(i>=0?'Saved':`Tracking ${name}`);return}
+  if(a==='subDel'){const d=UI.sub;const i=S.subs.findIndex(x=>x.id===d.id);if(i<0)return;const [x]=S.subs.splice(i,1);UI.sub=null;logIt([`Subscriptions — removed ${x.name}`]);render();toast(`Removed ${x.name}`,()=>{S.subs.splice(i,0,x);render()});return}
   if(a==='nNew'){UI.note=Object.assign({id:null},noteTemplate(t.dataset.tpl));UI.noteOpen=null;render();const b=document.getElementById(t.dataset.tpl?'nBody':'nTitle');if(b){b.focus();if(t.dataset.tpl)b.setSelectionRange(b.value.length,b.value.length)}return}
   if(a==='nCancel'){UI.note=null;render();return}
   if(a==='nSave'){const d=UI.note;if(!d)return;const title=(d.title||'').trim().slice(0,80),body=(d.body||'').replace(/\s+$/,'').slice(0,4000);
