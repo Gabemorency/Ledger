@@ -1022,7 +1022,8 @@ V.breakdown=()=>{
   <h2>Paid with</h2><div class="panel">${bkRows(from,tot,'Spent on')}</div>
   ${big.length?`<h2>Biggest purchases</h2><div class="panel">${big.map(l=>txLine(l.t)).join('')}</div>`:''}`:''}
   ${st.planned>0.004?`<p class="sub" style="font-size:13px;margin-top:12px">${money(st.planned,true)} in planned purchases paid from goals isn’t counted as spending. ${tip('planned')}</p>`:''}
-  <button class="btn ghost full" data-see="${m}" style="margin-top:14px">See every entry for ${esc(mLabel(m))}</button>`;
+  <button class="btn ghost full" data-see="${m}" style="margin-top:14px">See every entry for ${esc(mLabel(m))}</button>
+  <button class="btn ghost full" data-act="csvMonth" data-m="${m}" style="margin-top:8px">Download ${esc(mLabel(m))} as a spreadsheet</button>`;
 };
 /* ---------- appearance ---------- */
 const ACCENTS=[['forest','Forest','#1F5A41'],['ocean','Ocean','#1D5A8C'],['plum','Plum','#6B3A7D'],['sunset','Sunset','#B4502A'],['graphite','Graphite','#2E3440']];
@@ -1128,6 +1129,23 @@ V.search=()=>{const q=UI.q||'',R=searchAll(q);
    +sec('Accounts',R.accts.map(a=>row('data-go="accounts"',hl(a.name,q),esc(typeLabel(a)),money(a.balance,true))))
    +sec('Bills',R.bills.map(f=>row('data-go="config"',hl(f.name,q),esc(schedText(f)),f.pct?f.pct+'%':money(f.amount,true))))
    +sec('Subscriptions',R.subs.map(x=>row(`data-gosub="${esc(x.id)}"`,hl(x.name,q),esc((SFREQ.find(f=>f[0]===x.freq)||SFREQ[1])[1]),money(+x.amount||0,true))))}`};
+
+/* ---------- spreadsheet export ---------- */
+function csvRanges(){const ms=[...new Set(S.tx.map(t=>t.date.slice(0,7)))].sort().reverse(),ys=[...new Set(ms.map(m=>m.slice(0,4)))];
+  return ms.map(m=>[m,mFull(m)]).concat(ys.map(y=>[y,'All of '+y])).concat([['all','Everything']])}
+/* a cell that starts with = + - @ could run as a formula when the file is opened, so it gets a leading apostrophe */
+const csvCell=v=>{let x=v==null?'':String(v);if(/^[=+\-@\t\r]/.test(x))x="'"+x;return /[",\n\r]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};
+function csvFor(range){
+  const list=S.tx.filter(t=>range==='all'||t.date.startsWith(range)).sort((a,b)=>a.date.localeCompare(b.date)||0);
+  const flow=t=>({income:'In',expense:'Out',fixed:t.to?'Move':'Out',interest:'Out',goalbuy:'Out',transfer:'Move',assign:'Set aside',unassign:'Set aside',gmove:'Set aside',adjust:t.dir>0?'In':'Out'})[t.kind]||'';
+  const rows=[['Date','Type','Description','Category','Account','To account','Goal','Amount','Money','Split group','Note']];
+  list.forEach(t=>{const c=t.cat&&cat(t.cat),g=t.goal&&goal(t.goal);
+    rows.push([t.date,KIND_LABEL[t.kind]||t.kind,t.vendor||(t.kind==='transfer'?'Transfer':KIND_LABEL[t.kind]||''),c?c.name:'',t.before?'Before Ledger':aName(t.acct||t.from||t.acctFrom)||'',t.to?aName(t.to):t.acctTo?aName(t.acctTo):'',g?g.name:'',(+t.amount).toFixed(2),flow(t),t.split?t.split.slice(-6):'',t.note||''])});
+  return {csv:'﻿'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n'),n:list.length}}
+function downloadCSV(range){const {csv,n}=csvFor(range);if(!n){toast('No entries in that range');return}
+  const filename=`ledger-${range==='all'?'everything':range}.csv`,done=()=>{logIt([`Spreadsheet downloaded (${range==='all'?'everything':range})`]);toast(`Saved ${n} entr${n===1?'y':'ies'}`)};
+  if(DL){DL.save({filename,data:csv}).then(done).catch(e=>{const c=e&&e.code;toast(c==='declined'?'Download canceled':'Saving files isn’t available here')});return}
+  const u=URL.createObjectURL(new Blob([csv],{type:'text/csv'})),l=document.createElement('a');l.href=u;l.download=filename;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);done()}
 
 /* ---------- notes ---------- */
 const NCOL=[['plain','Plain'],['green','Green'],['blue','Blue'],['amber','Amber'],['rose','Rose'],['violet','Violet']];
@@ -1462,6 +1480,12 @@ V.config=()=>{
     <p class="sub" style="font-size:14px;margin:0 0 10px">${BOOT?'Your data is saved to your account and synced, but syncing copies mistakes too, and there are no automatic backups. Download one about once a month and before big changes. It’s a file of all your numbers, not encrypted, so store it somewhere private. Restoring one replaces your data on every device and needs your PIN.':'This demo saves only in this browser. Download a backup now and then so clearing your browser doesn’t lose anything.'} ${tip('backup')}</p>
     <div class="actions" style="margin-top:0"><button class="btn" data-act="backup">Download backup</button><label class="btn ghost filebtn">Restore from backup<input type="file" accept="application/json,.json" id="restoreFile" hidden></label></div>
     ${S.lastBackup?`<p class="sub" style="font-size:13px;margin:8px 0 0">Last backup: ${new Date(S.lastBackup).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>`:''}
+  </div>
+  <h2>Spreadsheet</h2>
+  <div class="panel" style="padding:14px 16px">
+    <p class="sub" style="font-size:14px;margin:0 0 10px">Every entry as a CSV file that opens in Excel, Numbers or Google Sheets. Handy for taxes or your own records. Like a backup, it isn’t encrypted.</p>
+    <div class="two"><label class="field" style="margin:0"><span>Which entries</span><select id="csvRange">${csvRanges().map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('')}</select></label></div>
+    <div class="actions"><button class="btn" data-act="csv">Download spreadsheet</button></div>
   </div>
   <details class="advanced"><summary>Advanced</summary>
   <p class="lbl" style="margin:4px 0 6px">Start over</p>
@@ -2419,6 +2443,7 @@ function handleAct(t){
       logIt([`Covered ${c.name} for ${monthName(mDate(CM),{month:'long',year:'numeric'})}: ${desc}`]);render();
       toast(`${c.name} covered: ${desc}`,()=>{parts.forEach(([fid,n])=>{m[fid]=r2(m[fid]+n);m[c.id]=r2(m[c.id]-n)});logIt([`Undid cover for ${c.name}`]);render()})},
       {multi:{label:'Take it from',need:over,rows}});return}
+  if(a==='csv'||a==='csvMonth'){const r=a==='csvMonth'?t.dataset.m:(document.getElementById('csvRange')||{}).value||thisM;downloadCSV(r);return}
   if(a==='backup'){
     /* never put the PIN's hash or the account email in a file that can leave the device */
     const json=JSON.stringify({app:'ledger',version:KEY,saved:new Date().toISOString(),data:Object.assign({},S,{sec:undefined,view:undefined})},null,1),filename=`ledger-backup-${todayISO}.json`;
