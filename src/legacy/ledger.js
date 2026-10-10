@@ -1097,6 +1097,38 @@ V.subs=()=>{const L=(S.subs||[]).slice().sort((a,b)=>(subDays(a)??999)-(subDays(
   ${L.some(x=>{const d=subDays(x);return d!=null&&d>=0&&d<=7})?`<p class="warnline" style="margin-top:8px">${L.filter(x=>{const d=subDays(x);return d!=null&&d>=0&&d<=7}).map(x=>esc(x.name)).join(', ')} renew${L.filter(x=>{const d=subDays(x);return d!=null&&d>=0&&d<=7}).length===1?'s':''} this week.</p>`:''}
   ${sug.length?`<h2>Looks like a subscription</h2><div class="panel">${sug.map((x,i)=>`<div class="row"><div class="rowtop" style="align-items:center"><div><b>${esc(x.name)}</b><div class="sub" style="font-size:13px">${money(x.amount,true)}, ${esc(x.why)}</div></div><button class="btn small ghost" data-subsug="${i}">Track it</button></div></div>`).join('')}</div>`:''}`};
 
+/* ---------- search everything ---------- */
+function searchAll(q){q=String(q||'').trim().toLowerCase();if(q.length<2&&!/\d/.test(q))return null;
+  const num=q.replace(/[$,\s]/g,''),isNum=/^\d+(\.\d{0,2})?$/.test(num),has=v=>String(v||'').toLowerCase().includes(q);
+  const amtHit=a=>isNum&&(Math.abs(a-parseFloat(num))<0.005||money(a,true).replace(/[$,]/g,'').startsWith(num));
+  const R={entries:[],notes:[],goals:[],cats:[],accts:[],bills:[],subs:[]};
+  S.tx.slice().sort((a,b)=>b.date.localeCompare(a.date)).forEach(t=>{if(R.entries.length>=40)return;
+    const c=t.cat&&cat(t.cat),g=t.goal&&goal(t.goal);
+    if(has(t.vendor)||has(t.note)||(c&&has(c.name))||(g&&has(g.name))||has(aName(t.acct))||amtHit(t.amount))R.entries.push(t)});
+  (S.notes||[]).forEach(n=>{if(has(n.title)||has(n.body))R.notes.push(n)});
+  activeGoals().forEach(g=>{if(has(g.name)||amtHit(g.target))R.goals.push(g)});
+  liveCats().forEach(c=>{if(has(c.name))R.cats.push(c)});
+  liveAccts().forEach(a=>{if(has(a.name)||has(a.bank))R.accts.push(a)});
+  liveFixed().forEach(f=>{if(has(f.name)||amtHit(f.amount||0))R.bills.push(f)});
+  (S.subs||[]).forEach(x=>{if(has(x.name)||has(x.note)||amtHit(x.amount))R.subs.push(x)});
+  return R}
+const hl=(text,q)=>{const t=esc(text||''),qq=esc(String(q||'').trim());if(qq.length<2)return t;const i=t.toLowerCase().indexOf(qq.toLowerCase());return i<0?t:t.slice(0,i)+'<mark>'+t.slice(i,i+qq.length)+'</mark>'+t.slice(i+qq.length)};
+V.search=()=>{const q=UI.q||'',R=searchAll(q);
+  const sec=(title,items)=>items.length?`<p class="lbl" style="margin:16px 0 6px">${title}</p><div class="panel">${items.join('')}</div>`:'';
+  const row=(attrs,a,b,c)=>`<button class="srow" ${attrs}><span><b>${a}</b><small>${b}</small></span>${c?`<span class="num">${c}</span>`:''}</button>`;
+  const total=R?Object.values(R).reduce((t,x)=>t+x.length,0):0;
+  return `<button class="btn small ghost" data-go="more" style="margin-bottom:8px">Back to menu</button><h1>Search</h1>
+  <input type="search" id="sq" class="sinput" value="${esc(q)}" placeholder="Try a store, a category, a note or an amount" autocomplete="off" aria-label="Search">
+  ${!R?`<p class="sub" style="margin-top:12px;font-size:14px">Searches every entry, note, goal, category, account, bill and subscription. Type an amount like 12.50 to find it.</p>`
+  :!total?`<div class="panel emptycard" style="margin-top:14px"><b>Nothing matches “${esc(q)}”.</b><p class="sub">Check the spelling, or try part of the name.</p></div>`
+  :sec(`Entries${R.entries.length>=40?' (latest 40)':''}`,R.entries.map(t=>{const c=t.cat&&cat(t.cat);return row(`data-gotx="${t.id}"`,hl(t.vendor||KIND_LABEL[t.kind]||'Entry',q),`${esc(KIND_LABEL[t.kind]||t.kind)}${c?' · '+hl(c.name,q):''} · ${shortD(t.date)}`,(t.kind==='income'?'+':'')+money(t.amount,true))}))
+   +sec('Notes',R.notes.map(n=>row(`data-go="notes" data-nfocus="${esc(n.id)}"`,hl(n.title||'Untitled note',q),hl((n.body||'').slice(0,80),q))))
+   +sec('Goals',R.goals.map(g=>row('data-go="goals"',hl(g.name,q),`${money(g.saved)} of ${money(g.target)} saved`)))
+   +sec('Categories',R.cats.map(c=>row(`data-see="${thisM}" data-seecat="${c.id}"`,hl(c.name,q),`${money(spent(c.id),true)} spent this month · tap for its entries`)))
+   +sec('Accounts',R.accts.map(a=>row('data-go="accounts"',hl(a.name,q),esc(typeLabel(a)),money(a.balance,true))))
+   +sec('Bills',R.bills.map(f=>row('data-go="config"',hl(f.name,q),esc(schedText(f)),f.pct?f.pct+'%':money(f.amount,true))))
+   +sec('Subscriptions',R.subs.map(x=>row(`data-gosub="${esc(x.id)}"`,hl(x.name,q),esc((SFREQ.find(f=>f[0]===x.freq)||SFREQ[1])[1]),money(+x.amount||0,true))))}`};
+
 /* ---------- notes ---------- */
 const NCOL=[['plain','Plain'],['green','Green'],['blue','Blue'],['amber','Amber'],['rose','Rose'],['violet','Violet']];
 const noteHTML=b=>esc(b||'').replace(/\n/g,'<br>');
@@ -1872,7 +1904,7 @@ function setupStepCheck(st){
 
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
-  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions'};
+  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions',search:'Search'};
   const on=S.view==='more';
   const eye=(S.look||{}).hide?`<button class="eyebtn" data-eye aria-pressed="${!!UI.reveal}" aria-label="${UI.reveal?'Hide amounts':'Show amounts'}">${UI.reveal?'🙈':'👁'}</button>`:'';
   return `<div class="appbar"><span class="brand">Ledger</span>${eye}<button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
@@ -1881,6 +1913,7 @@ V.more=()=>{const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t+Math.max(0,x
   const tile=(v,i,t,sub,extra)=>`<button class="mtile ${extra||''}" data-go="${v}"><span class="mti" aria-hidden="true">${i}</span><b>${esc(t)}</b><small>${sub}</small></button>`;
   const grp=(name,tiles)=>`<p class="lbl" style="margin:18px 0 8px">${name}</p><div class="mtiles">${tiles.join('')}</div>`;
   return `<h1>Menu</h1>
+  <button class="msearch" data-go="search"><span aria-hidden="true">⌕</span>Search entries, notes, goals…</button>
   ${ct?`<button class="mclose" data-go="close"><span class="mti" aria-hidden="true">🔒</span><span><b>Close ${esc(monthName(mDate(ct)))}</b><small>Confirm balances and lock the month</small></span><span class="chev">›</span></button>`:''}
   ${grp('Money',[tile('accounts','▦','Accounts',`Net worth ${money(netOf())}`),
     tile('unassigned','◇','Unassigned',short?`${short} account${short===1?'':'s'} short`:`${money(free)} free to assign`,short?'warn':''),
@@ -2132,6 +2165,7 @@ document.getElementById('app').addEventListener('input',e=>{const t=e.target;bin
   if(t.dataset.nf&&UI.note)UI.note[t.dataset.nf]=t.value;
   if(t.dataset.sf&&UI.sub)UI.sub[t.dataset.sf]=t.value;
   if(t.id==='fq'){F.q=t.value;document.getElementById('actList').innerHTML=activityList()}
+  if(t.id==='sq'){UI.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('sq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}
   if(t.id==='logq'){LG.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('logq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}});
 document.getElementById('app').addEventListener('change',e=>{const t=e.target;
   if(t.dataset.lookHide!==undefined){S.look=Object.assign({},S.look||{},{hide:t.checked});UI.reveal=false;applyLook();render();return}
@@ -2158,6 +2192,8 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.logall){LG.all[t.dataset.logall]=true;render();return}
   if(t.dataset.pickyear){F.year=t.dataset.pickyear;F.month='all';render();return}
   if(t.dataset.hb){const el=document.getElementById('hb-'+t.dataset.hb);const open=el.hidden;el.hidden=!open;t.setAttribute('aria-expanded',open);return}
+  if(t.dataset.gotx){const x=S.tx.find(y=>y.id===t.dataset.gotx);if(!x)return;setMonth(x.date.slice(0,7));F.cat='all';F.q='';F.type='all';F.acct='all';resetUI();UI.txOpen=x.id;S.view='activity';render();const el=document.querySelector(`[data-txopen="${x.id}"]`);if(el)el.scrollIntoView({block:'center'});return}
+  if(t.dataset.gosub){const x=(S.subs||[]).find(y=>y.id===t.dataset.gosub);resetUI();S.view='subs';if(x)UI.sub=Object.assign({},x);render();window.scrollTo(0,0);return}
   if(t.dataset.see){setMonth(t.dataset.see);F.cat=t.dataset.seecat||'all';F.q=t.dataset.seeq||'';F.type='all';F.acct='all';resetUI();S.view='activity';render();window.scrollTo(0,0);return}
   if(t.dataset.range){Object.keys(CH).forEach(k=>delete CH[k]);TR.range=t.dataset.range==='all'?'all':+t.dataset.range;render();return}
   if(t.dataset.menu!==undefined){if(S.view==='more'){S.view=UI.back||'home'}else{UI.back=S.view;resetUI();S.view='more'}render();window.scrollTo(0,0);return}
@@ -2174,7 +2210,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
   if(t.dataset.gjump){const el=document.getElementById('g-'+t.dataset.gjump);guideMark(t.dataset.gjump);if(el){el.classList.add('in');el.scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}return}
   if(t.dataset.signout!==undefined&&BOOT){BOOT.signOut();return}
-  if(t.dataset.go){resetUI();S.view=t.dataset.go;if(t.dataset.help)UI.help=t.dataset.help;render();window.scrollTo(0,0);const an=t.dataset.anchor&&document.getElementById(t.dataset.anchor);if(an)an.scrollIntoView({block:'start'});return}
+  if(t.dataset.go){resetUI();S.view=t.dataset.go;if(t.dataset.help)UI.help=t.dataset.help;render();window.scrollTo(0,0);if(S.view==='search'){const n=document.getElementById('sq');if(n)n.focus()}const an=t.dataset.anchor&&document.getElementById(t.dataset.anchor);if(an)an.scrollIntoView({block:'start'});return}
   if(t.dataset.txopen){UI.txOpen=UI.txOpen===t.dataset.txopen?null:t.dataset.txopen;render();return}
   if(t.dataset.txclose){UI.txOpen=null;render();return}
   if(t.dataset.del){
