@@ -142,6 +142,21 @@ describe("changedElsewhere", () => {
     await vi.runAllTimersAsync();
     expect(await b.changedElsewhere()).toBe(true);
   });
+
+  it("still notices when this device has a save queued (going to the background saves the lock time)", async () => {
+    const fake = fakeSupabase(USER);
+    const a = new CloudSync(fake.client, USER, null, "");
+    a.schedule(state());
+    await vi.runAllTimersAsync();
+    const b = new CloudSync(fake.client, USER, state(), a.rev);
+    const s = state();
+    s.plan.income = 3000;
+    a.schedule(s);
+    await vi.runAllTimersAsync();
+    b.schedule({ ...state(), sec: { awayAt: 1 } }); // device-only change, still waiting to go out
+    expect(await b.changedElsewhere()).toBe(true);
+    expect(b.pending).toBe(false);
+  });
 });
 
 describe("devices sharing one account", () => {

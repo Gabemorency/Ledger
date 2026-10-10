@@ -213,6 +213,9 @@ export class CloudSync {
   /** True when another device saved since this one loaded. */
   async changedElsewhere(): Promise<boolean> {
     if (this.running) await this.running;
+    // Send anything queued first (going to the background queues a save), so
+    // a waiting save doesn't hide another device's changes.
+    if (this.pending) await this.flush();
     if (this.pending) return false;
     if (this.behind) return true;
     const { data, error } = await this.sb.from("settings").select("rev").maybeSingle();
