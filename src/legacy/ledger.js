@@ -1014,23 +1014,24 @@ V.breakdown=()=>{
 const ACCENTS=[['forest','Forest','#1F5A41'],['ocean','Ocean','#1D5A8C'],['plum','Plum','#6B3A7D'],['sunset','Sunset','#B4502A'],['graphite','Graphite','#2E3440']];
 const MODES=[['auto','Match my phone'],['light','Light'],['dark','Dark']];
 /* Styles change fonts, shapes and decoration; the chosen color tints each one. fixed = the style has its own light/dark */
-const STYLES=[['classic','Classic','Clean and rounded',null,'Color'],['terminal','Terminal','Covert green-screen','dark','Phosphor'],['typewriter','Typewriter','Typed on paper','light','Ribbon'],['journal','Journal','Ink on ruled paper','light','Ink'],['code','Code','A stylesheet in an editor','dark','Syntax']];
+const STYLES=[['classic','Classic','Clean and rounded',null,'Color'],['terminal','Terminal','Covert green-screen','dark','Phosphor'],['typewriter','Typewriter','Typed on paper','light','Ribbon'],['journal','Journal','Ink on ruled paper','light','Ink'],['code','Code','A stylesheet in an editor','dark','Syntax'],['neon', 'Neon', 'Synthwave night', 'dark', 'Glow'],['blueprint', 'Blueprint', 'Drafting on blue paper', 'dark', 'Pencil'],['receipt', 'Receipt', 'Printed on thermal paper', 'light', 'Ink'],['bookkeeper', 'Bookkeeper', 'An accountant’s ledger', 'light', 'Ink'],['brutalist', 'Brutalist', 'Heavy lines, no mercy', 'light', 'Highlight'],['aurora', 'Aurora', 'Frosted glass, northern lights', 'dark', 'Sky'],['newspaper', 'Newspaper', 'Extra! Extra!', 'light', 'Ink'],['candy', 'Candy', 'Soft pastels, round corners', 'light', 'Flavor'],['desktop', 'Retro desktop', 'A computer from 1991', 'light', 'Accent'],['arcade', 'Arcade', '8-bit high score', 'dark', 'Player']];
 const TONES={terminal:{forest:'#4AF08A',ocean:'#4CD6FF',plum:'#D58CFF',sunset:'#FFB547',graphite:'#E8E8E8'},typewriter:{forest:'#2F5D46',ocean:'#2B4C7E',plum:'#5E3A6E',sunset:'#9C2F1F',graphite:'#1F1B16'},
-  journal:{forest:'#2F6B4F',ocean:'#24508C',plum:'#5B3A7A',sunset:'#A3402A',graphite:'#2A2620'},code:{forest:'#4EC9B0',ocean:'#569CD6',plum:'#C586C0',sunset:'#CE9178',graphite:'#DCDCAA'}};
+  journal:{forest:'#2F6B4F',ocean:'#24508C',plum:'#5B3A7A',sunset:'#A3402A',graphite:'#2A2620'},code:{forest:'#4EC9B0',ocean:'#569CD6',plum:'#C586C0',sunset:'#CE9178',graphite:'#DCDCAA'},neon:{'forest': '#39FF9C', 'ocean': '#22D3FF', 'plum': '#FF2BD6', 'sunset': '#FF7A1A', 'graphite': '#F5F5F5'},blueprint:{'forest': '#5EE6A8', 'ocean': '#5CC8FF', 'plum': '#E07BFF', 'sunset': '#FF9F5A', 'graphite': '#E6E6E6'},receipt:{'forest': '#1F6B47', 'ocean': '#1D5A9C', 'plum': '#7A3A8F', 'sunset': '#C2452A', 'graphite': '#222222'},bookkeeper:{'forest': '#1F5E3B', 'ocean': '#1E4E86', 'plum': '#5B2E73', 'sunset': '#A3301F', 'graphite': '#1C1C1C'},brutalist:{'forest': '#00C26E', 'ocean': '#2F6BFF', 'plum': '#B000FF', 'sunset': '#FF4F1A', 'graphite': '#111111'},aurora:{'forest': '#5EE6A8', 'ocean': '#5CC8FF', 'plum': '#E07BFF', 'sunset': '#FF9F5A', 'graphite': '#E6E6E6'},newspaper:{'forest': '#1F6B47', 'ocean': '#1D5A9C', 'plum': '#7A3A8F', 'sunset': '#C2452A', 'graphite': '#222222'},candy:{'forest': '#2FAE84', 'ocean': '#5B8DEF', 'plum': '#C25BD6', 'sunset': '#FF6F91', 'graphite': '#6E6A86'},desktop:{'forest': '#1F6B47', 'ocean': '#1D4FB0', 'plum': '#6E2E8F', 'sunset': '#B23A1C', 'graphite': '#000000'},arcade:{'forest': '#3CFF3C', 'ocean': '#2CE8FF', 'plum': '#FF4FD8', 'sunset': '#FFD12C', 'graphite': '#FFFFFF'}};
+const SPREV={"code": [".total {", "$1,240"], "terminal": ["> total", "$1,240"], "neon": ["Total", "$1,240"], "blueprint": ["TOTAL", "$1,240"], "receipt": ["*** TOTAL ***", "$1,240"], "bookkeeper": ["Total", "$1,240"], "brutalist": ["TOTAL", "$1,240"], "aurora": ["Total", "$1,240"], "newspaper": ["THE DAILY TOTAL", "$1,240"], "candy": ["Total", "$1,240"], "desktop": ["Total", "$1,240"], "arcade": ["HI-SCORE", "$1,240"]};
 const SIZES=[['s','Small'],['m','Normal'],['l','Large'],['xl','Larger']];
-function lookNow(){const L=S.look||{};return {style:L.style||'classic',mode:L.mode||'auto',accent:L.accent||'forest',size:L.size||'m',hide:!!L.hide}}
+function lookNow(saved){const L=Object.assign({},S.look||{},saved?{}:UI.lookDraft||{});return {style:L.style||'classic',mode:L.mode||'auto',accent:L.accent||'forest',size:L.size||'m',hide:!!L.hide}}
 function applyLook(){const L=lookNow(),r=document.documentElement,classic=L.style==='classic';
   const set=(k,v)=>{if(v==null||v===false)delete r.dataset[k];else r.dataset[k]=v===true?'':v};
   set('theme',classic&&L.mode!=='auto'?L.mode:null);set('accent',classic&&L.accent!=='forest'?L.accent:null);
   set('style',classic?null:L.style);set('tone',classic?null:L.accent);set('size',L.size==='m'?null:L.size);
   set('hide',L.hide);set('reveal',L.hide&&UI.reveal?true:null);
-  try{localStorage.setItem('ledger-look',JSON.stringify(L))}catch(_){}
+  try{localStorage.setItem('ledger-look',JSON.stringify(lookNow(true)))}catch(_){}
   requestAnimationFrame(()=>{const bg=getComputedStyle(r).getPropertyValue('--bg').trim();if(!bg)return;document.querySelectorAll('meta[name="theme-color"]').forEach(x=>x.setAttribute('content',bg))})}
 function lookPanel(){const L=lookNow(),st=STYLES.find(x=>x[0]===L.style)||STYLES[0],fixed=st[3];
   const sw=k=>L.style==='classic'?ACCENTS.find(a=>a[0]===k)[2]:TONES[L.style][k];
   return `<h2>Appearance</h2><div class="panel" style="padding:12px 16px 14px">
     <p class="lbl" style="margin:2px 0 8px">Style</p>
-    <div class="stiles" role="group" aria-label="Style">${STYLES.map(([k,l,d])=>`<button class="stile" data-look-style="${k}" aria-pressed="${L.style===k}"><span class="sprev sp-${k}" aria-hidden="true"><i>${k==='code'?'.total {':k==='terminal'?'&gt; total':'Total'}</i><b>$1,240</b></span><b>${l}</b><small>${d}</small></button>`).join('')}</div>
+    <div class="stiles" role="group" aria-label="Style">${STYLES.map(([k,l,d])=>`<button class="stile" data-look-style="${k}" aria-pressed="${L.style===k}"><span class="sprev sp-${k}" aria-hidden="true"><i>${esc((SPREV[k]||['Total'])[0])}</i><b>${esc((SPREV[k]||[0,'$1,240'])[1])}</b></span><b>${l}</b><small>${d}</small></button>`).join('')}</div>
     <p class="lbl" style="margin:16px 0 8px">${st[4]}</p>
     <div class="swatches" role="group" aria-label="${st[4]}">${ACCENTS.map(([k,l])=>`<button class="swatch" data-look-accent="${k}" aria-pressed="${L.accent===k}" aria-label="${l}"><i style="background:${sw(k)}"></i><span>${l}</span></button>`).join('')}</div>
     <p class="lbl" style="margin:16px 0 8px">Mode</p>
@@ -1038,7 +1039,8 @@ function lookPanel(){const L=lookNow(),st=STYLES.find(x=>x[0]===L.style)||STYLES
     <p class="lbl" style="margin:16px 0 8px">Text size</p>
     <div class="chips">${SIZES.map(([k,l])=>`<button class="chip" data-look-size="${k}" aria-pressed="${L.size===k}">${l}</button>`).join('')}</div>
     <div class="toggle" style="margin-top:14px"><div>Hide amounts<small>Blurs every dollar amount until you tap 👁 at the top. Handy in public.</small></div><input class="sw" type="checkbox" data-look-hide ${L.hide?'checked':''} aria-label="Hide amounts"></div>
-    <p class="sub" style="font-size:13px;margin:10px 0 0">Saved to your account, so every device matches.</p></div>`}
+    <p class="sub" style="font-size:13px;margin:10px 0 0">Tap anything above to preview it. Nothing changes until you tap Keep. Saved to your account, so every device matches.</p></div>
+  ${UI.lookDraft?`<div class="lookbar" role="region" aria-label="Preview"><span>Previewing <b>${esc(st[1])}</b></span><button class="btn small ghost" data-act="lookCancel">Cancel</button><button class="btn small" data-act="lookKeep">Keep this look</button></div><div style="height:72px" aria-hidden="true"></div>`:''}`}
 
 /* ---------- notes ---------- */
 const NCOL=[['plain','Plain'],['green','Green'],['blue','Blue'],['amber','Amber'],['rose','Rose'],['violet','Violet']];
@@ -1921,7 +1923,7 @@ function countUp(root){
   });
 }
 function render(){
-  MEMO=null;applyLook();const y=window.scrollY||0,same=lastView===S.view;lastView=S.view;
+  MEMO=null;if(UI.lookDraft&&S.view!=='config')UI.lookDraft=null;applyLook();const y=window.scrollY||0,same=lastView===S.view;lastView=S.view;
   const app=document.getElementById('app');app.dataset.view=S.view;app.innerHTML=appBar()+V[S.view]();
   if(!same&&!REDUCED){app.classList.remove('enter');void app.offsetWidth;app.classList.add('enter');countUp(app)}
   if(S.view==='guide')setupGuide();else if(GOBS){GOBS.disconnect();GOBS=null}
@@ -2104,7 +2106,10 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.menu!==undefined){if(S.view==='more'){S.view=UI.back||'home'}else{UI.back=S.view;resetUI();S.view='more'}render();window.scrollTo(0,0);return}
   if(t.dataset.nopen){UI.noteOpen=UI.noteOpen===t.dataset.nopen?null:t.dataset.nopen;render();return}
   if(t.dataset.ncol&&UI.note){UI.note.color=t.dataset.ncol;render();return}
-  if(t.dataset.lookAccent||t.dataset.lookMode||t.dataset.lookStyle||t.dataset.lookSize){const d=t.dataset;S.look=Object.assign({},S.look||{},d.lookAccent?{accent:d.lookAccent}:d.lookMode?{mode:d.lookMode}:d.lookStyle?{style:d.lookStyle}:{size:d.lookSize});applyLook();render();return}
+  if(t.dataset.lookAccent||t.dataset.lookMode||t.dataset.lookStyle||t.dataset.lookSize){const d=t.dataset;UI.lookDraft=Object.assign({},UI.lookDraft||{},d.lookAccent?{accent:d.lookAccent}:d.lookMode?{mode:d.lookMode}:d.lookStyle?{style:d.lookStyle}:{size:d.lookSize});
+    const a=lookNow(),b=lookNow(true);if(['style','accent','mode','size'].every(k=>a[k]===b[k]))UI.lookDraft=null;applyLook();render();return}
+  if(t.dataset.act==='lookKeep'&&UI.lookDraft){const st=STYLES.find(x=>x[0]===lookNow().style);S.look=Object.assign({},S.look||{},UI.lookDraft);UI.lookDraft=null;logIt(['Appearance — '+(st?st[1]:'Classic')+' style']);applyLook();render();toast('Look saved');return}
+  if(t.dataset.act==='lookCancel'){UI.lookDraft=null;applyLook();render();toast('Back to your saved look');return}
   if(t.dataset.eye!==undefined){UI.reveal=!UI.reveal;applyLook();render();return}
   if(t.dataset.bm){const ms=bkMonths(),i=ms.indexOf(BK.m)+(+t.dataset.bm);if(i>=0&&i<ms.length){BK.m=ms[i];render()}return}
   if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
