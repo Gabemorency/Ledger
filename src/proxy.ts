@@ -42,5 +42,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Static files and the app manifest stay public so the home-screen icon works before sign-in.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

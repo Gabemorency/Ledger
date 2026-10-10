@@ -37,6 +37,20 @@ function showStatus(s: keyof typeof STATUS_TEXT) {
 }
 
 /** Loads the signed-in user's data (or demo mode), then starts the app screens. */
+/** Let the app open with no signal: keep a copy of the app itself on the device. */
+function registerOffline() {
+  if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.register("/sw.js").catch((e) => console.warn("Ledger: offline helper not installed", e));
+}
+
+/** Signing out removes the device's copy of the app along with its data. */
+async function forgetOfflineCopy() {
+  try {
+    navigator.serviceWorker?.controller?.postMessage("forget");
+    for (const k of await caches.keys()) if (k.startsWith("ledger-")) await caches.delete(k);
+  } catch {}
+}
+
 export default function LegacyApp() {
   const [loading, setLoading] = useState(supabaseEnabled);
 
@@ -47,6 +61,7 @@ export default function LegacyApp() {
       if (look.mode === "light" || look.mode === "dark") document.documentElement.dataset.theme = look.mode;
       if (typeof look.accent === "string" && look.accent !== "forest") document.documentElement.dataset.accent = look.accent;
     } catch {}
+    registerOffline();
     if (!supabaseEnabled) {
       // On-device demo mode (no Supabase configured). Module imports run once,
       // so this is safe under React's double effects.
@@ -98,6 +113,7 @@ export default function LegacyApp() {
             return showStatus("error");
           sync.stop();
           cloud.clearCache(user.id);
+          await forgetOfflineCopy();
           await sb.auth.signOut();
           location.replace("/login");
         },

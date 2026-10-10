@@ -168,6 +168,10 @@ await go(C.page, "activity");
 check("…and shows the new entry", (await appHTML(C.page)).includes("$7.00"));
 
 // 7. offline: kept on the device, uploaded when back online
+// (reload once online first so the offline helper has a copy of the app)
+await A.page.evaluate(() => navigator.serviceWorker.ready);
+await A.page.reload();
+await getPastPin(A.page);
 await A.ctx.setOffline(true);
 await A.page.click("#addBtn");
 for (const k of ["3"]) await A.page.click(`#sheet button[data-k="${k}"]`);
@@ -176,6 +180,11 @@ await A.page.waitForFunction(() => ["offline", "error"].includes(document.getEle
 check("offline change shows a warning", true, await A.page.$eval("#syncPill", (e) => e.textContent));
 if (OUT) await A.page.screenshot({ path: `${OUT}/cloud-offline.png` });
 check("offline change kept on device as pending", await A.page.evaluate((uid) => JSON.parse(localStorage.getItem(`ledger-cloud:${uid}`)).pending, U1));
+await A.page.reload();
+await getPastPin(A.page);
+check("the app opens with no signal", (await appHTML(A.page)).includes("Dashboard"));
+await go(A.page, "activity");
+check("…with the offline change still there", (await appHTML(A.page)).includes("$3.00"));
 const before = sql(`select count(*) from entries where user_id='${U1}'`);
 await A.ctx.setOffline(false);
 await saved(A.page);
@@ -262,8 +271,13 @@ await A.page.click("[data-signout]");
 await A.page.waitForURL("**/login");
 check("sign out returns to /login", true);
 check("sign out clears this device's copy", await A.page.evaluate((uid) => localStorage.getItem(`ledger-cloud:${uid}`) === null, U1));
+check("sign out removes the offline copy of the app", await A.page.evaluate(async () => !(await caches.match("/"))));
 await A.page.goto(APP + "/");
 check("signed-out device can't open the app", A.page.url().endsWith("/login"));
+await A.ctx.setOffline(true);
+const offlineOpen = await A.page.goto(APP + "/").then(() => true, () => false);
+check("…not even with no signal", !offlineOpen || !(await A.page.$("#app *")));
+await A.ctx.setOffline(false);
 
 for (const [n, d] of [["A", A], ["B", B], ["C", C], ["D", D], ["E", E]]) check(`no page errors on device ${n}`, d.page.errors.length === 0, d.page.errors.slice(0, 3).join(" | "));
 console.log(`\n${passed} passed, ${failed} failed`);

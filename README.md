@@ -23,6 +23,8 @@ Built with Next.js, deployed on Vercel, with data in Supabase.
   immediately, then only the changed rows are uploaded. Offline changes upload
   when the connection returns. When another device has saved, the app reloads
   on return to pick it up.
+- `public/sw.js` keeps a copy of the app itself (never data or sign-in pages)
+  so it opens instantly and works with no signal. Signing out deletes it.
 
 ## Supabase setup (once)
 
