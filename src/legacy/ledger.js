@@ -1013,17 +1013,31 @@ V.breakdown=()=>{
 /* ---------- appearance ---------- */
 const ACCENTS=[['forest','Forest','#1F5A41'],['ocean','Ocean','#1D5A8C'],['plum','Plum','#6B3A7D'],['sunset','Sunset','#B4502A'],['graphite','Graphite','#2E3440']];
 const MODES=[['auto','Match my phone'],['light','Light'],['dark','Dark']];
-function applyLook(){const L=S.look||{},r=document.documentElement,m=L.mode||'auto',ac=L.accent||'forest';
-  if(m==='auto')delete r.dataset.theme;else r.dataset.theme=m;
-  if(ac==='forest')delete r.dataset.accent;else r.dataset.accent=ac;
-  try{localStorage.setItem('ledger-look',JSON.stringify({mode:m,accent:ac}))}catch(_){}
+/* Styles change fonts, shapes and decoration; the chosen color tints each one. fixed = the style has its own light/dark */
+const STYLES=[['classic','Classic','Clean and rounded',null,'Color'],['terminal','Terminal','Covert green-screen','dark','Phosphor'],['typewriter','Typewriter','Typed on paper','light','Ribbon'],['journal','Journal','Ink on ruled paper','light','Ink'],['code','Code','A stylesheet in an editor','dark','Syntax']];
+const TONES={terminal:{forest:'#4AF08A',ocean:'#4CD6FF',plum:'#D58CFF',sunset:'#FFB547',graphite:'#E8E8E8'},typewriter:{forest:'#2F5D46',ocean:'#2B4C7E',plum:'#5E3A6E',sunset:'#9C2F1F',graphite:'#1F1B16'},
+  journal:{forest:'#2F6B4F',ocean:'#24508C',plum:'#5B3A7A',sunset:'#A3402A',graphite:'#2A2620'},code:{forest:'#4EC9B0',ocean:'#569CD6',plum:'#C586C0',sunset:'#CE9178',graphite:'#DCDCAA'}};
+const SIZES=[['s','Small'],['m','Normal'],['l','Large'],['xl','Larger']];
+function lookNow(){const L=S.look||{};return {style:L.style||'classic',mode:L.mode||'auto',accent:L.accent||'forest',size:L.size||'m',hide:!!L.hide}}
+function applyLook(){const L=lookNow(),r=document.documentElement,classic=L.style==='classic';
+  const set=(k,v)=>{if(v==null||v===false)delete r.dataset[k];else r.dataset[k]=v===true?'':v};
+  set('theme',classic&&L.mode!=='auto'?L.mode:null);set('accent',classic&&L.accent!=='forest'?L.accent:null);
+  set('style',classic?null:L.style);set('tone',classic?null:L.accent);set('size',L.size==='m'?null:L.size);
+  set('hide',L.hide);set('reveal',L.hide&&UI.reveal?true:null);
+  try{localStorage.setItem('ledger-look',JSON.stringify(L))}catch(_){}
   requestAnimationFrame(()=>{const bg=getComputedStyle(r).getPropertyValue('--bg').trim();if(!bg)return;document.querySelectorAll('meta[name="theme-color"]').forEach(x=>x.setAttribute('content',bg))})}
-function lookPanel(){const L=S.look||{},m=L.mode||'auto',ac=L.accent||'forest';
+function lookPanel(){const L=lookNow(),st=STYLES.find(x=>x[0]===L.style)||STYLES[0],fixed=st[3];
+  const sw=k=>L.style==='classic'?ACCENTS.find(a=>a[0]===k)[2]:TONES[L.style][k];
   return `<h2>Appearance</h2><div class="panel" style="padding:12px 16px 14px">
-    <p class="lbl" style="margin:2px 0 8px">Color</p>
-    <div class="swatches" role="group" aria-label="Accent color">${ACCENTS.map(([k,l,c])=>`<button class="swatch" data-look-accent="${k}" aria-pressed="${ac===k}" aria-label="${l}"><i style="background:${c}"></i><span>${l}</span></button>`).join('')}</div>
-    <p class="lbl" style="margin:14px 0 8px">Mode</p>
-    <div class="chips">${MODES.map(([k,l])=>`<button class="chip" data-look-mode="${k}" aria-pressed="${m===k}">${l}</button>`).join('')}</div>
+    <p class="lbl" style="margin:2px 0 8px">Style</p>
+    <div class="stiles" role="group" aria-label="Style">${STYLES.map(([k,l,d])=>`<button class="stile" data-look-style="${k}" aria-pressed="${L.style===k}"><span class="sprev sp-${k}" aria-hidden="true"><i>${k==='code'?'.total {':k==='terminal'?'&gt; total':'Total'}</i><b>$1,240</b></span><b>${l}</b><small>${d}</small></button>`).join('')}</div>
+    <p class="lbl" style="margin:16px 0 8px">${st[4]}</p>
+    <div class="swatches" role="group" aria-label="${st[4]}">${ACCENTS.map(([k,l])=>`<button class="swatch" data-look-accent="${k}" aria-pressed="${L.accent===k}" aria-label="${l}"><i style="background:${sw(k)}"></i><span>${l}</span></button>`).join('')}</div>
+    <p class="lbl" style="margin:16px 0 8px">Mode</p>
+    ${fixed?`<p class="sub" style="font-size:13px;margin:0">${st[1]} is always ${fixed}. Pick Classic to choose light or dark.</p>`:`<div class="chips">${MODES.map(([k,l])=>`<button class="chip" data-look-mode="${k}" aria-pressed="${L.mode===k}">${l}</button>`).join('')}</div>`}
+    <p class="lbl" style="margin:16px 0 8px">Text size</p>
+    <div class="chips">${SIZES.map(([k,l])=>`<button class="chip" data-look-size="${k}" aria-pressed="${L.size===k}">${l}</button>`).join('')}</div>
+    <div class="toggle" style="margin-top:14px"><div>Hide amounts<small>Blurs every dollar amount until you tap 👁 at the top. Handy in public.</small></div><input class="sw" type="checkbox" data-look-hide ${L.hide?'checked':''} aria-label="Hide amounts"></div>
     <p class="sub" style="font-size:13px;margin:10px 0 0">Saved to your account, so every device matches.</p></div>`}
 
 /* ---------- notes ---------- */
@@ -1803,7 +1817,8 @@ function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
   const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes'};
   const on=S.view==='more';
-  return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
+  const eye=(S.look||{}).hide?`<button class="eyebtn" data-eye aria-pressed="${!!UI.reveal}" aria-label="${UI.reveal?'Hide amounts':'Show amounts'}">${UI.reveal?'🙈':'👁'}</button>`:'';
+  return `<div class="appbar"><span class="brand">Ledger</span>${eye}<button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
 }
 V.more=()=>{const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t+Math.max(0,x.free),0)),short=L.filter(x=>x.free<-0.004).length,ct=closeTarget(),N=(S.notes||[]).length;
   const tile=(v,i,t,sub,extra)=>`<button class="mtile ${extra||''}" data-go="${v}"><span class="mti" aria-hidden="true">${i}</span><b>${esc(t)}</b><small>${sub}</small></button>`;
@@ -1916,6 +1931,8 @@ function render(){
   save();
 }
 
+/* hidden amounts blur again whenever the app goes to the background */
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&UI.reveal){UI.reveal=false;applyLook();render()}});
 /* ---------- notes: drag a card by its grip to move it ---------- */
 let ND=null;
 document.getElementById('app').addEventListener('pointerdown',e=>{const g=e.target.closest('[data-ngrip]');if(!g)return;
@@ -2058,6 +2075,7 @@ document.getElementById('app').addEventListener('input',e=>{const t=e.target;bin
   if(t.id==='fq'){F.q=t.value;document.getElementById('actList').innerHTML=activityList()}
   if(t.id==='logq'){LG.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('logq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}});
 document.getElementById('app').addEventListener('change',e=>{const t=e.target;
+  if(t.dataset.lookHide!==undefined){S.look=Object.assign({},S.look||{},{hide:t.checked});UI.reveal=false;applyLook();render();return}
   if(t.dataset.n){S.notif[t.dataset.n]=t.checked;save();return}
   if(t.id==='secAfter'){SEC().lockAfter=+t.value;logIt(['Auto-lock set to '+t.options[t.selectedIndex].text.toLowerCase()]);save();toast('Auto-lock updated');return}
   if(t.id==='secEmail'){const v=t.value.trim();if(v&&!/^\S+@\S+\.\S+$/.test(v)){toast('That email doesn’t look right');return}const o=SEC().email||'';if(v!==o){SEC().email=v;logIt(['Account email '+(o?'changed':'added')]);render();toast('Email saved')}return}
@@ -2086,7 +2104,8 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.menu!==undefined){if(S.view==='more'){S.view=UI.back||'home'}else{UI.back=S.view;resetUI();S.view='more'}render();window.scrollTo(0,0);return}
   if(t.dataset.nopen){UI.noteOpen=UI.noteOpen===t.dataset.nopen?null:t.dataset.nopen;render();return}
   if(t.dataset.ncol&&UI.note){UI.note.color=t.dataset.ncol;render();return}
-  if(t.dataset.lookAccent||t.dataset.lookMode){S.look=Object.assign({},S.look||{},t.dataset.lookAccent?{accent:t.dataset.lookAccent}:{mode:t.dataset.lookMode});applyLook();render();return}
+  if(t.dataset.lookAccent||t.dataset.lookMode||t.dataset.lookStyle||t.dataset.lookSize){const d=t.dataset;S.look=Object.assign({},S.look||{},d.lookAccent?{accent:d.lookAccent}:d.lookMode?{mode:d.lookMode}:d.lookStyle?{style:d.lookStyle}:{size:d.lookSize});applyLook();render();return}
+  if(t.dataset.eye!==undefined){UI.reveal=!UI.reveal;applyLook();render();return}
   if(t.dataset.bm){const ms=bkMonths(),i=ms.indexOf(BK.m)+(+t.dataset.bm);if(i>=0&&i<ms.length){BK.m=ms[i];render()}return}
   if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
   if(t.dataset.gjump){const el=document.getElementById('g-'+t.dataset.gjump);guideMark(t.dataset.gjump);if(el){el.classList.add('in');el.scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}return}

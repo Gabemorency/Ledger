@@ -58,8 +58,17 @@ export default function LegacyApp() {
     // Apply the last-used theme straight away so the screen doesn't flash the default colors.
     try {
       const look = JSON.parse(localStorage.getItem("ledger-look") || "{}");
-      if (look.mode === "light" || look.mode === "dark") document.documentElement.dataset.theme = look.mode;
-      if (typeof look.accent === "string" && look.accent !== "forest") document.documentElement.dataset.accent = look.accent;
+      const d = document.documentElement.dataset;
+      const word = (v: unknown) => typeof v === "string" && /^[a-z]{1,12}$/.test(v);
+      const classic = !word(look.style) || look.style === "classic";
+      if (classic && (look.mode === "light" || look.mode === "dark")) d.theme = look.mode;
+      if (classic && word(look.accent) && look.accent !== "forest") d.accent = look.accent;
+      if (!classic) {
+        d.style = look.style;
+        if (word(look.accent)) d.tone = look.accent;
+      }
+      if (word(look.size) && look.size !== "m") d.size = look.size;
+      if (look.hide === true) d.hide = "";
     } catch {}
     registerOffline();
     if (!supabaseEnabled) {
