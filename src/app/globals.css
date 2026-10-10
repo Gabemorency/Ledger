@@ -803,3 +803,9 @@ body{transition:background-color .25s}
 .stiles{grid-template-columns:repeat(3,minmax(0,1fr))}.sprev{height:50px;padding:6px 8px}.sprev b{font-size:15px}.sprev i{font-size:10px}
 .lookbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:40;display:flex;align-items:center;gap:8px;width:min(440px,calc(100% - 24px));box-sizing:border-box;padding:10px 10px 10px 16px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:18px;box-shadow:0 12px 30px -10px rgba(0,0,0,.35);animation:fadeIn .2s both}
 .lookbar span{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* split purchase */
+.splitbox{margin-top:10px;padding:10px 12px;border:1px dashed var(--line);border-radius:14px;background:var(--pad)}
+.splitrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:6px;align-items:center;margin-bottom:6px}
+.splitrow select,.splitrow input{padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);min-width:0;width:100%}
+.splitfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
+#spRest{font-weight:600;color:var(--ink)}

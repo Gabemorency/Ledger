@@ -287,6 +287,19 @@ function closeModal(){document.getElementById('mBg').classList.remove('open');mO
 document.getElementById('mNo').addEventListener('click',closeModal);
 document.getElementById('mBg').addEventListener('click',e=>{if(e.target.id==='mBg')closeModal()});
 document.getElementById('mYes').addEventListener('click',()=>{if(mWord){const w=document.getElementById('mWord');if(!w||w.value.trim().toLowerCase()!==mWord)return}const f=mOk;const inp=document.getElementById('mIn'),sel=document.getElementById('mSel');const v=inp?parseFloat(inp.value):null,sv=sel?sel.value:null,mv={};document.querySelectorAll('.mcIn').forEach(i=>{const n=r2(parseFloat(i.value)||0);if(n)mv[i.dataset.id]=n});const ml={};document.querySelectorAll('.mlIn').forEach(i=>{if(i.value!=='')ml[i.dataset.id]=r2(parseFloat(i.value))});closeModal();if(f)f(v,sv,mv,ml)});
+function saveSplit(v){
+  const parts=[{cat:A.cat,amt:splitRest()}].concat(A.split.map(p=>({cat:p.cat,amt:r2(parseFloat(p.amt)||0)}))).filter(p=>p.amt>0.004);
+  if(splitRest()<=0.004){toast(`The parts add up to ${money(r2(v-splitRest()),true)}, so nothing is left for ${cat(A.cat).name}. Lower a part or drop the split.`);return}
+  const by={};parts.forEach(p=>by[p.cat]=r2((by[p.cat]||0)+p.amt));const merged=Object.entries(by).map(([cid,amt])=>({cat:cid,amt}));
+  if(merged.length<2){A.split=null;document.getElementById('aSave').click();return}
+  const M=A.date.slice(0,7),over=merged.filter(p=>cat(p.cat).type==='monthly'&&p.amt>Math.max(0,catLeft(cat(p.cat),M))+0.004);
+  if(over.length){toast(`${over.map(p=>`${cat(p.cat).name} has ${money(Math.max(0,catLeft(cat(p.cat),M)),true)} left`).join(', ')}. Move budget in first (Dashboard → Move budget), or lower ${over.length===1?'that part':'those parts'}.`);return}
+  if(!LOW_OK&&lowBalanceCheck(v))return;
+  const gid=id(),vendor=A.vendor.trim()||'Purchase';(S.did=S.did||{}).purchase=true;
+  const made=merged.map(p=>addTx({date:A.date,vendor,amount:p.amt,cat:p.cat,kind:'expense',acct:A.acct,split:gid}));
+  logIt([`Split ${vendor} ${money(v,true)}: ${merged.map(p=>cat(p.cat).name+' '+money(p.amt,true)).join(', ')}`]);
+  closeSheet();render();toast(`Split into ${merged.length}: ${merged.map(p=>cat(p.cat).name).join(', ')}`,()=>{made.slice().reverse().forEach(t=>removeTx(t));render();toast('Split purchase removed')});
+}
 /* Before a purchase from checking, savings or cash: block it if the account can't cover it
    (offering to move money in first), and ask for a confirm if it would leave less than LOW_LEFT. */
 const LOW_LEFT=50;let LOW_OK=false;
@@ -329,7 +342,7 @@ function delta(cur,prev,inv){if(prev==null)return '<span class="sub">No prior mo
 function txLine(t){
   const when=new Date(t.date+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
   let title=t.vendor,meta='',sign='',cls='';
-  if(t.kind==='expense'){meta=t.before?`${cat(t.cat).name}, before Ledger`:`${cat(t.cat).name}, ${aName(t.acct)}`}
+  if(t.kind==='expense'){meta=t.before?`${cat(t.cat).name}, before Ledger`:`${cat(t.cat).name}${t.split?' (split)':''}, ${aName(t.acct)}`}
   else if(t.kind==='fixed'){meta=t.to?`${aName(t.acct)} → ${aName(t.to)}`:`Fixed cost, ${aName(t.acct)}`}
   else if(t.kind==='income'){title=t.vendor||'Income';meta=`Income to ${aName(t.acct)}`;sign='+';cls='in'}
   else if(t.kind==='transfer'){title=t.goal?'To '+((goal(t.goal)||{}).name||'goal'):t.note||'Transfer';meta=`${aName(t.from)} → ${aName(t.to)}`}
@@ -352,6 +365,7 @@ function txDetail(t){
   L.push(['Date',new Date(t.date+'T00:00').toLocaleDateString('en-US',{weekday:'short',month:'long',day:'numeric',year:'numeric'})]);
   L.push(['Amount',money(t.amount,true)]);
   if(t.kind==='expense')L.push(['Category',cat(t.cat).name]);
+  if(t.split){const g=S.tx.filter(x=>x.split===t.split);L.push(['Split',`${money(r2(g.reduce((s_,x)=>s_+x.amount,0)),true)} total: `+g.map(x=>cat(x.cat).name+' '+money(x.amount,true)).join(', ')])}
   if(t.before)L.push(['Note','Spent before you started using Ledger. Not taken from any account']);
   if(t.kind==='income')L.push(['Kind',t.src==='side'?'Side income':'Salary']);
   if(t.from&&t.to&&t.kind==='transfer')L.push(['From → to',aName(t.from)+' → '+aName(t.to)]);
@@ -2463,6 +2477,14 @@ function openSheet(tx){
 function wipeSheet(){closeSheet();document.getElementById('sheet').innerHTML=''}
 function closeSheet(){document.getElementById('sheet').classList.remove('open');document.getElementById('sheetBg').classList.remove('open')}
 function usage(cid){return S.tx.filter(t=>t.cat===cid).length}
+/* split one purchase into several categories: the category chosen above gets whatever the other parts don't */
+function splitRest(){return r2((parseFloat(A.amt)||0)-(A.split||[]).reduce((t,p)=>t+(parseFloat(p.amt)||0),0))}
+function splitRows(cats){const rest=splitRest();
+  return `<div class="splitbox"><p class="lbl" style="margin:0 0 6px">Split</p>
+    ${A.split.map((p,i)=>`<div class="splitrow"><select data-sp-cat="${i}" aria-label="Category for part ${i+2}">${cats.filter(c=>c.id!==A.cat).map(c=>`<option value="${c.id}" ${p.cat===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
+      <input type="number" inputmode="decimal" data-sp-amt="${i}" value="${esc(p.amt)}" placeholder="0.00" aria-label="Amount for part ${i+2}"><button class="x" data-split-del="${i}" aria-label="Remove this part">✕</button></div>`).join('')}
+    <div class="splitfoot"><button class="linkbtn" data-split-add>＋ Add a part</button><span id="spRest" class="${rest<=0.004?'overtxt':''}">${esc(cat(A.cat)?cat(A.cat).name:'')} gets ${money(Math.max(0,rest),true)}</span></div>
+    <button class="linkbtn" data-split-off style="margin-top:6px;font-size:13px">Don’t split</button></div>`}
 function drawSheet(){
   let cats=liveCats().slice().sort((a,b)=>usage(b.id)-usage(a.id));
   if(A.cat&&!cats.find(c=>c.id===A.cat))cats=[cat(A.cat)].concat(cats);
@@ -2485,7 +2507,8 @@ function drawSheet(){
     <label class="field" style="margin:0"><span>Vendor</span><input type="text" id="aVendor" list="vlist" value="${esc(A.vendor)}" placeholder="Optional"></label>
     <datalist id="vlist">${vendors.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>
     <p class="autofill">${A.auto}</p>
-    <p class="lbl">Category</p><div class="chips">${cats.map(c=>`<button class="chip" data-cat="${c.id}" aria-pressed="${A.cat===c.id}">${esc(c.name)}</button>`).join('')}</div>
+    <p class="lbl">Category${A.split?' (gets the rest)':''}</p><div class="chips">${cats.map(c=>`<button class="chip" data-cat="${c.id}" aria-pressed="${A.cat===c.id}">${esc(c.name)}</button>`).join('')}</div>
+    ${A.editId?'':A.split?splitRows(cats):`<button class="linkbtn" data-split-add style="margin-top:8px">＋ Split across categories</button>`}
     <p class="lbl">Paid with</p>${chipsAcct('acct',payAccts().concat(all.filter(a=>a.id===A.acct&&!a.pay)))}`:''}
   ${A.kind==='income'?`
     <p class="lbl" style="margin-top:0">Kind of income</p><div class="chips small">${[['salary','Salary'],['side','Side income']].map(([k,l])=>`<button class="chip" data-src="${k}" aria-pressed="${A.src===k}">${l}</button>`).join('')}</div>
@@ -2512,14 +2535,19 @@ document.addEventListener('keydown',e=>{
   if(/^[0-9.]$/.test(key)||key==='⌫'){const b=document.querySelector(`#sheet [data-k="${key}"]`);if(b){e.preventDefault();b.click()}}
   else if(e.key==='Enter'){e.preventDefault();document.getElementById('aSave').click()}
 });
-document.getElementById('sheet').addEventListener('input',e=>{if(e.target.id==='aVendor')A.vendor=e.target.value;if(e.target.id==='aDate')A.date=e.target.value});
+document.getElementById('sheet').addEventListener('input',e=>{if(e.target.id==='aVendor')A.vendor=e.target.value;if(e.target.id==='aDate')A.date=e.target.value;
+  if(e.target.dataset.spAmt!==undefined&&A.split){A.split[+e.target.dataset.spAmt].amt=e.target.value;const el=document.getElementById('spRest'),r=splitRest();if(el){el.textContent=`${cat(A.cat)?cat(A.cat).name:''} gets ${money(Math.max(0,r),true)}`;el.className=r<=0.004?'overtxt':''}}});
 document.getElementById('sheet').addEventListener('change',e=>{
+  if(e.target.dataset.spCat!==undefined&&A.split){A.split[+e.target.dataset.spCat].cat=e.target.value;return}
   if(e.target.id==='aVendor'&&A.kind==='expense'){const l=lastFor(A.vendor);if(l){A.cat=l.cat;const la=acct(l.acct);if(la&&!la.archived&&la.pay)A.acct=l.acct;A.auto=`Filled in from your last ${esc(l.vendor)} entry: ${esc(cat(l.cat).name)}, ${esc(aName(A.acct))}`}else A.auto='';drawSheet()}
 });
 document.getElementById('sheet').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.splitAdd!==undefined){const used=new Set([A.cat].concat((A.split||[]).map(p=>p.cat)));const c=liveCats().find(x=>!used.has(x.id));if(!c){toast('Every category is already in this split');return}A.split=(A.split||[]).concat({cat:c.id,amt:''});drawSheet();const ins=document.querySelectorAll('[data-sp-amt]');if(ins.length)ins[ins.length-1].focus();return}
+  if(b.dataset.splitDel!==undefined){A.split.splice(+b.dataset.splitDel,1);if(!A.split.length)A.split=null;drawSheet();return}
+  if(b.dataset.splitOff!==undefined){A.split=null;drawSheet();return}
   if(b.dataset.kind){A.kind=b.dataset.kind;A.auto='';if(A.kind==='income'){A.acct=S.plan.deposit;if(!A.vendor)A.vendor='Paycheck'}else if(A.kind==='expense'&&!acct(A.acct).pay)A.acct=S.plan.payDefault;else if(A.vendor==='Paycheck')A.vendor='';if(A.kind==='transfer'&&(A.to===A.from||!A.to))A.to=((liveAccts().find(x=>x.id!==A.from&&x.type==='savings')||liveAccts().find(x=>x.id!==A.from))||{}).id||null;drawSheet();return}
-  if(b.dataset.cat){A.cat=b.dataset.cat;A.auto='';const ca=cat(A.cat).acct&&acct(cat(A.cat).acct);if(ca&&!ca.archived&&ca.pay&&!A.editId){A.acct=ca.id;A.auto=`${esc(cat(A.cat).name)} is usually paid from ${esc(ca.name)}`}drawSheet();return}
+  if(b.dataset.cat){A.cat=b.dataset.cat;if(A.split){A.split=A.split.filter(p=>p.cat!==A.cat);if(!A.split.length)A.split=null}A.auto='';const ca=cat(A.cat).acct&&acct(cat(A.cat).acct);if(ca&&!ca.archived&&ca.pay&&!A.editId){A.acct=ca.id;A.auto=`${esc(cat(A.cat).name)} is usually paid from ${esc(ca.name)}`}drawSheet();return}
   if(b.dataset.acct){A.acct=b.dataset.acct;drawSheet();return}
   if(b.dataset.src){A.src=b.dataset.src;drawSheet();return}
   if(b.dataset.from){A.from=b.dataset.from;if(A.to===A.from)A.to=((liveAccts().find(x=>x.id!==A.from&&x.type==='savings')||liveAccts().find(x=>x.id!==A.from))||{}).id||null;drawSheet();return}
@@ -2558,6 +2586,7 @@ document.getElementById('sheet').addEventListener('click',e=>{
       closeSheet();render();toast('Entry updated');return}
     if(A.kind==='expense'){
       if(!A.cat){toast('Add a category in Settings first');return}
+      if(A.split&&A.split.length)return saveSplit(v);
       {const pa=acct(A.acct);if(!pa||!LIQ.includes(pa.type)){const g=guardTx([{kind:'expense',acct:A.acct,amount:v}]);if(g){toast(g);return}}}
       if(!SHEET_OK&&cat(A.cat).type==='monthly'){const c0=cat(A.cat),M=A.date.slice(0,7),lf=catLeft(c0,M),short=r2(v-lf);
         if(short>0.004){
