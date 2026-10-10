@@ -1199,6 +1199,44 @@ V.planner=()=>{const P=UI.plan||{},B=planBase(),sl=(k,l,min,max,step,v,fmt)=>`<l
   </div>
   <div id="planOut" style="margin-top:12px">${planOut()}</div>`};
 
+/* ---------- milestones: worked out from your data; each is celebrated once ---------- */
+const NW_MARKS=[1000,5000,10000,25000,50000,75000,100000,150000,200000,250000,500000,1000000];
+function noSpendStreaks(){const days=new Set(S.tx.filter(t=>t.kind==='expense'&&!t.before).map(t=>t.date));const first=S.tx.reduce((a,t)=>t.date<a?t.date:a,todayISO);
+  let best=0,bestEnd=null,cur=0;const d=new Date(first+'T00:00'),end=new Date(todayISO+'T00:00');
+  for(;d<end;d.setDate(d.getDate()+1)){const k=iso(d.getFullYear(),d.getMonth()+1,d.getDate());if(days.has(k))cur=0;else{cur++;if(cur>best){best=cur;bestEnd=k}}}
+  return {best,bestEnd,current:cur}}
+function milestones(){const out=[],add=(id,icon,title,sub,date,done,prog)=>out.push({id,icon,title,sub,date,done,prog});
+  const snaps=S.snapshots.slice().sort((a,b)=>a.key.localeCompare(b.key)),nw=netOf();
+  NW_MARKS.forEach(v=>{const hit=snaps.find(x=>netOf(x.bal)>=v),done=!!hit||nw>=v;
+    add('nw'+v,'◆',`Net worth ${money(v)}`,done?'Everything you own minus what you owe':`${money(Math.max(0,v-nw))} to go`,hit?hit.key:done?thisM:null,done,Math.max(0,Math.min(1,nw/v)))});
+  S.goals.filter(g=>!g.parent).forEach(g=>{const full=isParent(g)?famProgress(g).remaining<=0.004:g.saved>=g.target-0.004;const ok=full||g.done;
+    const last=S.tx.filter(t=>t.goal===g.id).reduce((a,t)=>t.date>a?t.date:a,'');add('goal'+g.id,'◎',`${g.name} funded`,ok?`${money(g.target)} saved`:`${money(Math.max(0,isParent(g)?famProgress(g).remaining:g.target-g.saved))} to go`,ok?(last||todayISO).slice(0,7):null,ok,g.target?Math.min(1,(isParent(g)?g.target-famProgress(g).remaining:g.saved)/g.target):0)});
+  S.accounts.filter(a=>a.type==='debt'&&(a.start||0)>0).forEach(a=>{const ok=a.balance<=0.004;add('debt'+a.id,'✓',`${a.name} paid off`,ok?`${money(a.start)} cleared`:`${money(a.balance)} to go`,ok?thisM:null,ok,Math.max(0,Math.min(1,1-a.balance/a.start)))});
+  const st=noSpendStreaks();[3,7,14,30].forEach(n=>add('ns'+n,'☀',`${n}-day no-spend streak`,st.best>=n?'In a row, no purchases':`Best so far: ${st.best} day${st.best===1?'':'s'}`,st.best>=n?(st.bestEnd||todayISO).slice(0,7):null,st.best>=n,Math.min(1,st.best/n)));
+  const nc=(S.closed||[]).length;[1,3,6,12].forEach(n=>add('cl'+n,'🔒',n===1?'First month closed':`${n} months closed`,nc>=n?'Books balanced and locked':`${nc} of ${n}`,nc>=n?S.closed.slice().sort()[n-1]:null,nc>=n,Math.min(1,nc/n)));
+  const sr=trendMonths().filter(m=>m<thisM).map(monthStats).find(x=>x.income>0&&(x.income-x.spend)/x.income>=.2);
+  add('sr20','↗','Saved 20% of a month’s income',sr?'Kept at least a fifth of what came in':'Keep a fifth of what comes in, one month',sr?sr.m:null,!!sr,sr?1:0);
+  const nt=S.tx.filter(t=>!t.before).length;[100,500].forEach(n=>add('tx'+n,'✎',`${n} entries logged`,nt>=n?'Keeping the books':`${nt} of ${n}`,nt>=n?todayISO.slice(0,7):null,nt>=n,Math.min(1,nt/n)));
+  return out}
+let MS_KEY='';
+function checkMilestones(){const k=S.tx.length+'|'+netOf()+'|'+(S.closed||[]).length+'|'+S.goals.map(g=>g.saved+(g.done?'d':'')).join(',');if(k===MS_KEY)return;MS_KEY=k;
+  const got=milestones().filter(m=>m.done).map(m=>m.id);
+  if(!Array.isArray(S.msSeen)){S.msSeen=got;return} // first run: count what's already done, quietly
+  const fresh=got.filter(id=>!S.msSeen.includes(id));if(!fresh.length)return;
+  S.msSeen=S.msSeen.concat(fresh);const m=milestones().find(x=>x.id===fresh[fresh.length-1]);
+  logIt([`Milestone — ${m.title}`]);setTimeout(()=>{notify('Milestone: '+m.title,fresh.length>1?`And ${fresh.length-1} more. See Menu → Milestones.`:'See all your milestones in the menu.');confetti()},1000)}
+function confetti(){if(REDUCED)return;const box=document.createElement('div');box.className='confetti';box.setAttribute('aria-hidden','true');
+  const cols=['var(--fl1)','var(--fl2)','var(--fl3)','var(--fl4)','var(--fl5)','var(--accent)'];
+  for(let i=0;i<36;i++){const p=document.createElement('i');p.style.cssText=`--x:${(Math.random()*2-1)*46}vw;--y:${-30-Math.random()*45}vh;--r:${Math.random()*720-360}deg;--d:${.9+Math.random()*.7}s;background:${cols[i%cols.length]};left:${46+Math.random()*8}%`;box.appendChild(p)}
+  document.body.appendChild(box);setTimeout(()=>box.remove(),2200)}
+V.milestones=()=>{const L=milestones(),done=L.filter(m=>m.done).sort((a,b)=>(b.date||'').localeCompare(a.date||'')),next=L.filter(m=>!m.done).sort((a,b)=>b.prog-a.prog);
+  const nextOnes=[];const seenKind=new Set();next.forEach(m=>{const k=m.id.replace(/\d+$/,'').replace(/^goal.*/,'goal'+m.id);if(seenKind.has(k))return;seenKind.add(k);nextOnes.push(m)});
+  return `<button class="btn small ghost" data-go="more" style="margin-bottom:8px">Back to menu</button><h1>Milestones</h1>
+  <p class="sub">Little wins worth noticing. New ones get a small celebration when you reach them.</p>
+  <div class="panel networth"><span class="sub">Earned</span><div class="num" style="font:800 40px/1.1 var(--display)">${done.length}<small style="font-size:16px;font-weight:600;color:var(--muted)"> of ${L.length}</small></div></div>
+  ${nextOnes.length?`<h2>Up next</h2><div class="panel">${nextOnes.slice(0,6).map(m=>`<div class="row mrow2"><div class="rowtop"><span><span class="msic">${m.icon}</span><b>${esc(m.title)}</b></span><span class="sub">${Math.round(m.prog*100)}%</span></div><div class="bar"><i class="ok" style="width:${m.prog*100}%"></i></div><p class="sub" style="font-size:13px;margin:4px 0 0">${esc(m.sub)}</p></div>`).join('')}</div>`:''}
+  ${done.length?`<h2>Earned</h2><div class="mgrid">${done.map(m=>`<div class="mbadge"><span class="msic big">${m.icon}</span><b>${esc(m.title)}</b><small>${m.date?esc(monthName(mDate(m.date.slice(0,7)),{month:'short',year:'numeric'})):''}</small></div>`).join('')}</div>`:'<div class="panel emptycard" style="margin-top:12px"><b>None yet.</b><p class="sub">Your first one is closer than you think.</p></div>'}`};
+
 /* ---------- notes ---------- */
 const NCOL=[['plain','Plain'],['green','Green'],['blue','Blue'],['amber','Amber'],['rose','Rose'],['violet','Violet']];
 const noteHTML=b=>esc(b||'').replace(/\n/g,'<br>');
@@ -1980,7 +2018,7 @@ function setupStepCheck(st){
 
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
-  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions',search:'Search',planner:'What if'};
+  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions',search:'Search',planner:'What if',milestones:'Milestones'};
   const on=S.view==='more';
   const eye=(S.look||{}).hide?`<button class="eyebtn" data-eye aria-pressed="${!!UI.reveal}" aria-label="${UI.reveal?'Hide amounts':'Show amounts'}">${UI.reveal?'🙈':'👁'}</button>`:'';
   return `<div class="appbar"><span class="brand">Ledger</span>${eye}<button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
@@ -1995,6 +2033,7 @@ V.more=()=>{const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t+Math.max(0,x
     tile('unassigned','◇','Unassigned',short?`${short} account${short===1?'':'s'} short`:`${money(free)} free to assign`,short?'warn':''),
     tile('breakdown','⇄','Follow the money','Where this month went'),
     tile('planner','⚖︎','What if…','Play out a raise or a goal push'),
+    tile('milestones','★','Milestones',`${milestones().filter(m=>m.done).length} earned`),
     tile('subs','↻','Subscriptions',(S.subs||[]).length?`${money(r2((S.subs||[]).reduce((t,x)=>t+subMonthly(x),0)))}/month`:'Track what renews'),
     tile('notes','✎','Notes',N?`${N} note${N===1?'':'s'}`:'Reminders for yourself')])}
   ${grp('Ledger',[tile('config','⚙︎','Settings','Budgets, bills, colors'),tile('log','≡','Change log',`${(S.log||[]).length} change${(S.log||[]).length===1?'':'s'} recorded`),
@@ -2096,6 +2135,7 @@ function render(){
   document.querySelectorAll('nav [data-view]').forEach(b=>{if(b.dataset.view===S.view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   if(same&&window.scrollTo)window.scrollTo(0,y);
   const gd=document.getElementById('gDate');if(gd){const d=new Date(now);d.setMonth(d.getMonth()+6);gd.value=d.toISOString().slice(0,10)}
+  if(S.setupDone)checkMilestones();
   save();
 }
 
