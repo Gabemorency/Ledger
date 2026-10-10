@@ -997,6 +997,7 @@ V.breakdown=()=>{
   const ua=m===thisM?uaAccts().map(uaInfo):null;
   return `<button class="btn small ghost" data-go="trends" style="margin-bottom:8px">Back to trends</button><h1>Follow the money</h1>
   <p class="sub">Where your money started, where it came from, where it went, and the jobs you gave it.</p>
+  ${m<thisM?`<button class="rcplay" data-act="recap" data-m="${m}">▶ Play the ${esc(monthName(mDate(m),{month:'long'}))} recap</button>`:''}
   <div class="bkmonth"><button class="x" data-bm="-1" aria-label="Previous month" ${i>0?'':'disabled'}>‹</button><b>${esc(mFull(m))}</b><button class="x" data-bm="1" aria-label="Next month" ${i<ms.length-1?'':'disabled'}>›</button></div>
 
   ${(()=>{const made=r2(st.income),kept=r2(made-tot),mx=Math.max(made,tot,0.01),ret=r2((F.use.find(x=>x.name==='To retirement')||{v:0}).v);
@@ -1236,6 +1237,45 @@ V.milestones=()=>{const L=milestones(),done=L.filter(m=>m.done).sort((a,b)=>(b.d
   <div class="panel networth"><span class="sub">Earned</span><div class="num" style="font:800 40px/1.1 var(--display)">${done.length}<small style="font-size:16px;font-weight:600;color:var(--muted)"> of ${L.length}</small></div></div>
   ${nextOnes.length?`<h2>Up next</h2><div class="panel">${nextOnes.slice(0,6).map(m=>`<div class="row mrow2"><div class="rowtop"><span><span class="msic">${m.icon}</span><b>${esc(m.title)}</b></span><span class="sub">${Math.round(m.prog*100)}%</span></div><div class="bar"><i class="ok" style="width:${m.prog*100}%"></i></div><p class="sub" style="font-size:13px;margin:4px 0 0">${esc(m.sub)}</p></div>`).join('')}</div>`:''}
   ${done.length?`<h2>Earned</h2><div class="mgrid">${done.map(m=>`<div class="mbadge"><span class="msic big">${m.icon}</span><b>${esc(m.title)}</b><small>${m.date?esc(monthName(mDate(m.date.slice(0,7)),{month:'short',year:'numeric'})):''}</small></div>`).join('')}</div>`:'<div class="panel emptycard" style="margin-top:12px"><b>None yet.</b><p class="sub">Your first one is closer than you think.</p></div>'}`};
+
+/* ---------- monthly recap: a tap-through story of one month ---------- */
+function recapSlides(m){const st=monthStats(m),L=bkLines(m),spent=r2(L.reduce((a,l)=>a+l.t.amount,0)),kept=r2(st.income-spent),rate=st.income>0?Math.round(kept/st.income*100):null;
+  const name=monthName(mDate(m),{month:'long'}),slides=[];
+  slides.push({k:'title',big:`${esc(name)}`,sub:'Your month, wrapped',foot:'Tap to continue'});
+  slides.push({k:'flow',kicker:'Money in, money out',rows:[['Made',money(st.income)],['Spent',money(spent)]],big:`${kept>=0?'Kept':'Overspent'} ${money(Math.abs(kept))}`,sub:rate!=null?`${rate>=0?rate:0}% of what came in${rate>=20?'. That’s a strong month.':''}`:''});
+  const what=bkGroup(L,'what',l=>l.whatName).filter(x=>x.k!=='bills'),top=what[0];
+  if(top)slides.push({k:'cat',kicker:'Where most of it went',big:esc(top.name),sub:`${money(top.tot)}, ${spent?Math.round(top.tot/spent*100):0}% of your spending`,rows:what.slice(1,4).map(x=>[esc(x.name),money(x.tot)])});
+  const vend={};L.filter(l=>l.t.kind==='expense').forEach(l=>{vend[l.t.vendor]=(vend[l.t.vendor]||{n:0,v:0});vend[l.t.vendor].n++;vend[l.t.vendor].v+=l.t.amount});
+  const tv=Object.entries(vend).sort((a,b)=>b[1].n-a[1].n||b[1].v-a[1].v)[0];
+  if(tv)slides.push({k:'store',kicker:'Your regular',big:esc(tv[0]),sub:`${tv[1].n} visit${tv[1].n===1?'':'s'}, ${money(tv[1].v,true)}`});
+  const big=L.filter(l=>l.t.kind==='expense').sort((a,b)=>b.t.amount-a.t.amount)[0];
+  if(big)slides.push({k:'big',kicker:'Biggest purchase',big:money(big.t.amount,true),sub:`${esc(big.t.vendor||'Purchase')} on ${esc(shortD(big.t.date))}`});
+  const [y,mm]=m.split('-').map(Number),dim=new Date(y,mm,0).getDate(),last=m<thisM?dim:m===thisM?now.getDate():0,days=new Set(L.filter(l=>l.t.kind==='expense').map(l=>+l.t.date.slice(8,10)));
+  let ns=0,run=0,best=0;for(let d=1;d<=last;d++){if(days.has(d))run=0;else{ns++;run++;best=Math.max(best,run)}}
+  if(last)slides.push({k:'calm',kicker:'No-spend days',big:`${ns}`,sub:`day${ns===1?'':'s'} without a single purchase${best>1?`, ${best} in a row at best`:''}`});
+  const gl={};S.tx.filter(t=>t.goal&&inMonth(t,m)).forEach(t=>{const g=goal(t.goal);if(!g)return;const r=g.parent?goal(g.parent)||g:g;gl[r.id]=(gl[r.id]||{g:r,v:0});gl[r.id].v+=t.kind==='unassign'?-t.amount:(t.kind==='assign'||t.kind==='transfer')?t.amount:0});
+  const gs=Object.values(gl).filter(x=>x.v>0.004).sort((a,b)=>b.v-a.v);
+  if(gs.length)slides.push({k:'goals',kicker:'Set aside for goals',big:money(r2(gs.reduce((a,x)=>a+x.v,0))),rows:gs.slice(0,4).map(x=>[esc(x.g.name),money(x.v)])});
+  const snaps=S.snapshots.slice().sort((a,b)=>a.key.localeCompare(b.key)),i=snaps.findIndex(x=>x.key===m);
+  if(i>0){const a=netOf(snaps[i-1].bal),b=netOf(snaps[i].bal),d=r2(b-a);slides.push({k:'nw',kicker:'Net worth',big:`${d>=0?'+':'−'}${money(Math.abs(d))}`,sub:`${money(a)} → ${money(b)}`})}
+  const ms=milestones().filter(x=>x.done&&x.date&&x.date.slice(0,7)===m);
+  if(ms.length)slides.push({k:'ms',kicker:`Milestone${ms.length===1?'':'s'} unlocked`,big:ms[0].icon,rows:ms.slice(0,4).map(x=>[esc(x.title),''])});
+  slides.push({k:'end',big:kept>=0?'Nice work.':'On to the next one.',sub:kept>=0?`${esc(name)} is in the books.`:'Every month is a fresh start.',foot:'Tap to close'});
+  return slides}
+let RC=null;
+function openRecap(m){const slides=recapSlides(m);if(!slides.length)return;closeRecap();
+  const el=document.createElement('div');el.id='recap';el.className='recap';el.setAttribute('role','dialog');el.setAttribute('aria-label',monthName(mDate(m),{month:'long',year:'numeric'})+' recap');
+  document.body.appendChild(el);RC={m,slides,i:0,el,timer:null};drawRecap();
+  el.addEventListener('click',e=>{if(e.target.closest('[data-rc-close]')){closeRecap();return}const r=el.getBoundingClientRect();stepRecap(e.clientX<r.left+r.width*.3?-1:1)})}
+function drawRecap(){const {slides,i,el}=RC,s=slides[i];
+  el.innerHTML=`<div class="rcbars">${slides.map((_,j)=>`<i class="${j<i?'done':j===i?'now':''}"><b></b></i>`).join('')}</div>
+    <button class="rcx" data-rc-close aria-label="Close recap">✕</button>
+    <div class="rcslide rc-${s.k}" aria-live="polite">${s.kicker?`<p class="rck">${s.kicker}</p>`:''}<div class="rcbig num">${s.big}</div>${s.sub?`<p class="rcsub">${s.sub}</p>`:''}
+      ${s.rows?`<div class="rcrows">${s.rows.map(([a,b])=>`<div><span>${a}</span><b class="num">${b}</b></div>`).join('')}</div>`:''}${s.foot?`<p class="rcfoot">${s.foot}</p>`:''}</div>`;
+  clearTimeout(RC.timer);if(!REDUCED)RC.timer=setTimeout(()=>stepRecap(1),5200)}
+function stepRecap(d){if(!RC)return;const n=RC.i+d;if(n<0)return;if(n>=RC.slides.length){closeRecap();return}RC.i=n;drawRecap()}
+function closeRecap(){if(!RC)return;clearTimeout(RC.timer);RC.el.remove();RC=null}
+document.addEventListener('keydown',e=>{if(!RC)return;if(e.key==='Escape')closeRecap();else if(e.key==='ArrowRight'||e.key===' ')stepRecap(1);else if(e.key==='ArrowLeft')stepRecap(-1)});
 
 /* ---------- notes ---------- */
 const NCOL=[['plain','Plain'],['green','Green'],['blue','Blue'],['amber','Amber'],['rose','Rose'],['violet','Violet']];
@@ -2478,6 +2518,7 @@ function handleAct(t){
     logIt([`Assigned ${money(v,true)} from ${aName(aid)} to ${g.name}`+(same?'':` (transfer to ${aName(g.acct)})`)]);
     render();toast(same?`${money(v,true)} set aside for ${g.name}`:`${money(v,true)} to ${g.name}. Make the transfer to ${aName(g.acct)} in your bank too`,()=>{removeTx(nt);render();toast('Undone')});
     return}
+  if(a==='recap'){openRecap(t.dataset.m);return}
   if(a==='planReset'){UI.plan=null;render();return}
   if(a==='subNew'){UI.sub={id:null,name:'',amount:'',freq:'monthly',next:todayISO,note:''};render();const el=document.querySelector('[data-sf=name]');if(el)el.focus();return}
   if(a==='subCancel'){UI.sub=null;render();return}
@@ -2667,6 +2708,7 @@ function handleAct(t){
       if(loLines.length)logIt(loLines.map(l=>'Leftover at close: '+l.replace(/ \(records a transfer[^)]*\)/,'')));
       logIt(corr.map(c=>`Reconciled at close — ${c.asset?S.assets.find(y=>y.id===c.asset).name:aName(c.id)}: ${money(c.from,true)} → ${money(c.to,true)}`).concat([nm+' closed and locked']));
       const next=closeTarget();
+      setTimeout(()=>openRecap(T),600);
       if(next){S.view='close';render();window.scrollTo(0,0);toast(`${nm} closed. Next up: ${monthName(mDate(next))}`)}
       else{S.view='activity';setMonth(T);render();window.scrollTo(0,0);toast(nm+' closed'+(corr.length?`, ${corr.length} correction${corr.length>1?'s':''} recorded`:''))}
     });return}

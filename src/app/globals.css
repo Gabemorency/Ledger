@@ -852,3 +852,30 @@ body{transition:background-color .25s}
 .confetti{position:fixed;inset:0;pointer-events:none;z-index:300;overflow:hidden}
 .confetti i{position:absolute;top:62%;width:8px;height:12px;border-radius:2px;animation:confFly var(--d) cubic-bezier(.15,.7,.3,1) forwards}
 @keyframes confFly{0%{transform:translate(0,0) rotate(0);opacity:1}80%{opacity:1}100%{transform:translate(var(--x),var(--y)) rotate(var(--r));opacity:0}}
+/* monthly recap */
+.rcplay{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin:12px 0 0;padding:12px;border:0;border-radius:14px;background:linear-gradient(120deg,var(--accent),color-mix(in srgb,var(--accent) 55%,var(--fl4)));color:var(--surface);font:700 15px var(--display)}
+.recap{position:fixed;inset:0;z-index:400;color:#fff;background:#111;display:flex;flex-direction:column;padding:calc(14px + env(safe-area-inset-top,0px)) 18px calc(24px + env(safe-area-inset-bottom,0px));cursor:pointer;user-select:none;-webkit-user-select:none;animation:fadeIn .25s both}
+.rcbars{display:flex;gap:4px}.rcbars i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden}
+.rcbars i b{display:block;height:100%;width:0;background:#fff}.rcbars i.done b{width:100%}
+.rcbars i.now b{animation:rcFill 5.2s linear forwards}
+@keyframes rcFill{to{width:100%}}
+@media (prefers-reduced-motion: reduce){.rcbars i.now b{width:100%;animation:none}}
+.rcx{position:absolute;top:calc(26px + env(safe-area-inset-top,0px));right:14px;border:0;background:rgba(255,255,255,.15);color:#fff;width:36px;height:36px;border-radius:50%;font-size:16px}
+.rcslide{flex:1;display:flex;flex-direction:column;justify-content:center;max-width:460px;width:100%;margin:0 auto;animation:rcIn .45s cubic-bezier(.2,.7,.2,1) both}
+@keyframes rcIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.rck{font-size:14px;letter-spacing:.12em;text-transform:uppercase;opacity:.8;margin:0 0 10px}
+.rcbig{font:800 clamp(40px,13vw,72px)/1.02 var(--display);letter-spacing:-.03em;overflow-wrap:anywhere}
+.rcsub{font-size:18px;opacity:.9;margin:12px 0 0;line-height:1.35}
+.rcrows{margin-top:22px;border-top:1px solid rgba(255,255,255,.25)}
+.rcrows div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.18);font-size:16px}
+.rcfoot{position:absolute;bottom:calc(28px + env(safe-area-inset-bottom,0px));left:0;right:0;text-align:center;font-size:13px;opacity:.6;margin:0}
+.recap:has(.rc-title){background:linear-gradient(160deg,var(--accent),#111 80%)}
+.recap:has(.rc-flow){background:linear-gradient(160deg,#1F5A41,#0B1F17)}
+.recap:has(.rc-cat){background:linear-gradient(160deg,#5B7FD6,#1A2340)}
+.recap:has(.rc-store){background:linear-gradient(160deg,#E0A33A,#3A2508)}
+.recap:has(.rc-big){background:linear-gradient(160deg,#D9756B,#3A1512)}
+.recap:has(.rc-calm){background:linear-gradient(160deg,#3FA7A0,#0E2C2A)}
+.recap:has(.rc-goals){background:linear-gradient(160deg,#8C6FD1,#231A3D)}
+.recap:has(.rc-nw){background:linear-gradient(160deg,#2E3440,#0B0D11)}
+.recap:has(.rc-ms){background:linear-gradient(160deg,#FF7A9A,#3A1020)}
+.recap:has(.rc-end){background:linear-gradient(160deg,var(--accent),#111 85%)}
