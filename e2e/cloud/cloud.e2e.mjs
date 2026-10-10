@@ -13,7 +13,12 @@ const sql = (q) => execSync(`psql -Atc "${q}"`).toString().trim();
 const baseline = JSON.parse(readFileSync(`${HERE}../baseline.json`, "utf8"));
 const seed = JSON.parse(readFileSync(`${HERE}seed.json`, "utf8"));
 let passed = 0, failed = 0;
-const check = (name, ok, extra = "") => { ok ? passed++ : failed++; console.log(`${ok ? "PASS" : "FAIL"} ${name}${extra ? "  " + extra : ""}`); };
+const devices = {};
+const check = (name, ok, extra = "") => {
+  ok ? passed++ : failed++;
+  console.log(`${ok ? "PASS" : "FAIL"} ${name}${extra ? "  " + extra : ""}`);
+  if (!ok && process.env.DEBUG_SYNC) for (const [n, d] of Object.entries(devices)) console.log(`  [${n}] ` + (d.page.logs || []).slice(-8).join("\n  [" + n + "] "));
+};
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 async function device() {
@@ -21,6 +26,9 @@ async function device() {
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
+  page.logs = [];
+  page.on("console", (m) => page.logs.push(`${m.type()}: ${m.text()}`));
+  page.on("response", async (r) => { if (r.status() >= 400 && r.status() !== 401) { let b = ""; try { b = (await r.text()).slice(0, 300); } catch {} page.logs.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(/^https?:\/\/[^/]+/, "")} ${b}`); } });
   page.on("console", (m) => m.type() === "error" && !/Failed to load resource|ERR_INTERNET_DISCONNECTED/.test(m.text()) && page.errors.push(m.text()));
   await page.clock.setFixedTime(new Date("2026-10-07T12:00:00"));
   return { ctx, page };
@@ -72,6 +80,7 @@ sql("truncate accounts, categories, fixed_costs, goals, entries, snapshots, sett
 
 // 1. sign-in
 const A = await device();
+devices.A = A;
 await A.page.goto(APP + "/");
 check("signed-out visitor is sent to /login", A.page.url().endsWith("/login"));
 await A.page.waitForTimeout(600); if (OUT) await A.page.screenshot({ path: `${OUT}/cloud-login.png` });
@@ -131,8 +140,7 @@ await go(A.page, "home");
 await A.page.click("#addBtn");
 for (const k of ["1", "2", ".", "5"]) await A.page.click(`#sheet button[data-k="${k}"]`);
 await A.page.click("#aSave");
-await saved(A.page);
-check("new expense saved to the cloud", sql(`select count(*) from entries where user_id='${U1}'`) === String(seed.tx.length + 1));
+check("new expense saved to the cloud", await eventually(() => Number(sql(`select count(*) from entries where user_id='${U1}'`)) === seed.tx.length + 1));
 check("its amount is exact", sql(`select amount from entries where user_id='${U1}' order by updated_at desc limit 1`) === "12.50");
 check("new ids are random UUIDs", /^i[0-9a-f]{32}$/.test(sql(`select id from entries where user_id='${U1}' order by updated_at desc limit 1`)));
 
@@ -147,6 +155,7 @@ check("second user's rows are separate", sql(`select count(*) from entries where
 
 // 6. a second device for the same user sees everything, and picks up later changes
 const C = await device();
+devices.C = C;
 await signIn(C.page, "me@example.com");
 await C.page.waitForURL(APP + "/");
 await getPastPin(C.page);
@@ -154,14 +163,17 @@ await go(C.page, "activity");
 check("second device loads the same data", (await appHTML(C.page)).includes("12.50"));
 await A.page.click("#addBtn");
 for (const k of ["7"]) await A.page.click(`#sheet button[data-k="${k}"]`);
+const beforeC = Number(sql(`select count(*) from entries where user_id='${U1}'`));
 await A.page.click("#aSave");
+await eventually(() => Number(sql(`select count(*) from entries where user_id='${U1}'`)) === beforeC + 1);
 await saved(A.page);
 await C.page.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }); document.dispatchEvent(new Event("visibilitychange")); });
 await C.page.waitForTimeout(1000); // the phone sits in a pocket for a moment
 await C.page.clock.setFixedTime(new Date("2026-10-07T12:01:00"));
 const reloaded = C.page.waitForEvent("load", { timeout: 10000 }).then(() => true, () => false);
 await C.page.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" }); document.dispatchEvent(new Event("visibilitychange")); });
-check("second device reloads when it comes back after another device saved", await reloaded);
+const didReload = await reloaded;
+check("second device reloads when it comes back after another device saved", didReload);
 check("…and asks for the PIN again", (await (async () => { await C.page.waitForSelector("#app *"); await C.page.waitForTimeout(200); return lockTitle(C.page); })()).startsWith("Enter your PIN"));
 await getPastPin(C.page);
 await go(C.page, "activity");
@@ -187,8 +199,7 @@ await go(A.page, "activity");
 check("…with the offline change still there", (await appHTML(A.page)).includes("$3.00"));
 const before = sql(`select count(*) from entries where user_id='${U1}'`);
 await A.ctx.setOffline(false);
-await saved(A.page);
-check("uploaded once back online", Number(sql(`select count(*) from entries where user_id='${U1}'`)) === Number(before) + 1);
+check("uploaded once back online", await eventually(() => Number(sql(`select count(*) from entries where user_id='${U1}'`)) === Number(before) + 1));
 
 // 8. the emailed link: works in the browser that asked for it, nowhere else
 const D = await device();
