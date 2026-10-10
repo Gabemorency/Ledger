@@ -823,3 +823,17 @@ body{transition:background-color .25s}
 .srow b{font-weight:600;overflow-wrap:anywhere}.srow small{display:block;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .srow .num{white-space:nowrap;font-weight:700}
 .srow mark{background:color-mix(in srgb,var(--accent) 25%,transparent);color:inherit;border-radius:3px;padding:0 1px}
+/* spending calendar */
+.cal{padding:12px 12px 14px}
+.cweek,.cgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cweek span{text-align:center;font-size:11px;color:var(--muted);font-weight:600;padding-bottom:2px}
+.cday{position:relative;aspect-ratio:1/1.05;border:0;border-radius:10px;background:color-mix(in srgb,var(--accent) var(--p,0%),var(--pad));color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;min-width:0;font:inherit}
+.cday b{font-size:13px;font-weight:600;line-height:1}
+.cday small{font-size:9.5px;line-height:1;opacity:.85}
+.cday.hot{color:var(--surface)}
+.cday.blank{background:none}
+.cday.fut{background:none;color:var(--muted);opacity:.5}
+.cday.zero::after{content:"";position:absolute;bottom:6px;width:5px;height:5px;border-radius:50%;background:var(--ahead)}
+.cday.today{box-shadow:inset 0 0 0 2px var(--ink)}
+.cday.sel{outline:2px solid var(--ink);outline-offset:1px}
+.calday{border-top:1px solid var(--line);margin-top:10px}

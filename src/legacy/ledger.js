@@ -972,6 +972,19 @@ function trail(x,tx,m){const aid=x.a.id,inn=[],out=[],cats={};
     ${out.length?`<p class="lbl">Went out</p>${out.map(r=>row(r,'−')).join('')}`:''}
     ${!inn.length&&!out.length?'<p class="sub" style="font-size:13px;margin:6px 0">No money moved in or out this month.</p>':''}
     <div class="trow tedge"><span>${m===thisM?'Now':'Ended with'}</span><b class="num">${money(x.end,true)}</b></div></div></details>`}
+/* spending calendar: purchases per day, shaded by size */
+function spendCal(m){const [y,mm]=m.split('-').map(Number),dim=new Date(y,mm,0).getDate(),first=new Date(y,mm-1,1).getDay(),day={};
+  S.tx.filter(t=>t.kind==='expense'&&!t.before&&t.date.startsWith(m)).forEach(t=>{const d=+t.date.slice(8,10);day[d]=r2((day[d]||0)+t.amount)});
+  const lastDay=m<thisM?dim:m===thisM?now.getDate():0,vals=Object.values(day),max=Math.max(1,...vals);
+  const noSpend=[];for(let d=1;d<=lastDay;d++)if(!day[d])noSpend.push(d);
+  const big=Object.entries(day).sort((a,b)=>b[1]-a[1])[0],avg=vals.length?r2(vals.reduce((a,b)=>a+b,0)/vals.length):0,sel=UI.calDay&&UI.calDay.startsWith(m)?UI.calDay:null;
+  let cells='';for(let i=0;i<first;i++)cells+='<span class="cday blank"></span>';
+  for(let d=1;d<=dim;d++){const v=day[d]||0,dt=iso(y,mm,d),fut=d>lastDay,pct=v?Math.round(18+82*Math.sqrt(v/max)):0;
+    cells+=`<button class="cday ${pct>=55?'hot':''} ${fut?'fut':''} ${!v&&!fut?'zero':''} ${dt===todayISO?'today':''} ${sel===dt?'sel':''}" data-calday="${dt}" ${fut?'disabled':''} style="${v?`--p:${pct}%`:''}" aria-label="${shortD(dt)}: ${v?money(v,true)+' spent':fut?'not yet':'no spending'}"><b>${d}</b>${v?`<small class="num">${kfmt(v)}</small>`:''}</button>`}
+  const list=sel?S.tx.filter(t=>t.kind==='expense'&&!t.before&&t.date===sel):[];
+  return `<div class="panel cal"><div class="cweek">${['S','M','T','W','T','F','S'].map(x=>`<span>${x}</span>`).join('')}</div><div class="cgrid">${cells}</div>
+    <p class="sub" style="font-size:13px;margin:10px 0 0">${lastDay?`<b class="num">${noSpend.length}</b> no-spend day${noSpend.length===1?'':'s'}${big?` · biggest day ${shortD(iso(y,mm,+big[0]))} (${money(big[1],true)})`:''}${vals.length?` · ${money(avg,true)} on an average spending day`:''}`:'This month hasn’t started yet.'}</p>
+    ${sel?`<div class="calday"><p class="lbl" style="margin:12px 0 4px">${esc(new Date(sel+'T00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}))}</p>${list.length?list.map(txLine).join(''):'<p class="sub" style="font-size:14px;margin:4px 0">No purchases. Nice.</p>'}</div>`:'<p class="sub" style="font-size:12px;margin:6px 0 0">Tap a day to see what you bought. Purchases only, not bills or transfers.</p>'}</div>`}
 V.breakdown=()=>{
   const ms=bkMonths();if(!BK.m||!ms.includes(BK.m))BK.m=thisM;const m=BK.m,i=ms.indexOf(m);
   const F=moneyFlow(m),L=bkLines(m),tot=r2(L.reduce((a,l)=>a+l.t.amount,0)),st=monthStats(m);
@@ -1002,6 +1015,9 @@ V.breakdown=()=>{
   <div class="panel cpanel">${F.accts.length?`<div class="skhead"><span>Money in</span><span>Accounts</span><span>Money out</span></div>`+sankey(F.src,F.use)+`<p class="sub" style="font-size:13px;margin:8px 0 0">Your checking, savings and cash went from <b class="num">${money(F.start,true)}</b> to <b class="num">${money(F.end,true)}</b>${m===thisM?' so far':''}.</p>`:'<div class="empty">Add a checking, savings or cash account to see the flow.</div>'}
     ${(()=>{const fi=r2(F.src.filter(x=>!x.end).reduce((s,x)=>s+x.v,0)),fo=r2(F.use.filter(x=>!x.end).reduce((s,x)=>s+x.v,0)),d=r2(fi-fo);
       return `<div class="bkstats"><div><span class="sub">Money in</span><b class="num">${money(fi,true)}</b></div><div><span class="sub">Money out</span><b class="num">${money(fo,true)}</b></div><div><span class="sub">Change</span><b class="num ${d>=0?'okc':'overtxt'}">${d>=0?'+':'−'}${money(Math.abs(d),true)}</b></div></div>`})()}</div>
+
+  <h2>Spending calendar</h2>
+  ${spendCal(m)}
 
   <h2>Account by account</h2>
   <p class="sub" style="font-size:14px;margin:-4px 0 8px">Tap an account to follow every dollar in and out.</p>
@@ -2230,6 +2246,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.act==='lookKeep'&&UI.lookDraft){const st=STYLES.find(x=>x[0]===lookNow().style);S.look=Object.assign({},S.look||{},UI.lookDraft);UI.lookDraft=null;logIt(['Appearance — '+(st?st[1]:'Classic')+' style']);applyLook();render();toast('Look saved');return}
   if(t.dataset.act==='lookCancel'){UI.lookDraft=null;applyLook();render();toast('Back to your saved look');return}
   if(t.dataset.eye!==undefined){UI.reveal=!UI.reveal;applyLook();render();return}
+  if(t.dataset.calday){UI.calDay=UI.calDay===t.dataset.calday?null:t.dataset.calday;render();return}
   if(t.dataset.bm){const ms=bkMonths(),i=ms.indexOf(BK.m)+(+t.dataset.bm);if(i>=0&&i<ms.length){BK.m=ms[i];render()}return}
   if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
   if(t.dataset.gjump){const el=document.getElementById('g-'+t.dataset.gjump);guideMark(t.dataset.gjump);if(el){el.classList.add('in');el.scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}return}
