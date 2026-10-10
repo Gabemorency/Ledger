@@ -722,7 +722,9 @@ V.goals=()=>{
         ${pinBtn('goal:'+g.id,g.name)}
         <button class="btn small ghost" data-act="editGoal" data-id="${g.id}">🔒 Edit</button>
       </div>`:''}`;
-    const efSync=g.emergency?(()=>{const t=Math.max(essentials().target,Math.ceil(g.saved));return t>0&&Math.abs(t-g.target)>Math.max(50,g.target*.05)?`<p class="sub" style="font-size:13px;margin:4px 0 0">Your essentials changed in Settings. 3 months is now ${money(t)}. <button class="linkbtn" data-act="efSync" data-id="${g.id}">Update target</button></p>`:''})():'';
+    const efSync=g.emergency?(()=>{const e3=essentials().target,t=Math.max(e3,Math.ceil(g.saved));
+      if(g.efOwn)return e3>g.target+Math.max(50,g.target*.05)?`<p class="sub" style="font-size:13px;margin:4px 0 0">You set this target yourself. 3 months of your essentials is now ${money(e3)}, more than that. <button class="linkbtn" data-act="efSync" data-id="${g.id}">Use ${money(e3)}</button></p>`:`<p class="sub" style="font-size:13px;margin:4px 0 0">Your own target. 3 months of essentials would be ${money(e3)}.</p>`;
+      return t>0&&Math.abs(t-g.target)>Math.max(50,g.target*.05)?`<p class="sub" style="font-size:13px;margin:4px 0 0">Your essentials changed in Settings. 3 months is now ${money(t)}. <button class="linkbtn" data-act="efSync" data-id="${g.id}">Update target</button></p>`:''})():'';
     const planWarn=efSync+(pl&&pl.funded<pl.need?`<p class="warnline">Priority #${i+1}: this month's plan only covers ${money(pl.funded)} of it. ${tip('prioritywarn')}</p>`:'');
     if(isParent(g)){
       const fp=k.fp,ks=kids(g).slice().sort((a,b)=>(a.done-b.done)||a.date.localeCompare(b.date));const nxt=liveKids(g).slice().sort((a,b)=>a.date.localeCompare(b.date))[0];
@@ -2154,7 +2156,7 @@ function handleAct(t){
     const d=new Date(now.getFullYear()+1,now.getMonth(),1),g={id:id(),name:'Emergency fund',target:E.target,saved:0,date:iso(d.getFullYear(),d.getMonth()+1,1),created:todayISO,acct:ac,done:false,emergency:true};
     S.goals.unshift(g);logIt(['Created Emergency fund ('+money(E.target)+', 3 months of essentials) at top priority']);render();toast('Emergency fund created: '+money(goalInfo(g).perMonth)+'/month',()=>{S.goals=S.goals.filter(x=>x!==g);render();toast('Removed')});return}
   if(a==='efNo'){S.efDismiss=true;render();toast('Hidden. You can create one anytime below.');return}
-  if(a==='efSync'){const g=goal(t.dataset.id),E3=essentials().target,T=Math.max(E3,Math.ceil(g.saved));confirmBox('Update emergency fund target?',[`${money(g.target)} → ${money(T)}`,T>E3?`You already have ${money(g.saved)} saved, more than 3 months (${money(E3)}), so the target stays at what you have`:'3 months of essential bills and need categories from Settings'],'Update target',()=>{logIt([g.name+' target: '+money(g.target)+' → '+money(T)]);g.target=T;render();toast('Target updated')});return}
+  if(a==='efSync'){const g=goal(t.dataset.id),E3=essentials().target,T=Math.max(E3,Math.ceil(g.saved));confirmBox('Update emergency fund target?',[`${money(g.target)} → ${money(T)}`,T>E3?`You already have ${money(g.saved)} saved, more than 3 months (${money(E3)}), so the target stays at what you have`:'3 months of essential bills and need categories from Settings'],'Update target',()=>{logIt([g.name+' target: '+money(g.target)+' → '+money(T)]);g.target=T;delete g.efOwn;render();toast('Target updated')});return}
   if(a==='gsSkip'){S.gsSkip=(S.gsSkip||[]).concat(t.dataset.k);render();return}
   if(a==='gsHide'){confirmBox('Hide the getting-started checklist?',['You can bring it back from Help'],'Hide it',()=>{S.gsHidden=true;render();toast('Checklist hidden. Bring it back from Help.')});return}
   if(a==='gsShow'){S.gsHidden=false;resetUI();S.view='home';render();window.scrollTo(0,0);return}
@@ -2336,7 +2338,7 @@ function handleAct(t){
     let moveAmt=0;if(ac!==g.acct){moveAmt=r2(par?fp.aside:g.saved);const src=acct(g.acct);if(moveAmt>src.balance+0.004){toast(`${src.name} only has ${money(src.balance,true)}, so the ${money(moveAmt)} can’t move yet`);return}ch.push(chg('Kept in',esc(aName(g.acct)),esc(aName(ac)))+(par?' (with its sub-goals)':''));if(moveAmt>0)ch.push(`${money(moveAmt,true)} moves from ${esc(aName(g.acct))} to ${esc(aName(ac))}`)}
     if(!ch.length){toast('No changes to save');return}
     const label=g.name;
-    confirmBox('Save changes to '+esc(label)+'?',ch,'Save changes',()=>{Object.assign(g,{name:n,target:amt,date:d});if(ac!==g.acct){if(moveAmt>0)addTx({date:todayISO,kind:'transfer',from:g.acct,to:ac,amount:moveAmt,note:'Moved with '+g.name});g.acct=ac;if(par)liveKids(g).forEach(k=>k.acct=ac)}logIt(ch.map(c=>label+' — '+c));resetUI();render();toast(n+' updated')});return}
+    confirmBox('Save changes to '+esc(label)+'?',ch,'Save changes',()=>{if(g.emergency&&amt!==g.target)g.efOwn=true;Object.assign(g,{name:n,target:amt,date:d});if(ac!==g.acct){if(moveAmt>0)addTx({date:todayISO,kind:'transfer',from:g.acct,to:ac,amount:moveAmt,note:'Moved with '+g.name});g.acct=ac;if(par)liveKids(g).forEach(k=>k.acct=ac)}logIt(ch.map(c=>label+' — '+c));resetUI();render();toast(n+' updated')});return}
   if(a==='reviewAccts'){
     const ch=[],apply=[];
     document.querySelectorAll('#app [data-acct]').forEach(i=>{const x=acct(i.dataset.acct),v=r2(parseFloat(i.value)||0);if(Math.abs(v-x.balance)>0.004){ch.push(chg(esc(x.name),money(x.balance,true),money(v,true)));const d=r2(v-x.balance),moneyIn=x.type==='debt'?-d:d;apply.push(()=>addTx({date:todayISO,kind:'adjust',acct:x.id,amount:Math.abs(moneyIn),dir:moneyIn>0?1:-1}))}});
