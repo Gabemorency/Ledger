@@ -581,3 +581,11 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 .swatch[aria-pressed=true] i{box-shadow:0 0 0 3px var(--surface),0 0 0 5px var(--ink);transform:scale(1.05)}
 .swatch[aria-pressed=true] span{color:var(--ink);font-weight:600}
 body{transition:background-color .25s}
+/* safe to spend */
+.safe{padding:14px 16px 12px;background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 14%,var(--surface)),var(--surface) 70%)}
+.safebig{font:800 44px/1.05 var(--display);letter-spacing:-.03em;color:var(--ink);margin:4px 0 2px}
+.safeday{margin:0;color:var(--muted);font-size:14px}.safeday b{color:var(--ink)}
+.safehow{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.safehow summary{cursor:pointer;font-size:13px;color:var(--muted);list-style:none}.safehow summary::-webkit-details-marker{display:none}
+.safehow summary::after{content:" ⌄"}.safehow[open] summary{margin-bottom:6px}
+.safehow .rorow small{display:block;font-size:12px;color:var(--muted)}

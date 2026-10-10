@@ -21,13 +21,13 @@ function r2(...a){return Model.r2(...a)}
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let uid=1000; const id=()=>BOOT?'i'+crypto.randomUUID().replace(/-/g,''):'i'+(uid++)+Math.random().toString(36).slice(2,6);
 
-const DASH_CARDS={start:'Getting started',payday:'Payday transfers',checkin:'Weekly check-in',notes:'Pinned notes',cardpay:'Credit card statement',networth:'Net worth',unassigned:'Unassigned money',overview:'Account totals',plan:'Plan check',spending:'Spending',fixed:'Fixed costs',annual:'Annual budgets',latest:'Latest entries'};
-const defaultDash=()=>({order:['start','payday','checkin','notes','cardpay','spending','networth','unassigned','goal:g3','plan','overview','fixed','debt:a6','annual','latest'],hidden:[]});
+const DASH_CARDS={safe:'Safe to spend',start:'Getting started',payday:'Payday transfers',checkin:'Weekly check-in',notes:'Pinned notes',cardpay:'Credit card statement',networth:'Net worth',unassigned:'Unassigned money',overview:'Account totals',plan:'Plan check',spending:'Spending',fixed:'Fixed costs',annual:'Annual budgets',latest:'Latest entries'};
+const defaultDash=()=>({order:['safe','start','payday','checkin','notes','cardpay','spending','networth','unassigned','goal:g3','plan','overview','fixed','debt:a6','annual','latest'],hidden:[]});
 function blankPlan(){return {income:0,deposit:null,payDefault:null,framework:'csp',inc:{grossAnnual:0,pretax:0,net:0,extra:0},
   custom:[{name:'Fixed costs',roles:['need'],min:50,max:60},{name:'Investments',roles:['invest'],min:10,max:10},{name:'Savings',roles:['save'],min:5,max:10},{name:'Guilt-free spending',roles:['want'],min:20,max:35}]}}
 function blank(){
   return {view:'setup',setupDone:false,tips:true,did:{},payday:[],gsSkip:[],plan:blankPlan(),categories:[],fixed:[],accounts:[],assets:[],tx:[],goals:[],snapshots:[],closed:[],log:[],notes:[],
-    dash:{order:['spending','networth','unassigned','plan','overview','fixed','annual','latest'],hidden:[]},
+    dash:{order:['safe','spending','networth','unassigned','plan','overview','fixed','annual','latest'],hidden:[]},
     notif:{b80:true,over:true,goals:true,due:true,close:true,daily:false,weekly:true}};
 }
 function seed(){
@@ -142,7 +142,7 @@ const cat=cid=>S.categories.find(c=>c.id===cid);
 function adjOf(cid,m){return Model.adjustmentOf(S,cid,m)}
 function carryOf(c,m){return Model.carryOf(S,memo(),c,m||thisM)}
 function budgetOf(c,m){return Model.budgetOf(S,memo(),c,m||thisM)}
-function sanitize(){if(!S.adj)S.adj={};if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
+function sanitize(){if(!S.adj)S.adj={};if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('safe'))S.dash.order.unshift('safe');if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
 function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
@@ -438,6 +438,15 @@ function homeCards(){
       it.push(behind.length?[`${behind.length} goal${behind.length===1?'':'s'} behind`,behind.map(x=>esc(x.g.name)+' ('+money(Math.abs(x.k.diff))+')').join(', '),'warn']:['Goals on pace','Nothing behind right now.','ok']);
       return `<h2>Weekly check-in ${tip('checkin')}</h2><div class="panel">${it.map(([a,b,c])=>`<div class="ckrow ${c}"><span class="ckdot" aria-hidden="true">${c==='ok'?'✓':'•'}</span><div><b>${a}</b><small>${b}</small></div></div>`).join('')}
         <div class="actions"><button class="btn small" data-act="checkDone">Done for this week</button></div></div>`},
+    safe:()=>{const X=safeToSpend();if(!X.rows.length)return '';
+      const short=X.rows.filter(r=>r.cash<r.need-0.5);
+      return `<div class="panel safe"><div class="rowtop"><span class="sub">Safe to spend ${tip('safe')}</span><span class="sub">${X.days} day${X.days===1?'':'s'} left</span></div>
+        <div class="num safebig">${money(X.safe)}</div>
+        <p class="safeday">About <b class="num">${money(X.perDay)}</b> a day for the rest of ${esc(monthName(now,{month:'long'}))}</p>
+        ${short.length?`<p class="warnline" style="margin:6px 0 0">${short.map(r=>`${esc(r.a.name)} is ${money(r.need-r.cash)} short of your budgets`).join('. ')}. <button class="linkbtn" data-go="unassigned">Fix it</button></p>`:''}
+        <details class="safehow"><summary>How it’s worked out</summary>
+          ${X.rows.map(r=>`<div class="rorow"><span>${esc(r.a.name)}<small>${money(r.need)} left in budgets, ${money(Math.max(0,r.cash))} free after bills and goals</small></span><b class="num">${money(r.safe)}</b></div>`).join('')}
+          <p class="sub" style="font-size:12px;margin:6px 0 0">For each account, the smaller of what’s left in the budgets it pays for and the money it really has once bills still due and goal money are set aside.</p></details></div>`},
     notes:()=>{const P=(S.notes||[]).filter(n=>n.pinned).slice(0,3);if(!P.length)return '';
       return `<h2>Pinned notes</h2><div class="ngrid dash">${P.map(n=>`<button class="ncard nmini nc-${esc(n.color||'plain')}" data-go="notes" data-nfocus="${esc(n.id)}">${n.title?`<b>${esc(n.title)}</b>`:''}<span class="ntext clamp">${noteHTML(n.body)}</span></button>`).join('')}</div>`},
     cardpay:()=>{const cs=liveAccts().filter(a=>a.type==='debt'&&a.card&&a.payFull);if(!cs.length)return '';
@@ -810,6 +819,11 @@ function leftoverPlan(T){const N=nextMonthOf(T);return leftoversFor(T).filter(x=
   if(ch.startsWith('goal:')){const g=goal(ch.slice(5));if(g&&!g.done)return {...x,to:'goal',g,from:leftoverSource(x.c)}}
   return {...x,to:'stay'}})}
 /* Unassigned: money in an account that no goal holds, with a quick way to give it a job */
+/* what can be spent today without touching bills, goals or more than this month's budgets */
+function safeToSpend(){const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate(),days=Math.max(1,dim-now.getDate()+1);
+  const homes={};liveCats().filter(c=>c.type==='monthly').forEach(c=>{const h=catHome(c);if(!h)return;homes[h]=r2((homes[h]||0)+Math.max(0,budgetOf(c,thisM)-spent(c.id)))});
+  const rows=Object.entries(homes).map(([h,need])=>{const a=acct(h),cash=r2(unassigned(h)-billNeed(h));return {a,need,cash,safe:r2(Math.max(0,Math.min(need,cash)))}}).filter(r=>r.a).sort((x,y)=>y.safe-x.safe);
+  const safe=r2(rows.reduce((t,r)=>t+r.safe,0));return {safe,days,perDay:r2(safe/days),rows}}
 function uaAccts(){return liveAccts().filter(a=>['checking','cash','savings'].includes(a.type))}
 /* where a category's spending comes out of: its linked account, else the usual pay-from account */
 function catHome(c){const h=leftoverSource(c),a=h&&acct(h);return a&&!a.archived&&a.type!=='debt'?h:null}
@@ -1620,6 +1634,7 @@ const TIPS={
   catacct:['If you keep a separate account for this kind of spending, like a Capital One bucket for food, pick it here. New purchases in this category default to it, and the dashboard warns you if the account runs lower than what’s left in the budget.'],
   spendacct:['Tick this for an account whose whole job is everyday spending, like a Daily spending account. Anything in it beyond this month’s budgets counts as extra spending money, not unassigned money. You’ll still be warned if it has less than your budgets need.'],
   flow:['Left: money that came into your checking, savings and cash this month. Right: where it went. Kept is what stayed in your accounts. If more went out than came in, the gap shows on the left as Savings drawn down. Card purchases show up when you pay the card, as Debt payments. Moves between your own accounts cancel out here; follow them account by account below.'],
+  safe:['What you can spend for the rest of the month without dipping into bills that are still due, money set aside for goals, or more than your budgets allow. It’s worked out per account, using the smaller of the budgets left and the cash really there.'],
   uafree:['Each account’s balance, minus what goals hold, what’s left in this month’s spending categories that come out of it, and bills not yet paid from it. What remains is free to give a job. If the planned amounts are bigger than the balance, the account is short and a purchase or bill could bounce.'],
   bucketwarn:['This account is linked to these categories in Settings. Its real balance (minus anything set aside for goals) is less than what you still plan to spend from it this month, so a purchase could come up short.'],
   fund:['The fund is the main pot for this goal. Add money here over time. Before a payment is due, Fill from fund moves what that payment needs into it. Nothing leaves your bank until you Mark paid.','schoolread'],
