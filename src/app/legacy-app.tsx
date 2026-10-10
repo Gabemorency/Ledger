@@ -41,6 +41,12 @@ export default function LegacyApp() {
   const [loading, setLoading] = useState(supabaseEnabled);
 
   useEffect(() => {
+    // Apply the last-used theme straight away so the screen doesn't flash the default colors.
+    try {
+      const look = JSON.parse(localStorage.getItem("ledger-look") || "{}");
+      if (look.mode === "light" || look.mode === "dark") document.documentElement.dataset.theme = look.mode;
+      if (typeof look.accent === "string" && look.accent !== "forest") document.documentElement.dataset.accent = look.accent;
+    } catch {}
     if (!supabaseEnabled) {
       // On-device demo mode (no Supabase configured). Module imports run once,
       // so this is safe under React's double effects.

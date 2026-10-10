@@ -996,6 +996,22 @@ V.breakdown=()=>{
   ${st.planned>0.004?`<p class="sub" style="font-size:13px;margin-top:12px">${money(st.planned,true)} in planned purchases paid from goals isn’t counted as spending. ${tip('planned')}</p>`:''}
   <button class="btn ghost full" data-see="${m}" style="margin-top:14px">See every entry for ${esc(mLabel(m))}</button>`;
 };
+/* ---------- appearance ---------- */
+const ACCENTS=[['forest','Forest','#1F5A41'],['ocean','Ocean','#1D5A8C'],['plum','Plum','#6B3A7D'],['sunset','Sunset','#B4502A'],['graphite','Graphite','#2E3440']];
+const MODES=[['auto','Match my phone'],['light','Light'],['dark','Dark']];
+function applyLook(){const L=S.look||{},r=document.documentElement,m=L.mode||'auto',ac=L.accent||'forest';
+  if(m==='auto')delete r.dataset.theme;else r.dataset.theme=m;
+  if(ac==='forest')delete r.dataset.accent;else r.dataset.accent=ac;
+  try{localStorage.setItem('ledger-look',JSON.stringify({mode:m,accent:ac}))}catch(_){}
+  requestAnimationFrame(()=>{const bg=getComputedStyle(r).getPropertyValue('--bg').trim();if(!bg)return;document.querySelectorAll('meta[name="theme-color"]').forEach(x=>x.setAttribute('content',bg))})}
+function lookPanel(){const L=S.look||{},m=L.mode||'auto',ac=L.accent||'forest';
+  return `<h2>Appearance</h2><div class="panel" style="padding:12px 16px 14px">
+    <p class="lbl" style="margin:2px 0 8px">Color</p>
+    <div class="swatches" role="group" aria-label="Accent color">${ACCENTS.map(([k,l,c])=>`<button class="swatch" data-look-accent="${k}" aria-pressed="${ac===k}" aria-label="${l}"><i style="background:${c}"></i><span>${l}</span></button>`).join('')}</div>
+    <p class="lbl" style="margin:14px 0 8px">Mode</p>
+    <div class="chips">${MODES.map(([k,l])=>`<button class="chip" data-look-mode="${k}" aria-pressed="${m===k}">${l}</button>`).join('')}</div>
+    <p class="sub" style="font-size:13px;margin:10px 0 0">Saved to your account, so every device matches.</p></div>`}
+
 /* ---------- notes ---------- */
 const NCOL=[['plain','Plain'],['green','Green'],['blue','Blue'],['amber','Amber'],['rose','Rose'],['violet','Violet']];
 const noteHTML=b=>esc(b||'').replace(/\n/g,'<br>');
@@ -1257,6 +1273,7 @@ V.config=()=>{
   return `<button class="btn small ghost" data-go="home" style="margin-bottom:8px">Back to dashboard</button><h1>Settings</h1>
   <p class="sub">Everything here is locked. Edit one section at a time, review, then confirm. Changes apply from this month forward and are recorded in the change log.</p>
   <div class="actions"><button class="btn ghost" data-act="runSetup" ${UI.sec?'disabled':''}>Run setup again</button><button class="btn ghost" data-go="help">Help</button></div>
+  ${lookPanel()}
 
   <h2>Plan framework ${tip('framework')}</h2>${secHead('framework')}
   <div class="panel" style="padding:8px 16px 14px;margin-top:10px">
@@ -1863,7 +1880,7 @@ function countUp(root){
   });
 }
 function render(){
-  MEMO=null;const y=window.scrollY||0,same=lastView===S.view;lastView=S.view;
+  MEMO=null;applyLook();const y=window.scrollY||0,same=lastView===S.view;lastView=S.view;
   const app=document.getElementById('app');app.dataset.view=S.view;app.innerHTML=appBar()+V[S.view]();
   if(!same&&!REDUCED){app.classList.remove('enter');void app.offsetWidth;app.classList.add('enter');countUp(app)}
   if(S.view==='guide')setupGuide();else if(GOBS){GOBS.disconnect();GOBS=null}
@@ -2043,6 +2060,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.menu!==undefined){UI.menu=!UI.menu;render();return}
   if(t.dataset.nopen){UI.noteOpen=UI.noteOpen===t.dataset.nopen?null:t.dataset.nopen;render();return}
   if(t.dataset.ncol&&UI.note){UI.note.color=t.dataset.ncol;render();return}
+  if(t.dataset.lookAccent||t.dataset.lookMode){S.look=Object.assign({},S.look||{},t.dataset.lookAccent?{accent:t.dataset.lookAccent}:{mode:t.dataset.lookMode});applyLook();render();return}
   if(t.dataset.bm){const ms=bkMonths(),i=ms.indexOf(BK.m)+(+t.dataset.bm);if(i>=0&&i<ms.length){BK.m=ms[i];render()}return}
   if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
   if(t.dataset.gjump){const el=document.getElementById('g-'+t.dataset.gjump);guideMark(t.dataset.gjump);if(el){el.classList.add('in');el.scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}return}
