@@ -1802,10 +1802,21 @@ function setupStepCheck(st){
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
   const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes'};
-  const items=[['accounts','Accounts','▦'],['config','Settings','⚙︎'],['log','Change log','≡'],['unassigned','Unassigned','◇'],['breakdown','Follow the money','◔'],['notes','Notes','✎'],['help','Help','?'],['guide','Guide','✦']].concat(closeTarget()?[['close','Close '+monthName(mDate(closeTarget())),'🔒']]:[]);
-  return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${!!UI.menu}" aria-label="Menu">☰ Menu</button>
-    ${UI.menu?`<div class="menu" role="menu">${items.map(([v,l,i])=>`<button role="menuitem" data-go="${v}" ${S.view===v?'aria-current="page"':''}><span class="mi">${i}</span>${esc(l)}</button>`).join('')}${BOOT?`<div class="who">Signed in as ${esc(maskEmail(BOOT.email))}</div><button role="menuitem" data-signout><span class="mi">⎋</span>Sign out</button>`:''}</div>`:''}</div>`;
+  const on=S.view==='more';
+  return `<div class="appbar"><span class="brand">Ledger</span><button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
 }
+V.more=()=>{const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t+Math.max(0,x.free),0)),short=L.filter(x=>x.free<-0.004).length,ct=closeTarget(),N=(S.notes||[]).length;
+  const tile=(v,i,t,sub,extra)=>`<button class="mtile ${extra||''}" data-go="${v}"><span class="mti" aria-hidden="true">${i}</span><b>${esc(t)}</b><small>${sub}</small></button>`;
+  const grp=(name,tiles)=>`<p class="lbl" style="margin:18px 0 8px">${name}</p><div class="mtiles">${tiles.join('')}</div>`;
+  return `<h1>Menu</h1>
+  ${ct?`<button class="mclose" data-go="close"><span class="mti" aria-hidden="true">🔒</span><span><b>Close ${esc(monthName(mDate(ct)))}</b><small>Confirm balances and lock the month</small></span><span class="chev">›</span></button>`:''}
+  ${grp('Money',[tile('accounts','▦','Accounts',`Net worth ${money(netOf())}`),
+    tile('unassigned','◇','Unassigned',short?`${short} account${short===1?'':'s'} short`:`${money(free)} free to assign`,short?'warn':''),
+    tile('breakdown','⇄','Follow the money','Where this month went'),
+    tile('notes','✎','Notes',N?`${N} note${N===1?'':'s'}`:'Reminders for yourself')])}
+  ${grp('Ledger',[tile('config','⚙︎','Settings','Budgets, bills, colors'),tile('log','≡','Change log',`${(S.log||[]).length} change${(S.log||[]).length===1?'':'s'} recorded`),
+    tile('guide','✦','Guide','A tour of the app'),tile('help','?','Help','Answers and tips')])}
+  ${BOOT?`<div class="panel mwho"><span class="sub">Signed in as ${esc(maskEmail(BOOT.email))}</span><button class="btn small ghost" data-signout>⎋ Sign out</button></div>`:''}`};
 const REDUCED=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* ---------- Guide: an illustrated tour of the whole app (Menu → Guide) ---------- */
 const GUIDE=[
@@ -2072,7 +2083,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.hb){const el=document.getElementById('hb-'+t.dataset.hb);const open=el.hidden;el.hidden=!open;t.setAttribute('aria-expanded',open);return}
   if(t.dataset.see){setMonth(t.dataset.see);F.cat=t.dataset.seecat||'all';F.q=t.dataset.seeq||'';F.type='all';F.acct='all';resetUI();S.view='activity';render();window.scrollTo(0,0);return}
   if(t.dataset.range){Object.keys(CH).forEach(k=>delete CH[k]);TR.range=t.dataset.range==='all'?'all':+t.dataset.range;render();return}
-  if(t.dataset.menu!==undefined){UI.menu=!UI.menu;render();return}
+  if(t.dataset.menu!==undefined){if(S.view==='more'){S.view=UI.back||'home'}else{UI.back=S.view;resetUI();S.view='more'}render();window.scrollTo(0,0);return}
   if(t.dataset.nopen){UI.noteOpen=UI.noteOpen===t.dataset.nopen?null:t.dataset.nopen;render();return}
   if(t.dataset.ncol&&UI.note){UI.note.color=t.dataset.ncol;render();return}
   if(t.dataset.lookAccent||t.dataset.lookMode){S.look=Object.assign({},S.look||{},t.dataset.lookAccent?{accent:t.dataset.lookAccent}:{mode:t.dataset.lookMode});applyLook();render();return}
