@@ -1163,6 +1163,42 @@ function downloadCSV(range){const {csv,n}=csvFor(range);if(!n){toast('No entries
   if(DL){DL.save({filename,data:csv}).then(done).catch(e=>{const c=e&&e.code;toast(c==='declined'?'Download canceled':'Saving files isn’t available here')});return}
   const u=URL.createObjectURL(new Blob([csv],{type:'text/csv'})),l=document.createElement('a');l.href=u;l.download=filename;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);done()}
 
+/* ---------- what-if planner (nothing here is saved) ---------- */
+function planBase(){const full=trendMonths().filter(m=>m<thisM).slice(-3),st=full.map(monthStats),n=Math.max(1,st.length);
+  const inc=r2(st.reduce((t,x)=>t+x.income,0)/n),spend=r2(st.reduce((t,x)=>t+x.spend,0)/n);
+  const since=full[0]||thisM,goals=topGoals().filter(g=>!g.done).map(g=>{const fam=new Set([g.id].concat(S.goals.filter(k=>k.parent===g.id).map(k=>k.id)));
+    const put=S.tx.filter(t=>t.goal&&fam.has(t.goal)&&t.date.slice(0,7)>=since&&t.date.slice(0,7)<thisM).reduce((t,x)=>t+(x.kind==='unassign'?-x.amount:(x.kind==='assign'||x.kind==='transfer')?x.amount:0),0);
+    const left=isParent(g)?famProgress(g).remaining:r2(g.target-g.saved);return {g,left:Math.max(0,r2(left)),pace:Math.max(0,r2(put/n))}}).filter(x=>x.left>0.004);
+  return {inc,spend,months:st.length,goals}}
+const addMonths=k=>{const d=new Date(now.getFullYear(),now.getMonth()+Math.ceil(k),1);return d.toLocaleDateString('en-US',{month:'short',year:'numeric'})};
+function planOut(){const P=UI.plan||{},B=planBase(),raise=+P.raise||0,cut=+P.cut||0,extra=+P.extra||0;
+  if(!B.months)return '<div class="panel emptycard"><b>Finish a full month first.</b><p class="sub">The planner starts from your real averages, so it needs at least one finished month.</p></div>';
+  const keep0=r2(B.inc-B.spend),keep1=r2(B.inc+raise-(B.spend-cut)),rate=x=>B.inc+raise>0?Math.round(x/(B.inc+(x===keep0?0:raise))*100):0;
+  const room=r2(keep1-keep0),nw=netOf(),nw0=r2(nw+keep0*12),nw1=r2(nw+keep1*12);
+  const focus=P.focus||'spread',ext={};
+  if(extra>0){if(focus!=='spread')ext[focus]=extra;else{let r=extra;B.goals.forEach(x=>{if(r<=0)return;const need=Math.max(0,x.left/12-x.pace);const v=Math.min(r,Math.max(need,r/B.goals.length));ext[x.g.id]=r2(v);r=r2(r-v)})}}
+  const rows=B.goals.map(x=>{const a=x.pace,b=r2(x.pace+(ext[x.g.id]||0)),ma=a>0?x.left/a:Infinity,mb=b>0?x.left/b:Infinity,diff=isFinite(ma)&&isFinite(mb)?Math.round(ma-mb):null;
+    return `<div class="row"><div class="rowtop"><b>${esc(x.g.name)}</b><span class="num">${money(x.left)} to go</span></div>
+      <div class="cols"><span>Now: ${a>0?`${money(a)}/mo → ${addMonths(ma)}`:'nothing going in lately'}</span><span>${ext[x.g.id]?`<b class="okc">With plan: ${money(b)}/mo → ${addMonths(mb)}${diff>0?` (${diff} mo sooner)`:diff===null&&isFinite(mb)?'':''}</b>`:''}</span></div></div>`}).join('');
+  return `<div class="panel"><div class="row"><div class="rowtop"><b>Kept each month</b><span class="num">${money(keep0)} → <b class="${keep1>=keep0?'okc':'overtxt'}">${money(keep1)}</b></span></div>
+      <p class="sub" style="font-size:13px;margin:2px 0 0">Savings rate ${rate(keep0)}% → ${B.inc+raise>0?Math.round(keep1/(B.inc+raise)*100):0}%${extra>room+0.5?`. <span class="warnline">The extra for goals is more than this plan frees up, so it comes out of what you keep.</span>`:''}</p></div>
+    <div class="row"><div class="rowtop"><b>Net worth in a year</b><span class="num">${money(nw0)} → <b class="${nw1>=nw0?'okc':'overtxt'}">${money(nw1)}</b></span></div>
+      <p class="sub" style="font-size:13px;margin:2px 0 0">From ${money(nw)} today, if every month went like your last ${B.months}.</p></div></div>
+  ${rows?`<h2>Goals</h2><div class="panel">${rows}</div>`:''}
+  <p class="sub" style="font-size:12px;margin-top:10px">Based on your average month: ${money(B.inc)} in, ${money(B.spend)} spent. Nothing here changes your budget.</p>`}
+V.planner=()=>{const P=UI.plan||{},B=planBase(),sl=(k,l,min,max,step,v,fmt)=>`<label class="pslider"><span>${l}<b id="pv-${k}">${fmt(v)}</b></span><input type="range" data-plan="${k}" min="${min}" max="${max}" step="${step}" value="${v}" aria-label="${l}"></label>`;
+  const sgn=v=>(v>0?'+':v<0?'−':'')+money(Math.abs(v))+'/mo';
+  return `<button class="btn small ghost" data-go="more" style="margin-bottom:8px">Back to menu</button><h1>What if…</h1>
+  <p class="sub">Play with a raise, spending less or putting more toward goals, and see where it leads. Nothing here is saved.</p>
+  <div class="panel" style="padding:12px 16px 14px;margin-top:12px">
+    ${sl('raise','Take-home change',-1000,3000,50,+P.raise||0,sgn)}
+    ${sl('cut','Spend less by',0,1500,25,+P.cut||0,v=>money(v)+'/mo')}
+    ${sl('extra','Extra toward goals',0,2000,25,+P.extra||0,v=>money(v)+'/mo')}
+    ${B.goals.length?`<label class="field" style="margin:6px 0 0"><span>Put the extra into</span><select data-plan-focus><option value="spread">Spread by priority</option>${B.goals.map(x=>`<option value="${x.g.id}" ${P.focus===x.g.id?'selected':''}>${esc(x.g.name)}</option>`).join('')}</select></label>`:''}
+    <div class="actions" style="margin-top:8px"><button class="btn small ghost" data-act="planReset">Reset</button></div>
+  </div>
+  <div id="planOut" style="margin-top:12px">${planOut()}</div>`};
+
 /* ---------- notes ---------- */
 const NCOL=[['plain','Plain'],['green','Green'],['blue','Blue'],['amber','Amber'],['rose','Rose'],['violet','Violet']];
 const noteHTML=b=>esc(b||'').replace(/\n/g,'<br>');
@@ -1944,7 +1980,7 @@ function setupStepCheck(st){
 
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
-  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions',search:'Search'};
+  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions',search:'Search',planner:'What if'};
   const on=S.view==='more';
   const eye=(S.look||{}).hide?`<button class="eyebtn" data-eye aria-pressed="${!!UI.reveal}" aria-label="${UI.reveal?'Hide amounts':'Show amounts'}">${UI.reveal?'🙈':'👁'}</button>`:'';
   return `<div class="appbar"><span class="brand">Ledger</span>${eye}<button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
@@ -1958,6 +1994,7 @@ V.more=()=>{const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t+Math.max(0,x
   ${grp('Money',[tile('accounts','▦','Accounts',`Net worth ${money(netOf())}`),
     tile('unassigned','◇','Unassigned',short?`${short} account${short===1?'':'s'} short`:`${money(free)} free to assign`,short?'warn':''),
     tile('breakdown','⇄','Follow the money','Where this month went'),
+    tile('planner','⚖︎','What if…','Play out a raise or a goal push'),
     tile('subs','↻','Subscriptions',(S.subs||[]).length?`${money(r2((S.subs||[]).reduce((t,x)=>t+subMonthly(x),0)))}/month`:'Track what renews'),
     tile('notes','✎','Notes',N?`${N} note${N===1?'':'s'}`:'Reminders for yourself')])}
   ${grp('Ledger',[tile('config','⚙︎','Settings','Budgets, bills, colors'),tile('log','≡','Change log',`${(S.log||[]).length} change${(S.log||[]).length===1?'':'s'} recorded`),
@@ -2204,10 +2241,12 @@ function bindDraft(t){
 document.getElementById('app').addEventListener('input',e=>{const t=e.target;bindDraft(t);
   if(t.dataset.nf&&UI.note)UI.note[t.dataset.nf]=t.value;
   if(t.dataset.sf&&UI.sub)UI.sub[t.dataset.sf]=t.value;
+  if(t.dataset.plan){UI.plan=Object.assign({},UI.plan||{},{[t.dataset.plan]:+t.value});const v=+t.value,o=document.getElementById('pv-'+t.dataset.plan);if(o)o.textContent=t.dataset.plan==='raise'?(v>0?'+':v<0?'−':'')+money(Math.abs(v))+'/mo':money(v)+'/mo';const po=document.getElementById('planOut');if(po)po.innerHTML=planOut()}
   if(t.id==='fq'){F.q=t.value;document.getElementById('actList').innerHTML=activityList()}
   if(t.id==='sq'){UI.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('sq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}
   if(t.id==='logq'){LG.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('logq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}});
 document.getElementById('app').addEventListener('change',e=>{const t=e.target;
+  if(t.dataset.planFocus!==undefined){UI.plan=Object.assign({},UI.plan||{},{focus:t.value});const po=document.getElementById('planOut');if(po)po.innerHTML=planOut();return}
   if(t.dataset.lookHide!==undefined){S.look=Object.assign({},S.look||{},{hide:t.checked});UI.reveal=false;applyLook();render();return}
   if(t.dataset.n){S.notif[t.dataset.n]=t.checked;save();return}
   if(t.id==='secAfter'){SEC().lockAfter=+t.value;logIt(['Auto-lock set to '+t.options[t.selectedIndex].text.toLowerCase()]);save();toast('Auto-lock updated');return}
@@ -2399,6 +2438,7 @@ function handleAct(t){
     logIt([`Assigned ${money(v,true)} from ${aName(aid)} to ${g.name}`+(same?'':` (transfer to ${aName(g.acct)})`)]);
     render();toast(same?`${money(v,true)} set aside for ${g.name}`:`${money(v,true)} to ${g.name}. Make the transfer to ${aName(g.acct)} in your bank too`,()=>{removeTx(nt);render();toast('Undone')});
     return}
+  if(a==='planReset'){UI.plan=null;render();return}
   if(a==='subNew'){UI.sub={id:null,name:'',amount:'',freq:'monthly',next:todayISO,note:''};render();const el=document.querySelector('[data-sf=name]');if(el)el.focus();return}
   if(a==='subCancel'){UI.sub=null;render();return}
   if(a==='subSave'){const d=UI.sub;if(!d)return;const name=String(d.name||'').trim().slice(0,60),amt=r2(parseFloat(d.amount));
