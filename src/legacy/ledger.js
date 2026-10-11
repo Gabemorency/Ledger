@@ -142,7 +142,7 @@ const cat=cid=>S.categories.find(c=>c.id===cid);
 function adjOf(cid,m){return Model.adjustmentOf(S,cid,m)}
 function carryOf(c,m){return Model.carryOf(S,memo(),c,m||thisM)}
 function budgetOf(c,m){return Model.budgetOf(S,memo(),c,m||thisM)}
-function sanitize(){if(!S.adj)S.adj={};if(!Array.isArray(S.subs))S.subs=[];if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('safe'))S.dash.order.unshift('safe');if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
+function sanitize(){if(!S.adj)S.adj={};if(!S.proj||typeof S.proj!=='object')S.proj={};if(!Array.isArray(S.proj.events))S.proj.events=[];if(!Array.isArray(S.subs))S.subs=[];if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('safe'))S.dash.order.unshift('safe');if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
 function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
@@ -259,7 +259,7 @@ function removeBlock(t){
 function removeTx(t){const grp=[t].concat(S.tx.filter(x=>x.link===t.id));grp.slice().reverse().forEach(x=>applyTx(x,-1));S.tx=S.tx.filter(x=>!grp.includes(x));MEMO=null;t._grp=grp;return grp}
 function restoreTx(t){(t._grp||[t]).forEach(x=>{if(!S.tx.includes(x)){S.tx.push(x);applyTx(x,1)}});delete t._grp}
 const UI={editAccts:false,editGoal:null,addTo:null,sec:null,draft:null};
-function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.sub=null;if(typeof hideTip==='function')hideTip()}
+function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
 const LOGK={settings:'Settings',goals:'Goals',budget:'Budget moves',entries:'Entries',payday:'Routine',months:'Months'};
 function logKind(t){t=String(t);if(/paycheck|check-in/i.test(t))return 'payday';if(/^(Edited|Deleted|Restored) /.test(t))return 'entries';if(/^Moved .* (into|to) .* for /.test(t))return 'budget';if(/close|closed|reopen|month/i.test(t)&&!/goal/i.test(t))return 'months';if(/goal|Emergency fund|sub-goal|priority/i.test(t))return 'goals';return 'settings'}
 function logIt(lines){lines.forEach(t=>S.log.push({ts:Date.now(),text:t,k:logKind(t)}))}
@@ -1277,6 +1277,63 @@ function stepRecap(d){if(!RC)return;const n=RC.i+d;if(n<0)return;if(n>=RC.slides
 function closeRecap(){if(!RC)return;clearTimeout(RC.timer);RC.el.remove();RC=null}
 document.addEventListener('keydown',e=>{if(!RC)return;if(e.key==='Escape')closeRecap();else if(e.key==='ArrowRight'||e.key===' ')stepRecap(1);else if(e.key==='ArrowLeft')stepRecap(-1)});
 
+/* ---------- projections: years ahead from your real averages (estimates only) ---------- */
+const PJ_DEF={raise:3,infl:3,apy:4,ret:7};
+const pjA=()=>Object.assign({},PJ_DEF,S.proj.a||{});
+function pjEventAmt(e,mk){if(!e.date)return 0;const m0=e.date.slice(0,7);if(mk<m0)return 0;if(e.until&&mk>e.until.slice(0,7))return 0;
+  if(e.rep==='monthly')return +e.amount||0;if(e.rep==='yearly')return mk.slice(5)===m0.slice(5)?+e.amount||0:0;return mk===m0?+e.amount||0:0}
+function project(years){const A=pjA(),B=planBase(),n=Math.round(years*12);if(!B.months)return null;
+  const spend0=r2(B.spend-(trendMonths().filter(m=>m<thisM).slice(-3).map(monthStats).reduce((t,x)=>t+x.interest,0)/Math.max(1,B.months)));
+  const debts=liveAccts().filter(a=>a.type==='debt'&&!(a.card&&a.payFull)).map(a=>({a,bal:a.balance,pay:debtPay(a),apr:(a.apr||0)/100,off:a.balance<=0.004?thisM:null}));
+  const toRet=r2(liveFixed().filter(f=>f.to&&(acct(f.to)||{}).type==='retirement').reduce((t,f)=>t+fixedPlan(f),0)+((S.plan.inc&&S.plan.inc.pretax)||0));
+  /* cards paid in full each month: what's owed now comes out of cash */
+  let cash=r2(sumType(['checking','cash','savings'])-liveAccts().filter(a=>a.type==='debt'&&a.card&&a.payFull).reduce((t,a)=>t+a.balance,0)),ret=sumType(['retirement']);const oth=othNow(),pts=[],warn=[];let low=null;
+  const nw=()=>r2(cash+ret+oth-debts.reduce((t,d)=>t+d.bal,0));pts.push({m:thisM,nw:nw(),cash:r2(cash),ret:r2(ret),debt:r2(debts.reduce((t,d)=>t+d.bal,0)),ev:[]});
+  for(let i=1;i<=n;i++){const d=new Date(now.getFullYear(),now.getMonth()+i,1),mk=mkey(d),yr=(i-1)/12;
+    const inc=B.inc*Math.pow(1+A.raise/100,Math.floor(yr)),sp=spend0*Math.pow(1+A.infl/100,Math.floor(yr));
+    let flow=inc-sp;const ev=[];
+    debts.forEach(x=>{if(x.bal<=0.004)return;const int=x.bal*x.apr/12;const pay=Math.min(x.pay,x.bal+int);x.bal=Math.max(0,x.bal+int-pay);flow-=pay;if(x.bal<=0.004&&!x.off){x.off=mk;ev.push(`${x.a.name} paid off`)}});
+    flow-=toRet-((S.plan.inc&&S.plan.inc.pretax)||0);ret=ret*(1+A.ret/100/12)+toRet;
+    (S.proj.events||[]).forEach(e=>{const v=pjEventAmt(e,mk);if(!v)return;if(e.kind==='income')flow+=v;else flow-=v;ev.push(`${e.kind==='income'?'+':'−'}${money(v)} ${e.name}`)});
+    cash=cash*(1+A.apy/100/12)+flow;if(cash<0&&!low)low={m:mk,cash};
+    if(i%12===0||i===n||ev.length)pts.push({m:mk,nw:nw(),cash:r2(cash),ret:r2(ret),debt:r2(debts.reduce((t,d)=>t+d.bal,0)),ev,i})}
+  return {pts,low,debts,base:{inc:B.inc,spend:spend0,toRet,months:B.months},A}}
+function pjForm(){const d=UI.pj;
+  return `<div class="panel" style="padding:12px 16px 14px;margin-top:10px"><p class="lbl" style="margin:2px 0 8px">${d.id?'Edit':'Plan'} ${d.kind==='income'?'money coming in':'an expense'}</p>
+    <div class="chips" style="margin-bottom:8px">${[['expense','Expense'],['income','Money in']].map(([k,l])=>`<button class="chip" data-pjkind="${k}" aria-pressed="${d.kind===k}">${l}</button>`).join('')}</div>
+    <label class="field"><span>What</span><input type="text" data-pf="name" maxlength="60" value="${esc(d.name)}" placeholder="${d.kind==='income'?'e.g. Bonus':'e.g. New car, Tuition, Rent increase'}"></label>
+    <div class="two"><label class="field"><span>Amount</span><input type="number" inputmode="decimal" data-pf="amount" value="${esc(d.amount)}" placeholder="0.00"></label>
+    <label class="field"><span>How often</span><select data-pf="rep">${[['once','Once'],['monthly','Every month'],['yearly','Every year']].map(([k,l])=>`<option value="${k}" ${d.rep===k?'selected':''}>${l}</option>`).join('')}</select></label></div>
+    <div class="two"><label class="field"><span>${d.rep==='once'?'When':'Starting'}</span><input type="month" data-pf="date" value="${esc((d.date||'').slice(0,7))}"></label>
+    ${d.rep!=='once'?`<label class="field"><span>Until (optional)</span><input type="month" data-pf="until" value="${esc((d.until||'').slice(0,7))}"></label>`:'<span></span>'}</div>
+    <div class="actions">${d.id?`<button class="btn small dangerline" data-act="pjDel">Delete</button>`:''}<span style="flex:1"></span><button class="btn ghost" data-act="pjCancel">Cancel</button><button class="btn" data-act="pjSave">Save</button></div></div>`}
+V.projections=()=>{const yrs=S.proj.years||5,P=project(yrs),A=pjA(),E=S.proj.events||[];
+  const head=`<button class="btn small ghost" data-go="more" style="margin-bottom:8px">Back to menu</button><h1>Projections</h1>
+  <p class="sub">Where your money is heading, from your real averages. Add expenses you know are coming and see what they do. Estimates, not promises.</p>
+  <div class="chips" style="margin:14px 0 4px">${[1,3,5,10,20,30].map(y=>`<button class="chip" data-pjyears="${y}" aria-pressed="${yrs===y}">${y} yr${y>1?'s':''}</button>`).join('')}</div>`;
+  if(!P)return head+'<div class="panel emptycard" style="margin-top:12px"><b>Finish a full month first.</b><p class="sub">Projections start from your real monthly averages.</p></div>';
+  const end=P.pts[P.pts.length-1],start=P.pts[0],yearPts=P.pts.filter((p,i)=>i===0||p.i%12===0||p===end);
+  const labels=yearPts.map(p=>p===start?'Now':"'"+p.m.slice(2,4)),chart=lineChart({id:'proj',months:yearPts.map(p=>p.m),labels,series:[{name:'Net worth',vals:yearPts.map(p=>p.nw),color:'var(--accent)'},{name:'Cash',vals:yearPts.map(p=>p.cash),color:'var(--fl2)',dash:true}],aria:'Projected net worth and cash by year',
+    extra:i=>{const p=yearPts[i];return `<div class="rorow"><span>Retirement</span><b class="num">${money(p.ret)}</b></div>${p.debt>0.5?`<div class="rorow"><span>Debt</span><b class="num">${money(p.debt)}</b></div>`:''}`}});
+  const evs=P.pts.filter(p=>p.ev&&p.ev.length).slice(0,12);
+  return head+`<div class="panel networth" style="margin-top:10px"><span class="sub">Net worth in ${yrs} year${yrs>1?'s':''} (${esc(monthName(mDate(end.m),{month:'short',year:'numeric'}))})</span>
+      <div class="num" style="font:800 40px/1.1 var(--display)">${money(end.nw)}</div>
+      <p class="sub" style="font-size:13px;margin:4px 0 0">${end.nw>=start.nw?'+':'−'}${money(Math.abs(end.nw-start.nw))} from ${money(start.nw)} today</p>
+      <div class="bkstats"><div><span class="sub">Cash</span><b class="num">${money(end.cash)}</b></div><div><span class="sub">Retirement</span><b class="num">${money(end.ret)}</b></div><div><span class="sub">Debt</span><b class="num">${money(end.debt)}</b></div></div></div>
+    ${P.low?`<p class="warnline" style="margin-top:10px">Cash would run out around ${esc(monthName(mDate(P.low.m),{month:'long',year:'numeric'}))}. Push a planned expense later, spend less, or save up for it first.</p>`:''}
+    <div class="panel cpanel" style="margin-top:12px"><div class="plegend" style="margin:2px 0 4px"><span><i class="lgfill" style="background:var(--accent)"></i>Net worth</span><span><i class="lgfill" style="background:var(--fl2)"></i>Cash</span></div>${chart}</div>
+    ${P.debts.length?`<h2>Debts</h2><div class="panel">${P.debts.map(d=>`<div class="rorow"><span>${esc(d.a.name)}</span><b class="num">${d.off?(d.off===thisM?'Paid off':'Paid off '+esc(monthName(mDate(d.off),{month:'short',year:'numeric'}))):`${money(d.bal)} left in ${yrs} yr${yrs>1?'s':''}`}</b></div>`).join('')}</div>`:''}
+    <h2>Planned expenses and income</h2>
+    ${UI.pj?pjForm():`<div class="actions" style="margin:0 0 10px"><button class="btn" data-act="pjNew" data-kind="expense">＋ Plan an expense</button><button class="btn ghost" data-act="pjNew" data-kind="income">＋ Money coming in</button></div>`}
+    ${E.length?`<div class="panel">${E.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(e=>`<button class="subrow" data-pjedit="${esc(e.id)}"><span><b>${esc(e.name)}</b><small>${e.rep==='once'?'Once':e.rep==='monthly'?'Every month':'Every year'}, ${e.rep==='once'?'':'from '}${esc(monthName(mDate(e.date.slice(0,7)),{month:'short',year:'numeric'}))}${e.until?` to ${esc(monthName(mDate(e.until.slice(0,7)),{month:'short',year:'numeric'}))}`:''}</small></span><span class="num ${e.kind==='income'?'okc':''}">${e.kind==='income'?'+':'−'}${money(+e.amount||0)}</span></button>`).join('')}</div>`:'<p class="sub" style="font-size:14px">Nothing planned yet. Add a car, tuition, a move or a bonus to see its effect.</p>'}
+    ${evs.length?`<h2>Along the way</h2><div class="panel">${evs.map(p=>`<div class="rorow"><span>${esc(monthName(mDate(p.m),{month:'short',year:'numeric'}))}<small style="display:block;color:var(--muted);font-size:12px">${p.ev.map(esc).join(' · ')}</small></span><b class="num">${money(p.cash)} cash</b></div>`).join('')}</div>`:''}
+    <h2>Year by year</h2><div class="panel" style="padding:4px 0;overflow-x:auto"><table class="bs num"><thead><tr><th></th><th>Cash</th><th>Retirement</th><th>Debt</th><th>Net worth</th></tr></thead><tbody>
+      ${yearPts.map(p=>`<tr><td>${p===start?'Now':esc(monthName(mDate(p.m),{month:'short',year:'numeric'}))}</td><td>${money(p.cash)}</td><td>${money(p.ret)}</td><td>${money(p.debt)}</td><td>${money(p.nw)}</td></tr>`).join('')}</tbody></table></div>
+    <details class="advanced" style="margin-top:14px"><summary>Assumptions</summary><div class="panel" style="padding:12px 16px">
+      <p class="sub" style="font-size:13px;margin:0 0 8px">Starting from your last ${P.base.months} full month${P.base.months>1?'s':''}: ${money(P.base.inc)} in, ${money(P.base.spend)} spent${P.base.toRet?`, ${money(P.base.toRet)} to retirement`:''} each month.</p>
+      <div class="two">${[['raise','Raise per year %'],['infl','Spending grows per year %'],['apy','Savings interest %'],['ret','Retirement growth %']].map(([k,l])=>`<label class="field"><span>${l}</span><input type="number" inputmode="decimal" step="0.5" data-pja="${k}" value="${A[k]}"></label>`).join('')}</div>
+      <button class="btn small ghost" data-act="pjReset">Back to defaults</button></div></details>`};
+
 /* ---------- notes ---------- */
 const NCOL=[['plain','Plain'],['green','Green'],['blue','Blue'],['amber','Amber'],['rose','Rose'],['violet','Violet']];
 const noteHTML=b=>esc(b||'').replace(/\n/g,'<br>');
@@ -2058,7 +2115,7 @@ function setupStepCheck(st){
 
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
-  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions',search:'Search',planner:'What if',milestones:'Milestones'};
+  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions',search:'Search',planner:'What if',milestones:'Milestones',projections:'Projections'};
   const on=S.view==='more';
   const eye=(S.look||{}).hide?`<button class="eyebtn" data-eye aria-pressed="${!!UI.reveal}" aria-label="${UI.reveal?'Hide amounts':'Show amounts'}">${UI.reveal?'🙈':'👁'}</button>`:'';
   return `<div class="appbar"><span class="brand">Ledger</span>${eye}<button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
@@ -2072,6 +2129,7 @@ V.more=()=>{const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t+Math.max(0,x
   ${grp('Money',[tile('accounts','▦','Accounts',`Net worth ${money(netOf())}`),
     tile('unassigned','◇','Unassigned',short?`${short} account${short===1?'':'s'} short`:`${money(free)} free to assign`,short?'warn':''),
     tile('breakdown','⇄','Follow the money','Where this month went'),
+    tile('projections','⤴','Projections','Your money in 1 to 30 years'),
     tile('planner','⚖︎','What if…','Play out a raise or a goal push'),
     tile('milestones','★','Milestones',`${milestones().filter(m=>m.done).length} earned`),
     tile('subs','↻','Subscriptions',(S.subs||[]).length?`${money(r2((S.subs||[]).reduce((t,x)=>t+subMonthly(x),0)))}/month`:'Track what renews'),
@@ -2321,11 +2379,14 @@ function bindDraft(t){
 document.getElementById('app').addEventListener('input',e=>{const t=e.target;bindDraft(t);
   if(t.dataset.nf&&UI.note)UI.note[t.dataset.nf]=t.value;
   if(t.dataset.sf&&UI.sub)UI.sub[t.dataset.sf]=t.value;
+  if(t.dataset.pf&&UI.pj)UI.pj[t.dataset.pf]=t.value;
   if(t.dataset.plan){UI.plan=Object.assign({},UI.plan||{},{[t.dataset.plan]:+t.value});const v=+t.value,o=document.getElementById('pv-'+t.dataset.plan);if(o)o.textContent=t.dataset.plan==='raise'?(v>0?'+':v<0?'−':'')+money(Math.abs(v))+'/mo':money(v)+'/mo';const po=document.getElementById('planOut');if(po)po.innerHTML=planOut()}
   if(t.id==='fq'){F.q=t.value;document.getElementById('actList').innerHTML=activityList()}
   if(t.id==='sq'){UI.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('sq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}
   if(t.id==='logq'){LG.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('logq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}});
 document.getElementById('app').addEventListener('change',e=>{const t=e.target;
+  if(t.dataset.pf==='rep'&&UI.pj){UI.pj.rep=t.value;render();return}
+  if(t.dataset.pja){const v=parseFloat(t.value);if(isFinite(v)&&v>-50&&v<50){S.proj.a=Object.assign({},S.proj.a||{},{[t.dataset.pja]:v});render()}return}
   if(t.dataset.planFocus!==undefined){UI.plan=Object.assign({},UI.plan||{},{focus:t.value});const po=document.getElementById('planOut');if(po)po.innerHTML=planOut();return}
   if(t.dataset.lookHide!==undefined){S.look=Object.assign({},S.look||{},{hide:t.checked});UI.reveal=false;applyLook();render();return}
   if(t.dataset.n){S.notif[t.dataset.n]=t.checked;save();return}
@@ -2356,6 +2417,9 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.see){setMonth(t.dataset.see);F.cat=t.dataset.seecat||'all';F.q=t.dataset.seeq||'';F.type='all';F.acct='all';resetUI();S.view='activity';render();window.scrollTo(0,0);return}
   if(t.dataset.range){Object.keys(CH).forEach(k=>delete CH[k]);TR.range=t.dataset.range==='all'?'all':+t.dataset.range;render();return}
   if(t.dataset.menu!==undefined){if(S.view==='more'){S.view=UI.back||'home'}else{UI.back=S.view;resetUI();S.view='more'}render();window.scrollTo(0,0);return}
+  if(t.dataset.pjyears){S.proj.years=+t.dataset.pjyears;render();return}
+  if(t.dataset.pjkind&&UI.pj){UI.pj.kind=t.dataset.pjkind;render();return}
+  if(t.dataset.pjedit){const e=S.proj.events.find(x=>x.id===t.dataset.pjedit);if(e){UI.pj=Object.assign({},e);render();const f=document.querySelector('[data-pf=name]');if(f)f.scrollIntoView({block:'center'})}return}
   if(t.dataset.subedit){const x=(S.subs||[]).find(y=>y.id===t.dataset.subedit);if(x){UI.sub=Object.assign({},x);render();window.scrollTo(0,0)}return}
   if(t.dataset.subsug!==undefined){const x=subSuggestions()[+t.dataset.subsug];if(x){UI.sub={id:null,name:x.name,amount:x.amount,freq:x.freq,next:x.next,note:''};render();window.scrollTo(0,0)}return}
   if(t.dataset.nopen){UI.noteOpen=UI.noteOpen===t.dataset.nopen?null:t.dataset.nopen;render();return}
@@ -2519,6 +2583,14 @@ function handleAct(t){
     render();toast(same?`${money(v,true)} set aside for ${g.name}`:`${money(v,true)} to ${g.name}. Make the transfer to ${aName(g.acct)} in your bank too`,()=>{removeTx(nt);render();toast('Undone')});
     return}
   if(a==='recap'){openRecap(t.dataset.m);return}
+  if(a==='pjNew'){UI.pj={id:null,kind:t.dataset.kind||'expense',name:'',amount:'',rep:'once',date:mkey(new Date(now.getFullYear()+1,now.getMonth(),1)),until:''};render();const f=document.querySelector('[data-pf=name]');if(f)f.focus();return}
+  if(a==='pjCancel'){UI.pj=null;render();return}
+  if(a==='pjSave'){const d=UI.pj;if(!d)return;const name=String(d.name||'').trim().slice(0,60),amt=r2(parseFloat(d.amount));
+    if(!name){toast('Name it first');return}if(!(amt>0)){toast('Enter an amount');return}if(!/^\d{4}-\d{2}/.test(d.date||'')){toast('Pick when');return}
+    const rec={id:d.id||id(),kind:d.kind==='income'?'income':'expense',name,amount:amt,rep:['once','monthly','yearly'].includes(d.rep)?d.rep:'once',date:d.date.slice(0,7)+'-01',until:d.rep!=='once'&&/^\d{4}-\d{2}/.test(d.until||'')?d.until.slice(0,7)+'-01':''};
+    const i=S.proj.events.findIndex(x=>x.id===rec.id);if(i>=0)S.proj.events[i]=rec;else S.proj.events.push(rec);logIt([`Projections — ${i>=0?'edited':'planned'} ${name}`]);UI.pj=null;render();toast(i>=0?'Saved':'Added to your projection');return}
+  if(a==='pjDel'){const i=S.proj.events.findIndex(x=>x.id===UI.pj.id);if(i<0)return;const [x]=S.proj.events.splice(i,1);UI.pj=null;render();toast(`Removed ${x.name}`,()=>{S.proj.events.splice(i,0,x);render()});return}
+  if(a==='pjReset'){S.proj.a={};render();toast('Assumptions back to defaults');return}
   if(a==='planReset'){UI.plan=null;render();return}
   if(a==='subNew'){UI.sub={id:null,name:'',amount:'',freq:'monthly',next:todayISO,note:''};render();const el=document.querySelector('[data-sf=name]');if(el)el.focus();return}
   if(a==='subCancel'){UI.sub=null;render();return}
