@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { budgetOf, buildIndex, categoryLeft, dueIn, fixedDue, fixedOwed, fixedPlanned, nextDue, perYear, spent } from ".";
+import { baseBudget, budgetOf, buildIndex, setBudget, categoryLeft, dueIn, fixedDue, fixedOwed, fixedPlanned, nextDue, perYear, spent } from ".";
 import type { FixedCost } from ".";
 import { sample, tx } from "./fixtures";
 
@@ -88,5 +88,31 @@ describe("fixed-cost schedules", () => {
     expect(fixedOwed(buildIndex([]), rent, "2026-10")).toBe(800);
     const ix = buildIndex([tx({ kind: "fixed", acct: "chk", fixedId: "rent", amount: 750, date: "2026-10-01" })]);
     expect(fixedOwed(ix, rent, "2026-10")).toBe(0);
+  });
+});
+
+describe("budget history", () => {
+  it("keeps earlier months at the budget they had when the budget changes", () => {
+    const c = { id: "food", name: "Food", type: "monthly" as const, budget: 300 };
+    setBudget(c, 340, "2026-10");
+    expect(c.budget).toBe(340);
+    expect(baseBudget(c, "2026-09")).toBe(300);
+    expect(baseBudget(c, "2026-10")).toBe(340);
+    expect(baseBudget(c, "2027-01")).toBe(340);
+  });
+  it("a second change in the same month doesn't rewrite the past again", () => {
+    const c = { id: "food", name: "Food", type: "monthly" as const, budget: 300 };
+    setBudget(c, 340, "2026-10");
+    setBudget(c, 360, "2026-10");
+    expect(baseBudget(c, "2026-09")).toBe(300);
+    expect(baseBudget(c, "2026-10")).toBe(360);
+  });
+  it("later changes stack on earlier ones", () => {
+    const c = { id: "food", name: "Food", type: "monthly" as const, budget: 300 };
+    setBudget(c, 340, "2026-10");
+    setBudget(c, 280, "2027-02");
+    expect(baseBudget(c, "2026-09")).toBe(300);
+    expect(baseBudget(c, "2026-12")).toBe(340);
+    expect(baseBudget(c, "2027-02")).toBe(280);
   });
 });

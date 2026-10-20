@@ -50,9 +50,28 @@ export function carryOf(s: LedgerState, ix: TxIndex, c: Category, m: MonthKey): 
   return (ix.carry[k] = r2(Math.max(0, budgetOf(s, ix, c, pm) - spent(s, ix, c.id, pm))));
 }
 
+/** The budget set for a month: today's, unless it was changed after that month. */
+export function baseBudget(c: Category, m: MonthKey): number {
+  const h = (c.hist || []).filter((x) => m <= x.to).sort((a, b) => a.to.localeCompare(b.to))[0];
+  return h ? h.budget : c.budget;
+}
+
+/**
+ * Change a category's budget from `from` onward, keeping earlier months at the
+ * budget they had. Returns the category for chaining.
+ */
+export function setBudget(c: Category, budget: number, from: MonthKey): Category {
+  const last = prevMonth(from);
+  if (budget === c.budget) return c;
+  const covered = (c.hist || []).some((x) => x.to >= last);
+  if (!covered) c.hist = (c.hist || []).concat({ to: last, budget: c.budget });
+  c.budget = budget;
+  return c;
+}
+
 /** This month's budget: base + moves between categories + rollover. Annual budgets are yearly. */
 export const budgetOf = (s: LedgerState, ix: TxIndex, c: Category, m: MonthKey) =>
-  c.type === "monthly" ? r2(c.budget + adjustmentOf(s, c.id, m) + carryOf(s, ix, c, m)) : c.budget;
+  c.type === "monthly" ? r2(baseBudget(c, m) + adjustmentOf(s, c.id, m) + carryOf(s, ix, c, m)) : c.budget;
 
 export const categoryLeft = (s: LedgerState, ix: TxIndex, c: Category, m: MonthKey) =>
   r2(budgetOf(s, ix, c, m) - spent(s, ix, c.id, m));

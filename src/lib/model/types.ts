@@ -43,6 +43,8 @@ export interface Category {
   /** Unspent budget rolls into the next month, starting after this month. */
   roll?: boolean;
   rollFrom?: MonthKey;
+  /** Earlier budgets: each applied to every month up to and including `to`. */
+  hist?: { to: MonthKey; budget: number }[];
 }
 
 export type Frequency = "monthly" | "quarterly" | "yearly" | "months";

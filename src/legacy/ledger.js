@@ -997,7 +997,7 @@ V.breakdown=()=>{
   const ua=m===thisM?uaAccts().map(uaInfo):null;
   return `<button class="btn small ghost" data-go="trends" style="margin-bottom:8px">Back to trends</button><h1>Follow the money</h1>
   <p class="sub">Where your money started, where it came from, where it went, and the jobs you gave it.</p>
-  ${m<thisM?`<button class="rcplay" data-act="recap" data-m="${m}">▶ Play the ${esc(monthName(mDate(m),{month:'long'}))} recap</button>`:''}
+  ${m<thisM?`<button class="rcplay" data-act="recap" data-m="${m}">▶ Play the ${esc(monthName(mDate(m),{month:'long'}))} recap</button><button class="btn small ghost" data-act="ckOpen" data-m="${m}" data-from="breakdown" style="margin:0 0 8px">✓ Budget check-up</button>`:''}
   <div class="bkmonth"><button class="x" data-bm="-1" aria-label="Previous month" ${i>0?'':'disabled'}>‹</button><b>${esc(mFull(m))}</b><button class="x" data-bm="1" aria-label="Next month" ${i<ms.length-1?'':'disabled'}>›</button></div>
 
   ${(()=>{const made=r2(st.income),kept=r2(made-tot),mx=Math.max(made,tot,0.01),ret=r2((F.use.find(x=>x.name==='To retirement')||{v:0}).v);
@@ -1367,6 +1367,46 @@ V.notes=()=>{const N=S.notes||[],pins=N.filter(n=>n.pinned),rest=N.filter(n=>!n.
   ${rest.length?`${pins.length?'<p class="lbl" style="margin:18px 0 8px">Other notes</p>':''}<div class="ngrid" data-ngroup="0" ${pins.length?'':'style="margin-top:16px"'}>${rest.map(noteCard).join('')}</div>`:''}
   ${!N.length&&!UI.note?'<div class="panel emptycard" style="margin-top:16px"><b>No notes yet.</b><p class="sub">Start with a blank note or one of the paycheck templates above.</p></div>':''}
   ${N.length?'<p class="sub" style="font-size:13px;margin-top:14px">Tap a note to open it. Drag ⠿ to move it around. Pinned notes also show on your dashboard.</p>':''}`};
+/* A changed budget counts from this month on; earlier months keep the one they had. */
+function keepPastBudget(y,o){if(!o||o.type!=='monthly'||y.type!=='monthly'||(o.budget||0)===y.budget)return;
+  const nb=y.budget;y.budget=o.budget||0;if(o.hist)y.hist=o.hist.slice();else delete y.hist;Model.setBudget(y,nb,thisM)}
+/* ---------- budget check-up: how each budget held up in a finished month ---------- */
+const CK={m:null,from:null};
+const ckMonths=()=>bkMonths().filter(m=>m<thisM);
+const up5=v=>Math.ceil(v/5-1e-9)*5;
+function ckCat(c,m){
+  const start=Model.baseBudget(c,m),moved=r2(adjOf(c.id,m)),rolled=r2(carryOf(c,m)),limit=budgetOf(c,m),sp=r2(spent(c.id,m));
+  const all=bkMonths(),last=all.slice(Math.max(0,all.indexOf(m)-2),all.indexOf(m)+1);
+  const hist=last.map(k=>({m:k,s:r2(spent(c.id,k)),b:Model.baseBudget(c,k)})),avg=r2(hist.reduce((t,x)=>t+x.s,0)/hist.length);
+  const over=hist.filter(x=>x.s>x.b+0.5).length,under=hist.filter(x=>x.s<x.b*0.8).length,now=c.budget||0;
+  let sug=null,why='';
+  if(hist.length>=2&&over>=2&&up5(avg)>now){sug=up5(avg);why=`Over the starting budget in ${over} of the last ${hist.length} months`}
+  else if(hist.length>=2&&under===hist.length&&!c.roll&&now>0&&up5(avg*1.1)<now){sug=up5(avg*1.1);why=`Well under in all ${hist.length} months. This keeps a little cushion`}
+  return {c,start,moved,rolled,limit,sp,left:r2(limit-sp),avg,n:hist.length,sug,why,now};
+}
+V.checkup=()=>{
+  const ms=ckMonths();
+  const back=`<button class="btn small ghost" data-go="${CK.from||'more'}" style="margin-bottom:8px">Back</button>`;
+  if(!ms.length)return back+`<h1>Budget check-up</h1><p class="sub">Once your first month finishes, this shows how each budget held up and suggests changes.</p>`;
+  if(!CK.m||!ms.includes(CK.m))CK.m=ms[ms.length-1];const m=CK.m,i=ms.indexOf(m);
+  const R=S.categories.filter(c=>c.type==='monthly'&&(!c.archived||spent(c.id,m)>0)).map(c=>ckCat(c,m));
+  const sum=k=>r2(R.reduce((t,x)=>t+x[k],0)),overN=R.filter(x=>x.left<-0.004).length,sugN=R.filter(x=>x.sug!=null&&!x.c.archived).length;
+  const sgn=v=>(v>0.004?'+':v<-0.004?'−':'')+money(Math.abs(v),true);
+  const line=(k,v,cls)=>`<div class="rorow"><span>${k}</span><b class="num ${cls||''}">${v}</b></div>`;
+  return back+`<h1>Budget check-up</h1>
+  <p class="sub">How each budget held up: what it started with, money you moved in or out, what rolled over, and what you spent.</p>
+  <div class="bkmonth"><button class="x" data-ckm="-1" aria-label="Previous month" ${i>0?'':'disabled'}>‹</button><b>${esc(mFull(m))}</b><button class="x" data-ckm="1" aria-label="Next month" ${i<ms.length-1?'':'disabled'}>›</button></div>
+  <div class="panel ckhead">${line('Started with',money(sum('start'),true))}${line('Moved in or out',sgn(sum('moved')))}${line('Rolled over',sgn(sum('rolled')))}
+    ${line('Final limits',money(sum('limit'),true))}${line('Spent',money(sum('sp'),true))}${line(sum('left')>=0?'Left over':'Over',money(Math.abs(sum('left')),true),sum('left')>=0?'okc':'overtxt')}
+    <p class="sub" style="font-size:13px;margin:8px 0 0">${overN?`${overN} categor${overN===1?'y':'ies'} went over.`:'Nothing went over.'} ${sugN?`${sugN} suggestion${sugN===1?'':'s'} below.`:'No changes suggested.'}</p></div>
+  ${R.map(x=>{const p=x.limit?x.sp/x.limit*100:x.sp>0?101:0,st=x.left<-0.004?`<span class="pill behind">${money(-x.left,true)} over</span>`:`<span class="pill">${money(x.left,true)} under</span>`;
+    return `<div class="panel ckcat"><div class="rowtop"><b>${esc(x.c.name)}${x.c.archived?' <small class="sub">(archived)</small>':''}</b>${st}</div>
+    <div class="ckgrid"><span><small>Started</small><b class="num">${money(x.start,true)}</b></span><span><small>Moved</small><b class="num">${sgn(x.moved)}</b></span><span><small>Rolled</small><b class="num">${sgn(x.rolled)}</b></span><span><small>Limit</small><b class="num">${money(x.limit,true)}</b></span><span><small>Spent</small><b class="num">${money(x.sp,true)}</b></span></div>
+    <div class="bar"><i class="${pctClass(p)}" style="width:${Math.min(100,p)}%"></i></div>
+    <div class="rorow" style="margin-top:6px"><span>${x.n>1?`${x.n}-month average spent`:'Only one month so far'}</span><b class="num">${money(x.avg,true)}</b></div>
+    ${x.sug!=null&&!x.c.archived?`<div class="cksug"><div><b>Suggest ${money(x.sug,true)}/month</b><small>${x.why}. Now ${money(x.now,true)}.</small></div><button class="btn small" data-act="ckUse" data-cat="${x.c.id}" data-v="${x.sug}">Use this</button></div>`:''}</div>`}).join('')}
+  <p class="sub" style="font-size:13px">A new budget starts this month. Earlier months keep the budget they had.</p>`;
+};
 V.close=()=>{
   const T=closeTarget(),open=openMonths();
   if(!T)return `<button class="btn small ghost" data-go="activity" style="margin-bottom:8px">Back to activity</button><h1>All caught up</h1><p class="sub">Every finished month is closed. The next one opens for closing on the 1st.</p>`;
@@ -1381,6 +1421,7 @@ V.close=()=>{
   <div class="panel">${monthly.map(c=>{const s=spent(c.id,T),b=budgetOf(c,T);return `<div class="row"><div class="rowtop"><b>${esc(c.name)}</b><span class="num">${money(s)} of ${money(b)}</span></div><div class="bar"><i class="${pctClass(b?s/b*100:0)}" style="width:${Math.min(100,b?s/b*100:0)}%"></i></div>${s>b+0.004?`<div class="actions" style="margin-top:6px"><button class="btn small ghost" data-act="cover" data-cat="${c.id}" data-m="${T}">Cover ${money(s-b,true)} over</button></div>`:''}</div>`}).join('')}
   <div class="row"><div class="rowtop"><b>Income</b><span class="num">${money(incomeIn(T))} of ${money(S.plan.income)} expected</span></div></div>
   <div class="row"><div class="rowtop"><b>Fixed costs</b><span class="num">${unpaid.length?unpaid.length+' not marked paid':'All paid'}</span></div>${unpaid.length?`<p class="sub" style="font-size:13px;margin:4px 0 6px">Mark any you actually paid so balances come out right.</p>${unpaid.map(f=>`<div class="rowtop" style="align-items:center;padding:4px 0"><span style="color:var(--ink)">${esc(f.name)}, ${money(fixedOwe(f,T),true)}</span><button class="btn small ghost" data-payold="${f.id}" data-m="${T}">Mark paid</button></div>`).join('')}`:''}</div></div>
+  <button class="btn ghost" data-act="ckOpen" data-m="${T}" data-from="close" style="width:100%;margin-top:10px">✓ Budget check-up for ${esc(monthName(mDate(T)))}</button>
   <p class="step">Step 2: Confirm balances</p>
   <p class="sub" style="font-size:14px">${older?`Balances as of the end of ${esc(monthName(mDate(T)))}, worked out from your entries. Check them against that month\u2019s statements.`:'Calculated from your entries.'} Change any that don't match, and the difference is recorded as a correction.</p>
   <div class="panel" style="padding:6px 16px 12px;margin-top:10px">${liveAccts().filter(a=>existedBy(a,T)).map(a=>`<label class="field"><span>${esc(a.name)}${a.type==='debt'?' (owed)':''}</span><input type="number" inputmode="decimal" data-bal="${a.id}" data-calc="${balAt(a,T)}" value="${balAt(a,T)}"></label>`).join('')}</div>
@@ -1724,7 +1765,7 @@ function reviewSec(sec){
   const both=x=>!x.archived&&D.find(y=>y.id===x.id&&!y.archived)&&old.find(y=>y.id===x.id&&!y.archived);
   const ordOld=old.filter(both).map(x=>x.id).join(),ordNew=D.filter(both).map(x=>x.id).join();
   if(sec==='categories'&&ordOld!==ordNew)ch.push('Reorder categories');
-  return {ch,apply:()=>{S[sec]=D.map(x=>{const y=Object.assign({},x);if(sec==='categories'){const o=old.find(z=>z.id===y.id);if(y.roll&&!(o&&o.roll))y.rollFrom=thisM;if(!y.roll){delete y.roll;delete y.rollFrom}if(y.type!=='monthly'){delete y.roll;delete y.rollFrom}}if(sec==='categories'&&(y.budget===''||y.budget==null||isNaN(y.budget)))y.budget=0;if(sec==='assets'&&(y.value===''||y.value==null))y.value=0;if(sec==='accounts'&&!y.card){delete y.card;delete y.stmt;delete y.payFull;delete y.payFrom}if(sec==='accounts'&&y.card&&y.stmt!==''&&y.stmt!=null)y.stmt=Math.min(31,Math.max(1,Math.round(parseFloat(y.stmt)||1)));['budget','amount','pct','day','apr','min','balance','value','start','stmt'].forEach(k=>{if(y[k]===''||y[k]==null)delete y[k];else y[k]=parseFloat(y[k])});if(y.to==='')delete y.to;if(y.bank!=null){y.bank=String(y.bank).trim();if(!y.bank)delete y.bank}if(sec==='categories'&&!y.acct)delete y.acct;if(sec==='fixed'){if(!y.begins)delete y.begins;if(!y.end)delete y.end;if((y.freq||'monthly')==='monthly')delete y.freq;if(y.freq!=='months')delete y.months;if(y.pct!=null){delete y.freq;delete y.months;delete y.begins}}if(y.startDate==='')delete y.startDate;if(y.type!=='debt'){delete y.start;delete y.startDate;delete y.accrue}return y});
+  return {ch,apply:()=>{S[sec]=D.map(x=>{const y=Object.assign({},x);if(sec==='categories'){const o=old.find(z=>z.id===y.id);if(y.roll&&!(o&&o.roll))y.rollFrom=thisM;if(!y.roll){delete y.roll;delete y.rollFrom}if(y.type!=='monthly'){delete y.roll;delete y.rollFrom}}if(sec==='categories'&&(y.budget===''||y.budget==null||isNaN(y.budget)))y.budget=0;if(sec==='assets'&&(y.value===''||y.value==null))y.value=0;if(sec==='accounts'&&!y.card){delete y.card;delete y.stmt;delete y.payFull;delete y.payFrom}if(sec==='accounts'&&y.card&&y.stmt!==''&&y.stmt!=null)y.stmt=Math.min(31,Math.max(1,Math.round(parseFloat(y.stmt)||1)));['budget','amount','pct','day','apr','min','balance','value','start','stmt'].forEach(k=>{if(y[k]===''||y[k]==null)delete y[k];else y[k]=parseFloat(y[k])});if(y.to==='')delete y.to;if(y.bank!=null){y.bank=String(y.bank).trim();if(!y.bank)delete y.bank}if(sec==='categories'&&!y.acct)delete y.acct;if(sec==='fixed'){if(!y.begins)delete y.begins;if(!y.end)delete y.end;if((y.freq||'monthly')==='monthly')delete y.freq;if(y.freq!=='months')delete y.months;if(y.pct!=null){delete y.freq;delete y.months;delete y.begins}}if(y.startDate==='')delete y.startDate;if(y.type!=='debt'){delete y.start;delete y.startDate;delete y.accrue}if(sec==='categories')keepPastBudget(y,old.find(z=>z.id===y.id));return y});
     if(sec==='accounts')S.accounts.forEach(a=>{if(a.balance==null)a.balance=0})}};
 }
 
@@ -2115,12 +2156,12 @@ function setupStepCheck(st){
 
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
-  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions',search:'Search',planner:'What if',milestones:'Milestones',projections:'Projections'};
+  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions',search:'Search',planner:'What if',milestones:'Milestones',projections:'Projections',checkup:'Budget check-up'};
   const on=S.view==='more';
   const eye=(S.look||{}).hide?`<button class="eyebtn" data-eye aria-pressed="${!!UI.reveal}" aria-label="${UI.reveal?'Hide amounts':'Show amounts'}">${UI.reveal?'🙈':'👁'}</button>`:'';
   return `<div class="appbar"><span class="brand">Ledger</span>${eye}<button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
 }
-V.more=()=>{const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t+Math.max(0,x.free),0)),short=L.filter(x=>x.free<-0.004).length,ct=closeTarget(),N=(S.notes||[]).length;
+V.more=()=>{CK.from=null;const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t+Math.max(0,x.free),0)),short=L.filter(x=>x.free<-0.004).length,ct=closeTarget(),N=(S.notes||[]).length;
   const tile=(v,i,t,sub,extra)=>`<button class="mtile ${extra||''}" data-go="${v}"><span class="mti" aria-hidden="true">${i}</span><b>${esc(t)}</b><small>${sub}</small></button>`;
   const grp=(name,tiles)=>`<p class="lbl" style="margin:18px 0 8px">${name}</p><div class="mtiles">${tiles.join('')}</div>`;
   return `<h1>Menu</h1>
@@ -2129,6 +2170,7 @@ V.more=()=>{const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t+Math.max(0,x
   ${grp('Money',[tile('accounts','▦','Accounts',`Net worth ${money(netOf())}`),
     tile('unassigned','◇','Unassigned',short?`${short} account${short===1?'':'s'} short`:`${money(free)} free to assign`,short?'warn':''),
     tile('breakdown','⇄','Follow the money','Where this month went'),
+    tile('checkup','✓','Budget check-up','How last month’s budgets held up'),
     tile('projections','⤴','Projections','Your money in 1 to 30 years'),
     tile('planner','⚖︎','What if…','Play out a raise or a goal push'),
     tile('milestones','★','Milestones',`${milestones().filter(m=>m.done).length} earned`),
@@ -2430,6 +2472,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.act==='lookCancel'){UI.lookDraft=null;applyLook();render();toast('Back to your saved look');return}
   if(t.dataset.eye!==undefined){UI.reveal=!UI.reveal;applyLook();render();return}
   if(t.dataset.calday){UI.calDay=UI.calDay===t.dataset.calday?null:t.dataset.calday;render();return}
+  if(t.dataset.ckm){const ms=ckMonths(),i=ms.indexOf(CK.m)+(+t.dataset.ckm);if(i>=0&&i<ms.length){CK.m=ms[i];render()}return}
   if(t.dataset.bm){const ms=bkMonths(),i=ms.indexOf(BK.m)+(+t.dataset.bm);if(i>=0&&i<ms.length){BK.m=ms[i];render()}return}
   if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
   if(t.dataset.gjump){const el=document.getElementById('g-'+t.dataset.gjump);guideMark(t.dataset.gjump);if(el){el.classList.add('in');el.scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}return}
@@ -2636,6 +2679,10 @@ function handleAct(t){
       {select:{label:'Move into',options:cs.map(c=>[c.id,`${c.name} (${money(Math.max(0,catLeft(c,thisM)),true)} left)`])},multi:{label:'Take from',rows:src.map(c=>({id:c.id,label:c.name,max:catLeft(c,thisM),value:''})),need:0}});
     document.getElementById('mSel').dispatchEvent(new Event('change',{bubbles:true}));
     return}
+  if(a==='ckOpen'){CK.m=t.dataset.m||null;CK.from=t.dataset.from||null;S.view='checkup';resetUI();render();window.scrollTo(0,0);return}
+  if(a==='ckUse'){const c=cat(t.dataset.cat),v=+t.dataset.v;if(!c||!(v>=0))return;const old=c.budget||0;
+    confirmBox(`Change ${esc(c.name)} to ${money(v,true)}/month?`,[chg(esc(c.name)+' budget',money(old),money(v)),`Starts in ${esc(monthName(mDate(thisM)))}. Earlier months keep ${money(old,true)}`],'Use this',()=>{
+      Model.setBudget(c,v,thisM);logIt(['Budget check-up — '+chg(c.name+' budget',money(old),money(v))]);render();toast(c.name+' budget is now '+money(v,true))});return}
   if(a==='cover'){
     const CM=t.dataset.m||thisM;if(S.closed.includes(CM)){toast('That month is closed. Reopen it first.');return}
     const c=cat(t.dataset.cat),over=r2(spent(c.id,CM)-budgetOf(c,CM));if(!(over>0)){toast(c.name+' isn’t over anymore');return}
