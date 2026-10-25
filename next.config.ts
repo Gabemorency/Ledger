@@ -33,6 +33,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Shown in the Menu so it's easy to tell which version a phone is running.
+  env: { NEXT_PUBLIC_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7) || "local" },
   poweredByHeader: false,
   async headers() {
     return [

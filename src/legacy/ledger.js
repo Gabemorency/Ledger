@@ -757,7 +757,7 @@ function childRow(c,par){
   if(UI.editGoal===c.id)return editPanel(c,()=>'');
   if(c.done)return `<div class="kid done"><div class="rowtop"><span>✓ ${esc(c.name)}</span><span class="num">${c.archived?'Archived':money(c.paid||0)+' paid '+(c.boughtOn?new Date(c.boughtOn+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')}</span></div></div>`;
   const k=goalInfo(c),p=Math.min(100,c.target?c.saved/c.target*100:0),short=r2(c.target-c.saved);
-  const open=UI.gHist===c.id?ghistPanel(c):UI.addTo===c.id?addPanel(c):UI.moveFrom===c.id?movePanel(c):'';
+  const open=UI.spend===c.id?spendPanel(c):UI.gHist===c.id?ghistPanel(c):UI.addTo===c.id?addPanel(c):UI.moveFrom===c.id?movePanel(c):'';
   return `<div class="kid">
     <div class="rowtop"><b>${esc(c.name)}</b><span class="pills">${kidPill(c,par)}</span></div>
     <div class="cols num"><span>Due ${shortD(c.date)}</span><span>${money(c.saved)} of ${money(c.target)} moved in ${tip('movedin')}</span></div>
@@ -770,6 +770,7 @@ function childRow(c,par){
     ${UI.more===c.id?`<div class="actions">
       <button class="btn small ghost" data-act="addTo" data-id="${c.id}">Add money</button>
       ${c.saved>0.004?`<button class="btn small ghost" data-act="moveFrom" data-id="${c.id}">Move money</button>`:''}
+      ${c.saved>0.004?`<button class="btn small ghost" data-act="spendFrom" data-id="${c.id}">Spend</button>`:''}
       <button class="btn small ghost" data-act="gHist" data-id="${c.id}">History</button>
       <button class="btn small ghost" data-act="push" data-id="${c.id}">Push date back</button>
       <button class="btn small ghost" data-act="editGoal" data-id="${c.id}">🔒 Edit</button></div>`:''}`}
@@ -2247,6 +2248,7 @@ V.more=()=>{CK.from=null;const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t
     tile('milestones','★','Milestones',`${milestones().filter(m=>m.done).length} earned`)].join('')}</div>`:''}
   ${grp('Ledger',[tile('config','⚙︎','Settings','Budgets, bills, colors'),tile('log','≡','Change log',`${(S.log||[]).length} change${(S.log||[]).length===1?'':'s'} recorded`),
     tile('guide','✦','Guide','A tour of the app'),tile('help','?','Help','Answers and tips')])}
+  <p class="sub mver">Version ${esc(process.env.NEXT_PUBLIC_BUILD||'local')}</p>
   ${BOOT?`<div class="panel mwho"><span class="sub">Signed in as ${esc(maskEmail(BOOT.email))}</span><button class="btn small ghost" data-signout>⎋ Sign out</button></div>`:''}`};
 const REDUCED=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* ---------- Guide: an illustrated tour of the whole app (Menu → Guide) ---------- */
