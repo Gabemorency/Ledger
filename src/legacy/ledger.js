@@ -790,6 +790,7 @@ V.goals=()=>{
     const actions=`<div class="actions">
         ${isParent(g)?(liveKids(g).length?`<button class="btn small" data-act="addTo" data-id="${g.id}">Add money</button>`:`<button class="btn small" data-act="complete" data-id="${g.id}">Mark complete</button><button class="btn small ghost" data-act="addTo" data-id="${g.id}">Add money</button>`)
           :soonOrFunded(g,k)?`<button class="btn small" data-act="bought" data-id="${g.id}">Mark as bought</button>${k.status!=='funded'?`<button class="btn small ghost" data-act="addTo" data-id="${g.id}">Add money</button>`:''}`:`<button class="btn small" data-act="addTo" data-id="${g.id}">Add money</button>`}
+        ${!isParent(g)&&g.saved>0.004?`<button class="btn small ghost" data-act="spendFrom" data-id="${g.id}">Spend</button>`:''}
         <button class="btn small ghost" data-act="more" data-id="${g.id}" aria-expanded="${UI.more===g.id}">More</button>
       </div>
       ${UI.more===g.id?`<div class="actions">
