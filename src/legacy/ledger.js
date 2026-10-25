@@ -711,6 +711,7 @@ function editPanel(g,acctOpts){
     <div class="two"><label class="field"><span>${par?'Overall total':child?'Amount due':'Target (optional)'}</span><input type="number" inputmode="decimal" id="eAmt" value="${g.target>0?g.target:''}" placeholder="None"></label>
     <label class="field"><span>${par?'Finish by':child?'Due date':'By (optional)'}</span><input type="date" id="eDate" value="${g.date||''}"></label></div>
     ${child?`<p class="sub" style="font-size:13px">Kept in ${esc(aName(g.acct))}, with the rest of ${esc(goal(g.parent).name)}.</p>`:`<label class="field"><span>Kept in${par?' (moves the whole fund and its sub-goals)':''}</span><select id="eAcct">${acctOpts(g.acct)}</select></label>`}
+    ${par||child||isBucket(g)?'':`<button class="btn small ghost" data-act="clearTarget" style="margin:2px 0 6px">Remove target and date</button>`}
     <p class="sub" style="font-size:13px">${par||child?'':'Leave the target and date empty for a plain bucket. '}A new amount is saved as an entry, using money in the account that isn’t in a bucket, so your balances stay right.</p>
     <div class="actions"><button class="btn ghost small" data-act="cancel">Cancel</button><button class="btn small" data-act="reviewGoal" data-id="${g.id}" style="flex:1">Review changes</button></div>
     <button class="danger" data-act="archGoal" data-id="${g.id}">${hasHistory(g)?'Archive this '+(isBucket(g)?'bucket':'goal'):'Delete this '+(isBucket(g)?'bucket':'goal')}</button>
@@ -2667,6 +2668,7 @@ function handleAct(t){
   if(a==='editAccts'){resetUI();UI.editAccts=true;render();return}
   if(a==='editGoal'){resetUI();UI.editGoal=g.id;render();return}
   if(a==='newIn'){const sel=document.getElementById('newInSel'),aid=t.dataset.acct||(sel&&sel.value);if(!aid)return;resetUI();UI.newIn=aid;render();const n=document.getElementById('gName');if(n){n.scrollIntoView({block:'center'});n.focus()}return}
+  if(a==='clearTarget'){['eAmt','eDate'].forEach(k=>{const el=document.getElementById(k);if(el)el.value=''});t.remove();toast('Target and date cleared. Tap Review changes to save.');return}
   if(a==='spendFrom'){resetUI();UI.spend=g.id;render();const i=document.getElementById('spAmt');if(i)i.focus();return}
   if(a==='doSpend'){
     const v=r2(parseFloat(document.getElementById('spAmt').value)),what=document.getElementById('spWhat').value.trim(),d=document.getElementById('spDate').value||todayISO,w=document.getElementById('spWith').value,mv=w!==g.acct&&document.getElementById('spMove').checked;
