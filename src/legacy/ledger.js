@@ -259,7 +259,7 @@ function removeBlock(t){
 function removeTx(t){const grp=[t].concat(S.tx.filter(x=>x.link===t.id));grp.slice().reverse().forEach(x=>applyTx(x,-1));S.tx=S.tx.filter(x=>!grp.includes(x));MEMO=null;t._grp=grp;return grp}
 function restoreTx(t){(t._grp||[t]).forEach(x=>{if(!S.tx.includes(x)){S.tx.push(x);applyTx(x,1)}});delete t._grp}
 const UI={editAccts:false,editGoal:null,addTo:null,sec:null,draft:null};
-function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
+function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.gHist=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
 const LOGK={settings:'Settings',goals:'Goals',budget:'Budget moves',entries:'Entries',payday:'Routine',months:'Months'};
 function logKind(t){t=String(t);if(/paycheck|check-in/i.test(t))return 'payday';if(/^(Edited|Deleted|Restored) /.test(t))return 'entries';if(/^Moved .* (into|to) .* for /.test(t))return 'budget';if(/close|closed|reopen|month/i.test(t)&&!/goal/i.test(t))return 'months';if(/goal|Emergency fund|sub-goal|priority/i.test(t))return 'goals';return 'settings'}
 function logIt(lines){lines.forEach(t=>S.log.push({ts:Date.now(),text:t,k:logKind(t)}))}
@@ -696,6 +696,33 @@ function editPanel(g,acctOpts){
   </div>`;
 }
 const hasHistory=g=>family(g).length>1||S.tx.some(t=>t.goal===g.id||t.gFrom===g.id||t.gTo===g.id);
+/* every entry that changed a goal's total, oldest first, with the total after each */
+function goalHistory(g){
+  const nm=id=>(goal(id)||{}).name||'another goal';let run=0;
+  const L=S.tx.filter(t=>(t.goal===g.id&&['assign','transfer','unassign'].includes(t.kind))||(t.kind==='gmove'&&(t.gFrom===g.id||t.gTo===g.id)))
+    .slice().sort((a,b)=>a.date.localeCompare(b.date)||S.tx.indexOf(a)-S.tx.indexOf(b)).map(t=>{
+    let v=t.amount,what;
+    if(t.kind==='assign')what=`Set aside in ${aName(t.acct)}`;
+    else if(t.kind==='transfer')what=`From ${aName(t.from)}`;
+    else if(t.kind==='unassign'){v=-v;what=`Back to unassigned in ${aName(t.acct)}`}
+    else if(t.gTo===g.id)what=`From ${nm(t.gFrom)}`;
+    else{v=-v;what=`To ${nm(t.gTo)}`}
+    run=r2(run+v);return {t,v,what,run}});
+  return {L,sum:run,gap:r2(g.saved-run)};
+}
+function ghistPanel(g){
+  const H=goalHistory(g),gap=H.gap,day=d=>new Date(d+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const row=x=>`<button class="ghrow" data-gotx="${x.t.id}"><span class="ghw"><b>${esc(x.what)}</b><small>${day(x.t.date)}${x.t.note?' · '+esc(x.t.note):''}</small></span><span class="ghv"><b class="num ${x.v<0?'overtxt':''}">${x.v<0?'−':'+'}${money(Math.abs(x.v),true)}</b><small class="num">${money(x.run,true)}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
+  return `<div class="inpanel ghist">
+    <div class="rowtop"><p class="lbl" style="margin:0">History of ${esc(g.name)}</p><button class="btn small ghost" data-act="cancel">Close</button></div>
+    <p class="sub" style="font-size:13px;margin:4px 0 8px">Every entry that changed this total, newest first. The smaller number is the total after it. Tap one to fix or delete it.</p>
+    ${Math.abs(gap)>0.004?`<div class="ghgap"><b>${money(Math.abs(gap),true)} ${gap>0?'isn’t from any entry':'is missing from the total'}</b>
+      <span>${gap>0?`The total says ${money(g.saved,true)}, but the entries below only add up to ${money(H.sum,true)}. This usually means a starting amount was typed in when the goal was set up, so there’s no entry to find.`:`The entries below add up to ${money(H.sum,true)}, but the total says ${money(g.saved,true)}.`}</span>
+      <button class="btn small" data-act="gFix" data-id="${g.id}">Make the total ${money(H.sum,true)}</button></div>`:''}
+    ${H.L.length?H.L.slice().reverse().map(row).join(''):'<p class="sub" style="font-size:14px">No entries yet.</p>'}
+    ${Math.abs(gap)>0.004&&gap>0?`<div class="ghrow ghstart"><span class="ghw"><b>Starting amount (no entry)</b><small>Not tied to any date</small></span><span class="ghv"><b class="num">+${money(gap,true)}</b></span></div>`:''}
+  </div>`;
+}
 function kidPill(c,par){
   const short=r2(c.target-c.saved),gap=(parentInfo(par).cover||{})[c.id];
   if(short<=0.004)return `<span class="pill">Ready to pay</span>${tip('readypay')}`;
@@ -707,7 +734,7 @@ function childRow(c,par){
   if(UI.editGoal===c.id)return editPanel(c,()=>'');
   if(c.done)return `<div class="kid done"><div class="rowtop"><span>✓ ${esc(c.name)}</span><span class="num">${c.archived?'Archived':money(c.paid||0)+' paid '+(c.boughtOn?new Date(c.boughtOn+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')}</span></div></div>`;
   const k=goalInfo(c),p=Math.min(100,c.target?c.saved/c.target*100:0),short=r2(c.target-c.saved);
-  const open=UI.addTo===c.id?addPanel(c):UI.moveFrom===c.id?movePanel(c):'';
+  const open=UI.gHist===c.id?ghistPanel(c):UI.addTo===c.id?addPanel(c):UI.moveFrom===c.id?movePanel(c):'';
   return `<div class="kid">
     <div class="rowtop"><b>${esc(c.name)}</b><span class="pills">${kidPill(c,par)}</span></div>
     <div class="cols num"><span>Due ${shortD(c.date)}</span><span>${money(c.saved)} of ${money(c.target)} moved in ${tip('movedin')}</span></div>
@@ -720,6 +747,7 @@ function childRow(c,par){
     ${UI.more===c.id?`<div class="actions">
       <button class="btn small ghost" data-act="addTo" data-id="${c.id}">Add money</button>
       ${c.saved>0.004?`<button class="btn small ghost" data-act="moveFrom" data-id="${c.id}">Move money</button>`:''}
+      <button class="btn small ghost" data-act="gHist" data-id="${c.id}">History</button>
       <button class="btn small ghost" data-act="push" data-id="${c.id}">Push date back</button>
       <button class="btn small ghost" data-act="editGoal" data-id="${c.id}">🔒 Edit</button></div>`:''}`}
   </div>`;
@@ -728,7 +756,7 @@ V.goals=()=>{
   const tops=topGoals(),done=S.goals.filter(g=>g.done&&!g.parent);
   const P=monthPlan();
   const acctOpts=sel=>liveAccts().filter(a=>a.type!=='debt').map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.name)}</option>`).join('');
-  const panels=g=>UI.addTo===g.id?addPanel(g):UI.moveFrom===g.id?movePanel(g):UI.addSub===g.id?subPanel(g):'';
+  const panels=g=>UI.gHist===g.id?ghistPanel(g):UI.addTo===g.id?addPanel(g):UI.moveFrom===g.id?movePanel(g):UI.addSub===g.id?subPanel(g):'';
   const card=(g,i)=>{
     if(UI.editGoal===g.id)return editPanel(g,acctOpts);
     const k=goalInfo(g),pl=P.goals.find(x=>x.g.id===g.id),due=shortD(g.date),past=new Date(g.date+'T00:00')<now;
@@ -739,6 +767,7 @@ V.goals=()=>{
       </div>
       ${UI.more===g.id?`<div class="actions">
         ${g.saved>0.004?`<button class="btn small ghost" data-act="moveFrom" data-id="${g.id}">Move money</button>`:''}
+        <button class="btn small ghost" data-act="gHist" data-id="${g.id}">History</button>
         <button class="btn small ghost" data-act="addSub" data-id="${g.id}">Add a sub-goal</button>
         ${k.status==='behind'||(k.status!=='funded'&&past)?`<button class="btn small ghost" data-act="push" data-id="${g.id}">Push date back</button>`:''}
         ${i>0?`<button class="btn small ghost" data-act="up" data-id="${g.id}">Raise priority</button>`:''}
@@ -1121,8 +1150,8 @@ function searchAll(q){q=String(q||'').trim().toLowerCase();if(q.length<2&&!/\d/.
   const amtHit=a=>isNum&&(Math.abs(a-parseFloat(num))<0.005||money(a,true).replace(/[$,]/g,'').startsWith(num));
   const R={entries:[],notes:[],goals:[],cats:[],accts:[],bills:[],subs:[]};
   S.tx.slice().sort((a,b)=>b.date.localeCompare(a.date)).forEach(t=>{if(R.entries.length>=40)return;
-    const c=t.cat&&cat(t.cat),g=t.goal&&goal(t.goal);
-    if(has(t.vendor)||has(t.note)||(c&&has(c.name))||(g&&has(g.name))||has(aName(t.acct))||amtHit(t.amount))R.entries.push(t)});
+    const c=t.cat&&cat(t.cat),g=t.goal&&goal(t.goal),gm=t.kind==='gmove'?[goal(t.gFrom),goal(t.gTo)].filter(Boolean):[];
+    if(has(t.vendor)||has(t.note)||(c&&has(c.name))||(g&&has(g.name))||gm.some(x=>has(x.name))||has(aName(t.acct))||amtHit(t.amount))R.entries.push(t)});
   (S.notes||[]).forEach(n=>{if(has(n.title)||has(n.body))R.notes.push(n)});
   activeGoals().forEach(g=>{if(has(g.name)||amtHit(g.target))R.goals.push(g)});
   liveCats().forEach(c=>{if(has(c.name))R.cats.push(c)});
@@ -2575,6 +2604,10 @@ function handleAct(t){
     confirmBox('Save '+SECS[sec].toLowerCase()+' changes?',r.ch,'Save changes',()=>{r.apply();logIt(r.ch.map(c=>SECS[sec]+' — '+c.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')));resetUI();render();toast(SECS[sec]+' updated')});return}
   if(a==='editAccts'){resetUI();UI.editAccts=true;render();return}
   if(a==='editGoal'){resetUI();UI.editGoal=g.id;render();return}
+  if(a==='gHist'){resetUI();UI.gHist=g.id;render();return}
+  if(a==='gFix'){const H=goalHistory(g),was=g.saved;if(Math.abs(H.gap)<=0.005)return;
+    confirmBox(`Make ${esc(g.name)} ${money(H.sum,true)}?`,[chg('Saved in '+esc(g.name),money(was),money(H.sum)),H.gap>0?`${money(H.gap,true)} goes back to unassigned in ${esc(aName(g.acct))}. Account balances don’t change`:`${money(-H.gap,true)} comes out of unassigned in ${esc(aName(g.acct))}. Account balances don’t change`],'Fix the total',()=>{
+      g.saved=H.sum;MEMO=null;logIt([`Goal history — ${g.name} total matched to its entries: ${money(was)} → ${money(H.sum)}`]);UI.gHist=g.id;render();toast(`${g.name} is now ${money(H.sum,true)}`)});return}
   if(a==='addTo'){resetUI();UI.addTo=g.id;render();const i=document.getElementById('addAmt');if(i)i.focus();return}
   if(a==='doAdd'){
     const v=parseFloat(document.getElementById('addAmt').value);if(!(v>0)){toast('Enter an amount');return}

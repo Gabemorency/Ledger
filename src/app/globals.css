@@ -890,3 +890,14 @@ body{transition:background-color .25s}
 .cksug>div{flex:1;min-width:0;display:flex;flex-direction:column}
 .cksug small{font-size:12px;color:var(--muted)}
 @media (max-width:380px){.ckgrid{grid-template-columns:repeat(3,1fr)}}
+/* goal history */
+.ghist .rowtop{align-items:center}
+.ghrow{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;border-top:1px solid var(--line);padding:10px 0;text-align:left;color:var(--ink);font:inherit}
+.ghw{flex:1;min-width:0;display:flex;flex-direction:column}
+.ghw b{font-size:14px;font-weight:600}
+.ghw small,.ghv small{font-size:12px;color:var(--muted)}
+.ghv{display:flex;flex-direction:column;align-items:flex-end;flex:none}
+.ghv b{font-size:14px}
+.ghstart{cursor:default}
+.ghgap{display:flex;flex-direction:column;gap:6px;background:var(--over-soft);border-radius:12px;padding:10px 12px;margin:0 0 8px;font-size:13px;color:var(--ink)}
+.ghgap .btn{align-self:flex-start}
