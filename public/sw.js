@@ -20,11 +20,11 @@ async function trim(cache) {
   for (let i = 0; i < keys.length - MAX_STATIC; i++) await cache.delete(keys[i]);
 }
 
-/* The app page: show the saved copy straight away, refresh it in the background.
+/* The app page: get the newest version when there's signal, so updates show
+   up on the next open. Use the saved copy when offline or the network is slow.
    If the server says you're signed out, forget the saved copy. */
 async function appPage(event) {
   const cache = await caches.open(SHELL);
-  const saved = await cache.match("/");
   const fresh = fetch(event.request)
     .then(async (res) => {
       if (res.ok && !res.redirected && res.type === "basic") await cache.put("/", res.clone());
@@ -32,11 +32,12 @@ async function appPage(event) {
       return res;
     })
     .catch(() => null);
-  if (saved) {
-    event.waitUntil(fresh);
-    return saved;
-  }
-  return (await fresh) || Response.error();
+  const saved = await cache.match("/");
+  if (!saved) return (await fresh) || Response.error();
+  const res = await Promise.race([fresh, new Promise((r) => setTimeout(() => r(null), 3000))]);
+  if (res && res.status < 500) return res;
+  event.waitUntil(fresh);
+  return saved;
 }
 
 /* Built files have unique names per version, so a saved copy never goes stale. */

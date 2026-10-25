@@ -209,6 +209,16 @@ const before = sql(`select count(*) from entries where user_id='${U1}'`);
 await A.ctx.setOffline(false);
 check("uploaded once back online", await eventually(() => Number(sql(`select count(*) from entries where user_id='${U1}'`)) === Number(before) + 1));
 
+// 7b. with signal, the newest version opens; the saved copy is only for no signal
+await A.page.evaluate(async () => {
+  const c = await caches.open("ledger-shell-v1");
+  await c.put("/", new Response("<!doctype html><title>old</title><body>OLD VERSION</body>", { headers: { "content-type": "text/html" } }));
+});
+await A.page.reload();
+check("an update shows on the next open, not an old saved copy", !(await A.page.content()).includes("OLD VERSION"));
+await getPastPin(A.page);
+check("…and the saved copy is refreshed", await A.page.evaluate(async () => !(await (await caches.match("/")).text()).includes("OLD VERSION")));
+
 // 8. the emailed link: works in the browser that asked for it, nowhere else
 const D = await device();
 await D.page.goto(APP + "/login");
