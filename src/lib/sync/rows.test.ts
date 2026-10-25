@@ -61,6 +61,15 @@ describe("stateToRows / rowsToState", () => {
     expect(rows.snapshots.get("2026-09")).toMatchObject({ id: "2026-09", data: { m: "Sep", bal: { a1: 1000 } } });
   });
 
+  it("stores a bucket's empty date as no date, and reads it back without one", () => {
+    const st = state();
+    (st.goals as Record<string, unknown>[]).push({ id: "b1", name: "Car repairs", target: 0, saved: 300, date: "", acct: "a3", done: false });
+    const { rows, settings } = stateToRows(st);
+    expect(rows.goals.get("b1")!.due_date).toBeNull();
+    const back = (rowsToState({ goals: [...rows.goals.values()] }, settings).goals as Record<string, unknown>[]).find((g) => g.id === "b1")!;
+    expect(back.date).toBeUndefined();
+    expect(back.target).toBe(0);
+  });
   it("keeps list order through the position column", () => {
     const { rows, settings } = stateToRows(state());
     const shuffled = [...rows.goals.values()].reverse();

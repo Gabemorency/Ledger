@@ -66,6 +66,28 @@ describe("unassigned", () => {
   });
 });
 
+describe("buckets (no target)", () => {
+  it("have no pace or status and need nothing each month", () => {
+    const k = goalInfo(sample(), goal({ target: 0, date: "", saved: 250 }), now);
+    expect(k.status).toBe("bucket");
+    expect(k.perMonth).toBe(0);
+    expect(k.cur).toBe(250);
+  });
+  it("still hold their money, so it isn't counted as unassigned", () => {
+    const s = sample();
+    s.goals = [goal({ target: 0, date: "", saved: 200 })];
+    expect(unassigned(s, "sav")).toBe(300);
+  });
+  it("get no money from the monthly plan, so later goals still do", () => {
+    const s = sample();
+    s.goals = [goal({ id: "b", target: 0, date: "" }), goal({ id: "c", target: 600, date: "2027-10-01" })];
+    const p = monthPlan(s, now);
+    expect(p.goals[0].funded).toBe(0);
+    expect(p.goals[1].funded).toBe(p.goals[1].need);
+    expect(p.goals[1].funded).toBeGreaterThan(0);
+  });
+});
+
 describe("monthPlan", () => {
   it("funds fixed costs, then goals in priority order, then guilt-free", () => {
     const s = sample(); // $2000 income, $800 rent + 10% tithe = $1000 fixed

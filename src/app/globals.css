@@ -905,3 +905,13 @@ body{transition:background-color .25s}
 .seg{display:flex;gap:4px;background:var(--pad);border-radius:12px;padding:4px;margin:10px 0 14px}
 .segb{flex:1;border:0;background:none;border-radius:9px;padding:8px 4px;font:inherit;font-size:13px;font-weight:600;color:var(--muted);line-height:1.2}
 .segb[aria-pressed=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+/* savings: accounts and their buckets */
+.svacct{margin-top:22px}
+.svhead{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin:0 0 8px}
+.svhead h2{margin:0}
+.svhead>b{font:700 18px var(--display);color:var(--ink)}
+.goal.bucket .gtop{align-items:center}
+.goal.bucket .bamt{font:700 20px var(--display);color:var(--ink)}
+.svfree{padding:10px 16px 12px}
+.svfree .btn{margin-top:6px}
+.svother{padding:12px 16px;margin-top:18px}

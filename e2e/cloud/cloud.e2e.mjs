@@ -144,6 +144,14 @@ check("new expense saved to the cloud", await eventually(() => Number(sql(`selec
 check("its amount is exact", sql(`select amount from entries where user_id='${U1}' order by updated_at desc limit 1`) === "12.50");
 check("new ids are random UUIDs", /^i[0-9a-f]{32}$/.test(sql(`select id from entries where user_id='${U1}' order by updated_at desc limit 1`)));
 
+// 4b. a plain savings bucket (no target, no date) saves too
+await go(A.page, "goals");
+await A.page.click('[data-act=newIn][data-acct=a3]');
+await A.page.fill("#gName", "Car repairs");
+await A.page.click("#gCreate");
+check("bucket with no date saved to the cloud", await eventually(() => sql(`select coalesce(due_date::text,'none')||' '||target from goals where user_id='${U1}' and name='Car repairs'`) === "none 0.00"));
+await go(A.page, "home");
+
 // 5. another user sees none of it
 const B = await device();
 await signIn(B.page, "other@example.com");

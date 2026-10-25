@@ -68,8 +68,9 @@ function toRow(spec: TableSpec, item: Obj, position: number): Row {
   const id = String(rest[spec.idField]);
   delete rest[spec.idField];
   const row: Row = { id, position };
-  for (const { col, field } of spec.columns) {
-    row[col] = rest[field] ?? null;
+  for (const { col, field, kind } of spec.columns) {
+    // An empty date (a bucket with no target date) is stored as no date.
+    row[col] = kind === "date" && rest[field] === "" ? null : (rest[field] ?? null);
     delete rest[field];
   }
   row.data = rest;

@@ -3,7 +3,10 @@ import { r2 } from "./money";
 import { findAccount } from "./balances";
 import type { Goal, LedgerState } from "./types";
 
-export type GoalStatus = "funded" | "ahead" | "on track" | "behind";
+export type GoalStatus = "funded" | "ahead" | "on track" | "behind" | "bucket";
+
+/** A goal with no target is a bucket: just a named amount kept in an account. */
+export const hasTarget = (g: Goal) => g.target > 0 && !!g.date;
 
 export const activeGoals = (s: LedgerState) => s.goals.filter((g) => !g.done);
 export const subGoals = (s: LedgerState, g: Goal) => s.goals.filter((x) => x.parent === g.id);
@@ -59,6 +62,7 @@ function statusOf(g: Goal, have: number, expected: number, fundedAt: number): Go
 }
 
 export function goalInfo(s: LedgerState, g: Goal, now: Date) {
+  if (!hasTarget(g)) return { perMonth: 0, status: "bucket" as GoalStatus, remaining: 0, expected: null, diff: null, cur: g.saved };
   if (isParent(s, g)) return parentInfo(s, g, now);
   const expected = pace(g, now);
   const remaining = Math.max(0, g.target - g.saved);
