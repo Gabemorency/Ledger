@@ -22,7 +22,8 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 let uid=1000; const id=()=>BOOT?'i'+crypto.randomUUID().replace(/-/g,''):'i'+(uid++)+Math.random().toString(36).slice(2,6);
 
 const DASH_CARDS={safe:'Safe to spend',start:'Getting started',payday:'Payday transfers',checkin:'Weekly check-in',notes:'Pinned notes',cardpay:'Credit card statement',networth:'Net worth',unassigned:'Unassigned money',overview:'Account totals',plan:'Plan check',spending:'Spending',fixed:'Fixed costs',annual:'Annual budgets',latest:'Latest entries'};
-const defaultDash=()=>({order:['safe','start','payday','checkin','notes','cardpay','spending','networth','unassigned','goal:g3','plan','overview','fixed','debt:a6','annual','latest'],hidden:[]});
+const DASH_EXTRA=['networth','overview','plan','annual'];
+const defaultDash=()=>({order:['safe','start','payday','checkin','cardpay','unassigned','spending','fixed','latest','notes','goal:g3','debt:a6','networth','plan','overview','annual'],hidden:DASH_EXTRA.slice(),lean:1});
 function blankPlan(){return {income:0,deposit:null,payDefault:null,framework:'csp',inc:{grossAnnual:0,pretax:0,net:0,extra:0},
   custom:[{name:'Fixed costs',roles:['need'],min:50,max:60},{name:'Investments',roles:['invest'],min:10,max:10},{name:'Savings',roles:['save'],min:5,max:10},{name:'Guilt-free spending',roles:['want'],min:20,max:35}]}}
 function blank(){
@@ -142,7 +143,7 @@ const cat=cid=>S.categories.find(c=>c.id===cid);
 function adjOf(cid,m){return Model.adjustmentOf(S,cid,m)}
 function carryOf(c,m){return Model.carryOf(S,memo(),c,m||thisM)}
 function budgetOf(c,m){return Model.budgetOf(S,memo(),c,m||thisM)}
-function sanitize(){if(!S.adj)S.adj={};if(!S.proj||typeof S.proj!=='object')S.proj={};if(!Array.isArray(S.proj.events))S.proj.events=[];if(!Array.isArray(S.subs))S.subs=[];if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('safe'))S.dash.order.unshift('safe');if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
+function sanitize(){if(!S.adj)S.adj={};if(!S.proj||typeof S.proj!=='object')S.proj={};if(!Array.isArray(S.proj.events))S.proj.events=[];if(!Array.isArray(S.subs))S.subs=[];if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('safe'))S.dash.order.unshift('safe');if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!S.dash.lean){/* simpler dashboard: the everyday cards first, the extras hidden (turn them back on in Settings) */S.dash.lean=1;S.dash.hidden=[...new Set(S.dash.hidden.concat(DASH_EXTRA))];const front=['safe','start','payday','checkin','cardpay','unassigned','spending','fixed','latest'];S.dash.order=front.filter(k=>S.dash.order.includes(k)).concat(S.dash.order.filter(k=>!front.includes(k)))}if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
 function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
@@ -544,8 +545,10 @@ V.home=()=>{
   <p class="sub">${monthName(now,{month:'long',year:'numeric'})}</p>
   <h1>Dashboard</h1>
   ${closeBanner()}
-  ${(()=>{const cards=shown.map(k=>{const h=C[k]?C[k]():pinCard(k);return h?`<section class="dcard dc-${k.replace(':','-')}">${h}</section>`:''}).filter(Boolean);
-    const top=cards.slice(0,DASH_TOP),rest=cards.slice(DASH_TOP);
+  ${(()=>{const all=shown.map(k=>{const h=C[k]?C[k]():pinCard(k);return h?{k,h:`<section class="dcard dc-${k.replace(':','-')}">${h}</section>`}:null}).filter(Boolean);
+    /* reminders that only show when something needs doing don't push the everyday cards down */
+    const ALERT=['start','payday','checkin','cardpay'];let n=0;const top=[],rest=[];
+    all.forEach(x=>{if(ALERT.includes(x.k))top.push(x.h);else if(n++<DASH_TOP)top.push(x.h);else rest.push(x.h)});
     return `<div class="dgrid">${top.join('')}${UI.dashMore?rest.map(c=>c.replace('<section class="dcard','<section class="dcard dc-more')).join(''):''}</div>
     ${rest.length?`<button class="morebtn" data-dashmore aria-expanded="${!!UI.dashMore}">${UI.dashMore?'Show less':`Show ${rest.length} more`}<span class="chev">${UI.dashMore?'⌃':'⌄'}</span></button>`:''}`})()}
   ${shown.length?'':`<div class="panel emptycard"><b>Every card is hidden.</b><p class="sub">Turn some back on in Settings, under Dashboard.</p></div>`}
@@ -1024,7 +1027,7 @@ V.breakdown=()=>{
   const goalsM=Object.values(gl).filter(x=>Math.abs(x.v)>0.004).sort((a,b)=>b.v-a.v),goalsTot=r2(goalsM.reduce((s,x)=>s+x.v,0));
   const cs=liveCats().filter(c=>c.type==='monthly'),budTot=r2(cs.reduce((s,c)=>s+budgetOf(c,m),0)),spTot=r2(cs.reduce((s,c)=>s+spent(c.id,m),0));
   const ua=m===thisM?uaAccts().map(uaInfo):null;
-  return `<button class="btn small ghost" data-go="trends" style="margin-bottom:8px">Back to trends</button><h1>Follow the money</h1>
+  return `${reviewHead('breakdown')}
   <p class="sub">Where your money started, where it came from, where it went, and the jobs you gave it.</p>
   ${m<thisM?`<button class="rcplay" data-act="recap" data-m="${m}">▶ Play the ${esc(monthName(mDate(m),{month:'long'}))} recap</button><button class="btn small ghost" data-act="ckOpen" data-m="${m}" data-from="breakdown" style="margin:0 0 8px">✓ Budget check-up</button>`:''}
   <div class="bkmonth"><button class="x" data-bm="-1" aria-label="Previous month" ${i>0?'':'disabled'}>‹</button><b>${esc(mFull(m))}</b><button class="x" data-bm="1" aria-label="Next month" ${i<ms.length-1?'':'disabled'}>›</button></div>
@@ -1038,8 +1041,7 @@ V.breakdown=()=>{
       ${kept>0.004?`<div class="mvssplit">${goalsTot>0.004?`<div class="rorow"><span>Set aside for goals</span><b class="num">${money(goalsTot,true)}</b></div>`:''}
         ${ret>0.004?`<div class="rorow"><span>Moved to retirement</span><b class="num">${money(ret,true)}</b></div>`:''}
         ${goalsTot>0.004||ret>0.004?`<div class="rorow"><span>${rest>=0?'Still in your accounts':'Taken from earlier savings'}</span><b class="num">${money(Math.abs(rest),true)}</b></div>`:''}</div>`:''}
-      <p class="sub" style="font-size:13px;margin:8px 0 0">${m===thisM?'Month in progress. ':''}Spent means purchases (including on cards), bills and interest. Money moved into savings, goals or retirement isn’t spending.${st.planned>0.004?` ${money(st.planned,true)} of planned purchases paid from goals isn’t counted either.`:''}</p>
-      <button class="loglink" data-go="trends" style="margin-top:10px"><span><b>See it over time</b><small>Income vs. spending and your savings rate, month by month</small></span><span class="chev">›</span></button></div>`})()}
+      <p class="sub" style="font-size:13px;margin:8px 0 0">${m===thisM?'Month in progress. ':''}Spent means purchases (including on cards), bills and interest. Money moved into savings, goals or retirement isn’t spending.${st.planned>0.004?` ${money(st.planned,true)} of planned purchases paid from goals isn’t counted either.`:''}</p></div>`})()}
 
   <h2>The flow ${tip('flow')}</h2>
   <div class="panel cpanel">${F.accts.length?`<div class="skhead"><span>Money in</span><span>Accounts</span><span>Money out</span></div>`+sankey(F.src,F.use)+`<p class="sub" style="font-size:13px;margin:8px 0 0">Your checking, savings and cash went from <b class="num">${money(F.start,true)}</b> to <b class="num">${money(F.end,true)}</b>${m===thisM?' so far':''}.</p>`:'<div class="empty">Add a checking, savings or cash account to see the flow.</div>'}
@@ -1303,6 +1305,10 @@ function drawRecap(){const {slides,i,el}=RC,s=slides[i];
       ${s.rows?`<div class="rcrows">${s.rows.map(([a,b])=>`<div><span>${a}</span><b class="num">${b}</b></div>`).join('')}</div>`:''}${s.foot?`<p class="rcfoot">${s.foot}</p>`:''}</div>`;
   clearTimeout(RC.timer);if(!REDUCED)RC.timer=setTimeout(()=>stepRecap(1),5200)}
 function stepRecap(d){if(!RC)return;const n=RC.i+d;if(n<0)return;if(n>=RC.slides.length){closeRecap();return}RC.i=n;drawRecap()}
+/* ---------- Review: one place to look back (over time, follow the money, check-up) ---------- */
+const REVIEW=['trends','breakdown','checkup'];let RV='trends';
+function reviewHead(v){RV=v;const tab=(k,l)=>`<button class="segb" data-go="${k}" aria-pressed="${k===v}">${l}</button>`;
+  return `<h1>Review</h1><div class="seg" role="group" aria-label="Review">${tab('trends','Over time')}${tab('breakdown','Follow the money')}${tab('checkup','Check-up')}</div>`}
 function closeRecap(){if(!RC)return;clearTimeout(RC.timer);RC.el.remove();RC=null}
 document.addEventListener('keydown',e=>{if(!RC)return;if(e.key==='Escape')closeRecap();else if(e.key==='ArrowRight'||e.key===' ')stepRecap(1);else if(e.key==='ArrowLeft')stepRecap(-1)});
 
@@ -1415,14 +1421,14 @@ function ckCat(c,m){
 }
 V.checkup=()=>{
   const ms=ckMonths();
-  const back=`<button class="btn small ghost" data-go="${CK.from||'more'}" style="margin-bottom:8px">Back</button>`;
-  if(!ms.length)return back+`<h1>Budget check-up</h1><p class="sub">Once your first month finishes, this shows how each budget held up and suggests changes.</p>`;
+  const back=(CK.from==='close'?`<button class="btn small ghost" data-go="close" style="margin-bottom:8px">Back to Close a month</button>`:'')+reviewHead('checkup');
+  if(!ms.length)return back+`<p class="sub">Once your first month finishes, this shows how each budget held up and suggests changes.</p>`;
   if(!CK.m||!ms.includes(CK.m))CK.m=ms[ms.length-1];const m=CK.m,i=ms.indexOf(m);
   const R=S.categories.filter(c=>c.type==='monthly'&&(!c.archived||spent(c.id,m)>0)).map(c=>ckCat(c,m));
   const sum=k=>r2(R.reduce((t,x)=>t+x[k],0)),overN=R.filter(x=>x.left<-0.004).length,sugN=R.filter(x=>x.sug!=null&&!x.c.archived).length;
   const sgn=v=>(v>0.004?'+':v<-0.004?'−':'')+money(Math.abs(v),true);
   const line=(k,v,cls)=>`<div class="rorow"><span>${k}</span><b class="num ${cls||''}">${v}</b></div>`;
-  return back+`<h1>Budget check-up</h1>
+  return back+`
   <p class="sub">How each budget held up: what it started with, money you moved in or out, what rolled over, and what you spent.</p>
   <div class="bkmonth"><button class="x" data-ckm="-1" aria-label="Previous month" ${i>0?'':'disabled'}>‹</button><b>${esc(mFull(m))}</b><button class="x" data-ckm="1" aria-label="Next month" ${i<ms.length-1?'':'disabled'}>›</button></div>
   <div class="panel ckhead">${line('Started with',money(sum('start'),true))}${line('Moved in or out',sgn(sum('moved')))}${line('Rolled over',sgn(sum('rolled')))}
@@ -1909,8 +1915,7 @@ V.trends=()=>{
   const chips=[[3,'3M'],[6,'6M'],[12,'12M'],['all','All']].map(([v,l])=>`<button class="chip" data-range="${v}" aria-pressed="${TR.range===v}">${l}</button>`).join('');
   const stat=(l,v,sub,cls)=>`<div class="ov"><div class="sub">${l}</div><div class="ovv num ${cls||''}">${v}</div><span class="sub" style="font-size:12px">${sub}</span></div>`;
   const fwName=S.plan.framework==='custom'?'custom plan':FW[S.plan.framework].name;
-  return `<h1>Trends</h1><p class="sub">How your money has moved over time. * marks the current month, still in progress.</p>
-  <button class="loglink" data-go="breakdown" style="margin-top:12px"><span><b>◔ Follow the money</b><small>Each month: where money came from, where it went, and the jobs you gave it</small></span><span class="chev">›</span></button>
+  return `${reviewHead('trends')}<p class="sub">How your money has moved over time. * marks the current month, still in progress.</p>
   <div class="chips" style="margin:14px 0">${chips}</div>
   <div class="ovgrid">
     ${stat('Net worth change',(nwChg>=0?'+':'')+money(nwChg),`across ${nwVals.length} recorded months`,nwChg>=0?'up':'down')}
@@ -2185,7 +2190,7 @@ function setupStepCheck(st){
 
 function appBar(){
   if(S.view==='setup'||!S.setupDone)return '';
-  const T={home:'Dashboard',trends:'Trends',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Follow the money',notes:'Notes',subs:'Subscriptions',search:'Search',planner:'What if',milestones:'Milestones',projections:'Projections',checkup:'Budget check-up'};
+  const T={home:'Dashboard',trends:'Review',goals:'Goals',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Review',notes:'Notes',subs:'Subscriptions',search:'Search',planner:'What if',milestones:'Milestones',projections:'Projections',checkup:'Review'};
   const on=S.view==='more';
   const eye=(S.look||{}).hide?`<button class="eyebtn" data-eye aria-pressed="${!!UI.reveal}" aria-label="${UI.reveal?'Hide amounts':'Show amounts'}">${UI.reveal?'🙈':'👁'}</button>`:'';
   return `<div class="appbar"><span class="brand">Ledger</span>${eye}<button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
@@ -2198,13 +2203,12 @@ V.more=()=>{CK.from=null;const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t
   ${ct?`<button class="mclose" data-go="close"><span class="mti" aria-hidden="true">🔒</span><span><b>Close ${esc(monthName(mDate(ct)))}</b><small>Confirm balances and lock the month</small></span><span class="chev">›</span></button>`:''}
   ${grp('Money',[tile('accounts','▦','Accounts',`Net worth ${money(netOf())}`),
     tile('unassigned','◇','Unassigned',short?`${short} account${short===1?'':'s'} short`:`${money(free)} free to assign`,short?'warn':''),
-    tile('breakdown','⇄','Follow the money','Where this month went'),
-    tile('checkup','✓','Budget check-up','How last month’s budgets held up'),
-    tile('projections','⤴','Projections','Your money in 1 to 30 years'),
-    tile('planner','⚖︎','What if…','Play out a raise or a goal push'),
-    tile('milestones','★','Milestones',`${milestones().filter(m=>m.done).length} earned`),
     tile('subs','↻','Subscriptions',(S.subs||[]).length?`${money(r2((S.subs||[]).reduce((t,x)=>t+subMonthly(x),0)))}/month`:'Track what renews'),
     tile('notes','✎','Notes',N?`${N} note${N===1?'':'s'}`:'Reminders for yourself')])}
+  <button class="morebtn" data-mtools aria-expanded="${!!UI.mtools}" style="margin-top:14px">More tools<span class="chev">${UI.mtools?'⌃':'⌄'}</span></button>
+  ${UI.mtools?`<div class="mtiles">${[tile('projections','⤴','Projections','Your money in 1 to 30 years'),
+    tile('planner','⚖︎','What if…','Play out a raise or a goal push'),
+    tile('milestones','★','Milestones',`${milestones().filter(m=>m.done).length} earned`)].join('')}</div>`:''}
   ${grp('Ledger',[tile('config','⚙︎','Settings','Budgets, bills, colors'),tile('log','≡','Change log',`${(S.log||[]).length} change${(S.log||[]).length===1?'':'s'} recorded`),
     tile('guide','✦','Guide','A tour of the app'),tile('help','?','Help','Answers and tips')])}
   ${BOOT?`<div class="panel mwho"><span class="sub">Signed in as ${esc(maskEmail(BOOT.email))}</span><button class="btn small ghost" data-signout>⎋ Sign out</button></div>`:''}`};
@@ -2301,12 +2305,30 @@ function render(){
   const app=document.getElementById('app');app.dataset.view=S.view;app.innerHTML=appBar()+V[S.view]();
   if(!same&&!REDUCED){app.classList.remove('enter');void app.offsetWidth;app.classList.add('enter');countUp(app)}
   if(S.view==='guide')setupGuide();else if(GOBS){GOBS.disconnect();GOBS=null}
-  document.querySelectorAll('nav [data-view]').forEach(b=>{if(b.dataset.view===S.view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
+  document.querySelectorAll('nav [data-view]').forEach(b=>{if(b.dataset.view===S.view||(b.dataset.view==='trends'&&REVIEW.includes(S.view)))b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   if(same&&window.scrollTo)window.scrollTo(0,y);
   const gd=document.getElementById('gDate');if(gd){const d=new Date(now);d.setMonth(d.getMonth()+6);gd.value=d.toISOString().slice(0,10)}
   if(S.setupDone)checkMilestones();
+  navRecord(same);
   save();
 }
+/* ---------- the phone's back gesture/button steps back through screens ---------- */
+let NAV_POP=false,NAV_INIT=false;
+function navRecord(same){
+  try{if(!NAV_INIT){NAV_INIT=true;history.replaceState(Object.assign({},history.state,{lv:S.view}),'')}
+    else if(!same&&!NAV_POP&&S.setupDone)history.pushState({lv:S.view},'')}catch(_){}
+  NAV_POP=false;
+}
+const stay=()=>{try{history.pushState({lv:S.view},'')}catch(_){}};
+window.addEventListener('popstate',e=>{
+  /* back closes whatever is open on top first */
+  if(document.getElementById('mBg').classList.contains('open')){closeModal();stay();return}
+  if(document.getElementById('sheet').classList.contains('open')){closeSheet();stay();return}
+  if(typeof RC!=='undefined'&&RC){closeRecap();stay();return}
+  const v=e.state&&e.state.lv;
+  if(!S.setupDone||v===S.view)return;
+  resetUI();NAV_POP=true;S.view=v&&V[v]?v:'home';render();window.scrollTo(0,0);
+});
 
 /* hidden amounts blur again whenever the app goes to the background */
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&UI.reveal){UI.reveal=false;applyLook();render()}});
@@ -2433,7 +2455,7 @@ function offerSplit(v,depositId){
 }
 
 /* ---------- events ---------- */
-document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b&&!S.setupDone){toast('Finish setup first. It only takes a few minutes.');return}if(b){resetUI();S.view=b.dataset.view;render();window.scrollTo(0,0)}});
+document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b&&!S.setupDone){toast('Finish setup first. It only takes a few minutes.');return}if(b){resetUI();S.view=b.dataset.view==='trends'?(REVIEW.includes(S.view)?'trends':RV):b.dataset.view;render();window.scrollTo(0,0)}});
 const NUMF=['budget','amount','pct','day','apr','min','balance','value','start','stmt'];
 function bindDraft(t){
   if(t.dataset.dm!==undefined&&UI.draft){const x=UI.draft[+t.dataset.i],n=+t.dataset.dm;x.months=(x.months||[]).filter(v=>v!==n);if(t.checked)x.months.push(n);x.months.sort((a,b)=>a-b);return false}
@@ -2501,6 +2523,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.act==='lookCancel'){UI.lookDraft=null;applyLook();render();toast('Back to your saved look');return}
   if(t.dataset.eye!==undefined){UI.reveal=!UI.reveal;applyLook();render();return}
   if(t.dataset.calday){UI.calDay=UI.calDay===t.dataset.calday?null:t.dataset.calday;render();return}
+  if(t.dataset.mtools!==undefined){UI.mtools=!UI.mtools;render();return}
   if(t.dataset.ckm){const ms=ckMonths(),i=ms.indexOf(CK.m)+(+t.dataset.ckm);if(i>=0&&i<ms.length){CK.m=ms[i];render()}return}
   if(t.dataset.bm){const ms=bkMonths(),i=ms.indexOf(BK.m)+(+t.dataset.bm);if(i>=0&&i<ms.length){BK.m=ms[i];render()}return}
   if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
