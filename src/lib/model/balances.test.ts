@@ -34,6 +34,19 @@ describe("applyTx", () => {
     expect([bal(s, "chk"), bal(s, "sav"), bal(s, "loan")]).toEqual([1000, 500, 1000]);
   });
 
+  it("spending from a bucket lowers the bucket and the account it's paid with", () => {
+    const s = sample();
+    s.goals = [{ id: "car", name: "Car repairs", target: 0, saved: 300, date: "", created: "2026-06-01", acct: "sav", done: false }];
+    const buy = tx({ kind: "goalbuy", acct: "chk", goal: "car", spend: true, amount: 80, date: "2026-10-05" });
+    const cover = tx({ kind: "transfer", from: "sav", to: "chk", amount: 80, date: "2026-10-05" });
+    [buy, cover].forEach((t) => applyTx(s, t, 1));
+    expect(s.goals[0].saved).toBe(220);
+    expect([bal(s, "chk"), bal(s, "sav")]).toEqual([1000, 420]); // paid from checking, refilled from savings
+    [cover, buy].forEach((t) => applyTx(s, t, -1));
+    expect(s.goals[0].saved).toBe(300);
+    expect([bal(s, "chk"), bal(s, "sav")]).toEqual([1000, 500]);
+  });
+
   it("tracks goal savings on transfers and goal moves", () => {
     const s = sample();
     s.goals = [

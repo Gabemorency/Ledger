@@ -248,12 +248,12 @@ function removeBlock(t){
   const grp=[t].concat(S.tx.filter(x=>x.link===t.id)),d={};
   grp.forEach(x=>{
     if(x.goal&&(x.kind==='transfer'||x.kind==='assign'))d[x.goal]=(d[x.goal]||0)-x.amount;
-    if(x.kind==='unassign')d[x.goal]=(d[x.goal]||0)+x.amount;
+    if(x.kind==='unassign'||(x.kind==='goalbuy'&&x.spend))d[x.goal]=(d[x.goal]||0)+x.amount;
     if(x.kind==='gmove'){d[x.gFrom]=(d[x.gFrom]||0)+x.amount;d[x.gTo]=(d[x.gTo]||0)-x.amount}});
   for(const [gid,dv] of Object.entries(d)){const g=goal(gid);if(!g)continue;
     if(g.done)return `This is part of ${g.name}, which is finished, so it can’t be removed.`;
     if(g.saved+dv<-0.004)return `${g.name} has already used this money, so removing this would leave it below zero. Move money back into it first.`}
-  if(t.kind==='goalbuy')return 'This belongs to a completed goal and can’t be deleted.';
+  if(t.kind==='goalbuy'&&!t.spend)return 'This belongs to a completed goal and can’t be deleted.';
   const ad={};grp.forEach(x=>S.accounts.forEach(a=>{const e=effectOn(x,a.id);if(e)ad[a.id]=(ad[a.id]||0)-e}));
   for(const [aid,e] of Object.entries(ad)){const a=acct(aid);if(a&&a.type==='debt'&&a.balance-e<-0.004)return `Removing this would leave ${a.name} below zero, as if you overpaid it. Fix the payment first, or record a correction.`}
   return null;
@@ -261,7 +261,7 @@ function removeBlock(t){
 function removeTx(t){const grp=[t].concat(S.tx.filter(x=>x.link===t.id));grp.slice().reverse().forEach(x=>applyTx(x,-1));S.tx=S.tx.filter(x=>!grp.includes(x));MEMO=null;t._grp=grp;return grp}
 function restoreTx(t){(t._grp||[t]).forEach(x=>{if(!S.tx.includes(x)){S.tx.push(x);applyTx(x,1)}});delete t._grp}
 const UI={editAccts:false,editGoal:null,addTo:null,sec:null,draft:null};
-function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.gHist=null;UI.newIn=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
+function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.gHist=null;UI.newIn=null;UI.spend=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
 const LOGK={settings:'Settings',goals:'Goals',budget:'Budget moves',entries:'Entries',payday:'Routine',months:'Months'};
 function logKind(t){t=String(t);if(/paycheck|check-in/i.test(t))return 'payday';if(/^(Edited|Deleted|Restored) /.test(t))return 'entries';if(/^Moved .* (into|to) .* for /.test(t))return 'budget';if(/close|closed|reopen|month/i.test(t)&&!/goal/i.test(t))return 'months';if(/goal|Emergency fund|sub-goal|priority/i.test(t))return 'goals';return 'settings'}
 function logIt(lines){lines.forEach(t=>S.log.push({ts:Date.now(),text:t,k:logKind(t)}))}
@@ -349,7 +349,7 @@ function txLine(t){
   else if(t.kind==='income'){title=t.vendor||'Income';meta=`Income to ${aName(t.acct)}`;sign='+';cls='in'}
   else if(t.kind==='transfer'){title=t.goal?'To '+((goal(t.goal)||{}).name||'goal'):t.note||'Transfer';meta=`${aName(t.from)} → ${aName(t.to)}`}
   else if(t.kind==='assign'){title='To '+((goal(t.goal)||{}).name||'goal');meta=`Set aside in ${aName(t.acct)}`}
-  else if(t.kind==='goalbuy'){meta=`Goal purchase, ${aName(t.acct)}`}
+  else if(t.kind==='goalbuy'){meta=t.spend?`From ${(goal(t.goal)||{}).name||'savings'}, paid with ${aName(t.acct)}`:`Goal purchase, ${aName(t.acct)}`}
   else if(t.kind==='adjust'){title=t.closeOf?'Correction at close':'Balance correction';meta=aName(t.acct);sign=t.dir>0?'+':'-'}
   else if(t.kind==='interest'){title=t.vendor||'Interest';meta='Estimated interest, '+aName(t.acct)}
   else if(t.kind==='gmove'){title='Goal move';meta=`${(goal(t.gFrom)||{}).name||'Goal'} → ${(goal(t.gTo)||{}).name||'goal'}`}
@@ -663,6 +663,19 @@ function addPanel(g){
     </select></label>
     <div class="actions"><button class="btn ghost small" data-act="cancel">Cancel</button><button class="btn small" data-act="doAdd" data-id="${g.id}" style="flex:1">Add to ${esc(g.name)}</button></div></div>`;
 }
+/* spend straight from a bucket: lowers the bucket, never touches a monthly budget */
+function spendPanel(g){
+  const opts=[[g.acct,`${aName(g.acct)} (where it’s kept)`]].concat(liveAccts().filter(a=>a.pay&&a.id!==g.acct).map(a=>[a.id,a.name]));
+  return `<div class="inpanel">
+    <p class="lbl" style="margin:0">Spend from ${esc(g.name)}</p>
+    <div class="two"><label class="field"><span>Amount (${money(g.saved,true)} in it)</span><input type="number" inputmode="decimal" id="spAmt" placeholder="0"></label>
+    <label class="field"><span>Date</span><input type="date" id="spDate" value="${todayISO}" max="${todayISO}"></label></div>
+    <label class="field"><span>What was it?</span><input type="text" id="spWhat" placeholder="e.g. Oil change"></label>
+    <label class="field"><span>Paid with</span><select id="spWith">${opts.map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('')}</select></label>
+    <label class="checkrow" id="spMoveRow" hidden><input type="checkbox" id="spMove" checked> Also record moving the money from ${esc(aName(g.acct))} to cover it</label>
+    <p class="sub" style="font-size:13px;margin:4px 0 10px">Comes out of this bucket, not your monthly budgets.</p>
+    <div class="actions"><button class="btn ghost small" data-act="cancel">Cancel</button><button class="btn small" data-act="doSpend" data-id="${g.id}" style="flex:1">Spend it</button></div></div>`;
+}
 function moveTargets(g){
   const fam=new Set(isParent(g)?family(g).map(x=>x.id):[g.id]);
   const out=[];const par=g.parent?goal(g.parent):null;
@@ -707,12 +720,13 @@ const hasHistory=g=>family(g).length>1||S.tx.some(t=>t.goal===g.id||t.gFrom===g.
 /* every entry that changed a goal's total, oldest first, with the total after each */
 function goalHistory(g){
   const nm=id=>(goal(id)||{}).name||'another goal';let run=0;
-  const L=S.tx.filter(t=>(t.goal===g.id&&['assign','transfer','unassign'].includes(t.kind))||(t.kind==='gmove'&&(t.gFrom===g.id||t.gTo===g.id)))
+  const L=S.tx.filter(t=>(t.goal===g.id&&(['assign','transfer','unassign'].includes(t.kind)||(t.kind==='goalbuy'&&t.spend)))||(t.kind==='gmove'&&(t.gFrom===g.id||t.gTo===g.id)))
     .slice().sort((a,b)=>a.date.localeCompare(b.date)||S.tx.indexOf(a)-S.tx.indexOf(b)).map(t=>{
     let v=t.amount,what;
     if(t.kind==='assign')what=`Set aside in ${aName(t.acct)}`;
     else if(t.kind==='transfer')what=`From ${aName(t.from)}`;
     else if(t.kind==='unassign'){v=-v;what=`Back to unassigned in ${aName(t.acct)}`}
+    else if(t.kind==='goalbuy'){v=-v;what=`Spent: ${t.vendor||'purchase'}`+(t.acct!==g.acct?` (paid with ${aName(t.acct)})`:'')}
     else if(t.gTo===g.id)what=`From ${nm(t.gFrom)}`;
     else{v=-v;what=`To ${nm(t.gTo)}`}
     run=r2(run+v);return {t,v,what,run}});
@@ -764,12 +778,12 @@ V.goals=()=>{
   const tops=topGoals(),done=S.goals.filter(g=>g.done&&!g.parent);
   const P=monthPlan();
   const acctOpts=sel=>liveAccts().filter(a=>a.type!=='debt').map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.name)}</option>`).join('');
-  const panels=g=>UI.gHist===g.id?ghistPanel(g):UI.addTo===g.id?addPanel(g):UI.moveFrom===g.id?movePanel(g):UI.addSub===g.id?subPanel(g):'';
+  const panels=g=>UI.spend===g.id?spendPanel(g):UI.gHist===g.id?ghistPanel(g):UI.addTo===g.id?addPanel(g):UI.moveFrom===g.id?movePanel(g):UI.addSub===g.id?subPanel(g):'';
   const card=(g,i)=>{
     if(UI.editGoal===g.id)return editPanel(g,acctOpts);
     if(isBucket(g))return `<div class="goal bucket"><div class="gtop"><h3>${esc(g.name)}</h3><b class="num bamt">${money(g.saved)}</b></div>
-      ${panels(g)||`<div class="actions"><button class="btn small" data-act="addTo" data-id="${g.id}">Add money</button>${g.saved>0.004?`<button class="btn small ghost" data-act="moveFrom" data-id="${g.id}">Move money</button>`:''}<button class="btn small ghost" data-act="more" data-id="${g.id}" aria-expanded="${UI.more===g.id}">More</button></div>
-      ${UI.more===g.id?`<div class="actions"><button class="btn small ghost" data-act="gHist" data-id="${g.id}">History</button>${pinBtn('goal:'+g.id,g.name)}<button class="btn small ghost" data-act="editGoal" data-id="${g.id}">Edit</button></div>`:''}`}</div>`;
+      ${panels(g)||`<div class="actions"><button class="btn small" data-act="addTo" data-id="${g.id}">Add money</button>${g.saved>0.004?`<button class="btn small" data-act="spendFrom" data-id="${g.id}">Spend</button>`:''}<button class="btn small ghost" data-act="more" data-id="${g.id}" aria-expanded="${UI.more===g.id}">More</button></div>
+      ${UI.more===g.id?`<div class="actions">${g.saved>0.004?`<button class="btn small ghost" data-act="moveFrom" data-id="${g.id}">Move money</button>`:''}<button class="btn small ghost" data-act="gHist" data-id="${g.id}">History</button>${pinBtn('goal:'+g.id,g.name)}<button class="btn small ghost" data-act="editGoal" data-id="${g.id}">Edit</button></div>`:''}`}</div>`;
     const k=goalInfo(g),pl=P.goals.find(x=>x.g.id===g.id),due=shortD(g.date),past=new Date(g.date+'T00:00')<now;
     const actions=`<div class="actions">
         ${isParent(g)?(liveKids(g).length?`<button class="btn small" data-act="addTo" data-id="${g.id}">Add money</button>`:`<button class="btn small" data-act="complete" data-id="${g.id}">Mark complete</button><button class="btn small ghost" data-act="addTo" data-id="${g.id}">Add money</button>`)
@@ -2496,6 +2510,7 @@ document.getElementById('app').addEventListener('input',e=>{const t=e.target;bin
   if(t.id==='sq'){UI.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('sq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}
   if(t.id==='logq'){LG.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('logq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}});
 document.getElementById('app').addEventListener('change',e=>{const t=e.target;
+  if(t.id==='spWith'){const g=goal(UI.spend),r=document.getElementById('spMoveRow');if(g&&r)r.hidden=t.value===g.acct}
   if(t.dataset.pf==='rep'&&UI.pj){UI.pj.rep=t.value;render();return}
   if(t.dataset.pja){const v=parseFloat(t.value);if(isFinite(v)&&v>-50&&v<50){S.proj.a=Object.assign({},S.proj.a||{},{[t.dataset.pja]:v});render()}return}
   if(t.dataset.planFocus!==undefined){UI.plan=Object.assign({},UI.plan||{},{focus:t.value});const po=document.getElementById('planOut');if(po)po.innerHTML=planOut();return}
@@ -2652,6 +2667,18 @@ function handleAct(t){
   if(a==='editAccts'){resetUI();UI.editAccts=true;render();return}
   if(a==='editGoal'){resetUI();UI.editGoal=g.id;render();return}
   if(a==='newIn'){const sel=document.getElementById('newInSel'),aid=t.dataset.acct||(sel&&sel.value);if(!aid)return;resetUI();UI.newIn=aid;render();const n=document.getElementById('gName');if(n){n.scrollIntoView({block:'center'});n.focus()}return}
+  if(a==='spendFrom'){resetUI();UI.spend=g.id;render();const i=document.getElementById('spAmt');if(i)i.focus();return}
+  if(a==='doSpend'){
+    const v=r2(parseFloat(document.getElementById('spAmt').value)),what=document.getElementById('spWhat').value.trim(),d=document.getElementById('spDate').value||todayISO,w=document.getElementById('spWith').value,mv=w!==g.acct&&document.getElementById('spMove').checked;
+    if(!(v>0)){toast('Enter what you spent');return}
+    if(v>g.saved+0.004){toast(`${g.name} only has ${money(g.saved,true)} in it`);return}
+    if(d>todayISO){toast('Pick today or an earlier date');return}
+    if(S.closed.includes(d.slice(0,7))){toast(`${monthName(mDate(d.slice(0,7)))} is closed. Reopen it first.`);return}
+    const src=acct(g.acct);if((w===g.acct||mv)&&src&&src.type!=='debt'&&v>src.balance+0.004){toast(`${src.name} only has ${money(src.balance,true)}`);return}
+    const p=addTx({date:d,vendor:what||g.name,amount:v,kind:'goalbuy',acct:w,goal:g.id,spend:true});
+    if(mv)addTx({date:d,kind:'transfer',from:g.acct,to:w,amount:v,link:p.id,note:'Covers '+(what||g.name)});
+    logIt([`Spent ${money(v,true)} from ${g.name}${what?' on '+what:''}, paid with ${aName(w)}`+(mv?` (moved from ${aName(g.acct)})`:'')]);
+    resetUI();render();toast(`${money(v,true)} spent from ${g.name}`,()=>{removeTx(p);render();toast('Undone')});return}
   if(a==='gHist'){resetUI();UI.gHist=g.id;render();return}
   if(a==='gFix'){const H=goalHistory(g),was=g.saved;if(Math.abs(H.gap)<=0.005)return;
     confirmBox(`Make ${esc(g.name)} ${money(H.sum,true)}?`,[chg('Saved in '+esc(g.name),money(was),money(H.sum)),H.gap>0?`${money(H.gap,true)} goes back to unassigned in ${esc(aName(g.acct))}. Account balances don’t change`:`${money(-H.gap,true)} comes out of unassigned in ${esc(aName(g.acct))}. Account balances don’t change`],'Fix the total',()=>{

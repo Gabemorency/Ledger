@@ -55,6 +55,10 @@ export function applyTx(s: LedgerState, t: Tx, sign: 1 | -1) {
     const g = goal(t.goal);
     if (g) g.saved = r2(g.saved + t.amount * sign);
   }
+  if (t.kind === "goalbuy" && t.spend) {
+    const g = goal(t.goal);
+    if (g) g.saved = r2(g.saved - t.amount * sign);
+  }
   if (t.kind === "unassign") {
     const g = goal(t.goal);
     if (g) g.saved = r2(g.saved - t.amount * sign);

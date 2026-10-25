@@ -102,7 +102,7 @@ export type Tx = TxBase &
     | { kind: "transfer"; from: string; to: string }
     | { kind: "adjust"; acct: string; dir: 1 | -1 }
     | { kind: "interest"; acct: string }
-    | { kind: "goalbuy"; acct: string }
+    | { kind: "goalbuy"; acct: string; /** Spent from a bucket: lowers the bucket too. */ spend?: boolean }
     | { kind: "assign" }
     | { kind: "unassign" }
     | { kind: "gmove"; gFrom: string; gTo: string; acctFrom: string; acctTo: string }
