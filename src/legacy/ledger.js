@@ -514,7 +514,7 @@ function homeCards(){
       ${owe>0.004?`<button class="btn small" data-payfixed="${f.id}">Pay</button>`:`<button class="paidbtn" data-unpay="${f.id}" aria-label="Paid. Tap to undo">Paid ✓</button>`}</div></div>`}).join('')||'<div class="empty">Nothing due this month.</div>'}
       ${later.length?`<div class="row"><p class="lbl" style="margin:0 0 4px">Not due this month</p>${later.map(f=>{const n=nextDue(f);return `<div class="hrow"><span>${esc(f.name)}</span><span class="num">${f.pct?f.pct+'%':money(f.amount)}${n?', next '+monthName(mDate(n),{month:'short',year:'numeric'}):''}</span></div>`}).join('')}</div>`:''}</div>`},
     annual:()=>annual.length?`<h2>Annual budgets</h2><div class="panel">${annual.map(c=>row(c,false)).join('')}</div>`:'',
-    latest:()=>{const recent=S.tx.filter(t=>inMonth(t,thisM)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+    latest:()=>{const recent=S.tx.slice().reverse().filter(t=>inMonth(t,thisM)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
       return `<h2>Latest entries</h2>
       <div class="panel">${recent.length?recent.map(txLine).join(''):'<div class="empty">Nothing logged this month yet. Tap + to log a purchase, a paycheck, or a transfer.</div>'}</div>
       <button class="btn ghost full" data-go="activity" style="margin-top:10px">See all activity</button>`}
@@ -1188,7 +1188,7 @@ function searchAll(q){q=String(q||'').trim().toLowerCase();if(q.length<2&&!/\d/.
   const num=q.replace(/[$,\s]/g,''),isNum=/^\d+(\.\d{0,2})?$/.test(num),has=v=>String(v||'').toLowerCase().includes(q);
   const amtHit=a=>isNum&&(Math.abs(a-parseFloat(num))<0.005||money(a,true).replace(/[$,]/g,'').startsWith(num));
   const R={entries:[],notes:[],goals:[],cats:[],accts:[],bills:[],subs:[]};
-  S.tx.slice().sort((a,b)=>b.date.localeCompare(a.date)).forEach(t=>{if(R.entries.length>=40)return;
+  S.tx.slice().reverse().sort((a,b)=>b.date.localeCompare(a.date)).forEach(t=>{if(R.entries.length>=40)return;
     const c=t.cat&&cat(t.cat),g=t.goal&&goal(t.goal),gm=t.kind==='gmove'?[goal(t.gFrom),goal(t.gTo)].filter(Boolean):[];
     if(has(t.vendor)||has(t.note)||(c&&has(c.name))||(g&&has(g.name))||gm.some(x=>has(x.name))||has(aName(t.acct))||amtHit(t.amount))R.entries.push(t)});
   (S.notes||[]).forEach(n=>{if(has(n.title)||has(n.body))R.notes.push(n)});
@@ -1517,11 +1517,11 @@ const F={year:thisM.slice(0,4),month:thisM,type:'all',cat:'all',acct:'all',q:''}
 function setMonth(m){F.month=m;F.year=m==='all'?'all':m.slice(0,4)}
 const TXTYPES={expense:'Purchases',fixed:'Fixed costs',income:'Income',transfer:'Transfers',assign:'Goal set-asides',goalbuy:'Goal purchases',adjust:'Balance corrections',interest:'Interest',gmove:'Goal moves',unassign:'Goal releases'};
 function filteredTx(ignoreMonth){
-  const q=F.q.trim().toLowerCase();
+  const q=F.q.trim().toLowerCase(),at=new Map(S.tx.map((t,i)=>[t,i]));
   return S.tx.filter(t=>(F.year==='all'||t.date.slice(0,4)===F.year)&&(ignoreMonth||F.month==='all'||inMonth(t,F.month))&&(F.type==='all'||t.kind===F.type)&&(F.cat==='all'||t.cat===F.cat)
     &&(F.acct==='all'||t.acct===F.acct||t.from===F.acct||t.to===F.acct||t.acctFrom===F.acct||t.acctTo===F.acct)
     &&(!q||(t.vendor||'').toLowerCase().includes(q)||(t.cat&&cat(t.cat)&&cat(t.cat).name.toLowerCase().includes(q))))
-    .sort((a,b)=>b.date.localeCompare(a.date)||(b.id>a.id?1:-1));
+    .sort((a,b)=>b.date.localeCompare(a.date)||at.get(b)-at.get(a)); // same day: the one added last first
 }
 const allMonths=()=>[...new Set(S.tx.map(t=>t.date.slice(0,7)).concat([thisM]))].sort().reverse();
 const sumOf=(list,fn)=>list.filter(fn).reduce((a,t)=>a+t.amount,0);
