@@ -765,12 +765,12 @@ function childRow(c,par){
     ${open||`<div class="actions">
       ${short>0.004?`<button class="btn small" data-act="fill" data-id="${c.id}" ${par.saved>0.004?'':'disabled'}>Fill from fund${par.saved>0.004?` (${money(Math.min(short,par.saved))})`:''}</button>`:''}
       ${soonOrFunded(c,k)?`<button class="btn small ${short>0.004?'ghost':''}" data-act="bought" data-id="${c.id}">Mark paid</button>`:''}
+      ${c.saved>0.004?`<button class="btn small ghost" data-act="spendFrom" data-id="${c.id}">Spend</button>`:''}
       <button class="btn small ghost" data-act="more" data-id="${c.id}" aria-expanded="${UI.more===c.id}">More</button>
     </div>
     ${UI.more===c.id?`<div class="actions">
       <button class="btn small ghost" data-act="addTo" data-id="${c.id}">Add money</button>
       ${c.saved>0.004?`<button class="btn small ghost" data-act="moveFrom" data-id="${c.id}">Move money</button>`:''}
-      ${c.saved>0.004?`<button class="btn small ghost" data-act="spendFrom" data-id="${c.id}">Spend</button>`:''}
       <button class="btn small ghost" data-act="gHist" data-id="${c.id}">History</button>
       <button class="btn small ghost" data-act="push" data-id="${c.id}">Push date back</button>
       <button class="btn small ghost" data-act="editGoal" data-id="${c.id}">🔒 Edit</button></div>`:''}`}
