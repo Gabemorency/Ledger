@@ -261,7 +261,7 @@ function removeBlock(t){
 function removeTx(t){const grp=[t].concat(S.tx.filter(x=>x.link===t.id));grp.slice().reverse().forEach(x=>applyTx(x,-1));S.tx=S.tx.filter(x=>!grp.includes(x));MEMO=null;t._grp=grp;return grp}
 function restoreTx(t){(t._grp||[t]).forEach(x=>{if(!S.tx.includes(x)){S.tx.push(x);applyTx(x,1)}});delete t._grp}
 const UI={editAccts:false,editGoal:null,addTo:null,sec:null,draft:null};
-function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.gHist=null;UI.newIn=null;UI.spend=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
+function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.catOpen=null;UI.catMove=null;UI.gHist=null;UI.newIn=null;UI.spend=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
 const LOGK={settings:'Settings',goals:'Goals',budget:'Budget moves',entries:'Entries',payday:'Routine',months:'Months'};
 function logKind(t){t=String(t);if(/paycheck|check-in/i.test(t))return 'payday';if(/^(Edited|Deleted|Restored) /.test(t))return 'entries';if(/^Moved .* (into|to) .* for /.test(t))return 'budget';if(/close|closed|reopen|month/i.test(t)&&!/goal/i.test(t))return 'months';if(/goal|Emergency fund|sub-goal|priority/i.test(t))return 'goals';return 'settings'}
 function logIt(lines){lines.forEach(t=>S.log.push({ts:Date.now(),text:t,k:logKind(t)}))}
@@ -420,9 +420,11 @@ function homeCards(){
   const last=S.snapshots[S.snapshots.length-1];const lb=last?last.bal:null;
   const has=ts=>liveAccts().some(a=>ts.includes(a.type));
   const ov=(label,v,prev,inv,ts)=>ts&&!has(ts)?'':`<div class="ov"><div class="sub">${label}</div><div class="ovv num">${money(v)}</div>${prev===undefined?'':delta(v,prev,inv)}</div>`;
-  const row=(c,showCut)=>{const s=spent(c.id),p=B(c)?s/B(c)*100:0,l=B(c)-s,k=showCut?cut(c):0;
-    return `<div class="row"><div class="rowtop"><b>${esc(c.name)}</b><span class="num">${l>=0?money(l)+' left of '+money(B(c)):money(-l)+' over'}</span></div><div class="bar"><i class="${pctClass(p)}" style="width:${Math.min(100,p)}%"></i></div>
-    <div class="cols num"><span>Budgeted ${money(B(c))}${carryOf(c,thisM)?` (incl. ${money(carryOf(c,thisM))} rolled over)`:''}${c.type==='monthly'&&adjOf(c.id,thisM)?` (${adjOf(c.id,thisM)>0?'+':'−'}${money(Math.abs(adjOf(c.id,thisM)))} this month)`:''}</span><span>Spent ${money(s)}</span></div></div>`};
+  /* one slim row per category; tap it to see the details and move money */
+  const row=(c,showCut)=>{const s=spent(c.id),p=B(c)?s/B(c)*100:0,l=B(c)-s,k=showCut?cut(c):0,open=UI.catOpen===c.id;
+    return `<div class="row crow ${open?'open':''}"><button class="crowbtn" data-catopen="${c.id}" aria-expanded="${open}"><b>${esc(c.name)}</b><span class="num ${l<0?'overtxt':''}">${l>=0?money(l)+' left':money(-l)+' over'}</span><span class="chev" aria-hidden="true">${open?'▾':'›'}</span></button><div class="bar"><i class="${pctClass(p)}" style="width:${Math.min(100,p)}%"></i></div>
+    ${open?`<div class="cdet"><div class="cols num"><span>Budgeted ${money(B(c))}${carryOf(c,thisM)?` (incl. ${money(carryOf(c,thisM))} rolled over)`:''}${c.type==='monthly'&&adjOf(c.id,thisM)?` (${adjOf(c.id,thisM)>0?'+':'−'}${money(Math.abs(adjOf(c.id,thisM)))} this month)`:''}</span><span>Spent ${money(s)}</span></div>
+      ${c.type!=='monthly'?'':UI.catMove===c.id?catMoveForm(c):`<div class="actions"><button class="btn small" data-act="catMove" data-cat="${c.id}">Move money</button></div>`}</div>`:''}</div>`};
   return {
     start:()=>{if(S.gsHidden)return '';const st=gsSteps(),n=st.filter(x=>x.done||x.skipped).length;if(n===st.length)return '';
       const nxt=st.find(x=>!x.done&&!x.skipped);
@@ -909,6 +911,17 @@ function safeToSpend(){const dim=new Date(now.getFullYear(),now.getMonth()+1,0).
   const safe=r2(rows.reduce((t,r)=>t+r.safe,0));return {safe,days,perDay:r2(safe/days),rows}}
 function uaAccts(){return liveAccts().filter(a=>['checking','cash','savings'].includes(a.type))}
 /* where a category's spending comes out of: its linked account, else the usual pay-from account */
+/* quick move of this month's budget into or out of one category */
+function catMoveForm(c){
+  const others=liveCats().filter(x=>x.type==='monthly'&&x.id!==c.id),l=r2(catLeft(c,thisM)),over=l<-0.004;
+  const opt=x=>`<option value="${x.id}">${esc(x.name)} (${money(Math.max(0,catLeft(x,thisM)),true)} left)</option>`;
+  return `<div class="inpanel cmove">
+    <div class="two"><label class="field"><span>Direction</span><select id="cmDir"><option value="in" ${over?'selected':''}>Into ${esc(c.name)} from</option><option value="out" ${over?'':'selected'}>Out of ${esc(c.name)} to</option></select></label>
+    <label class="field"><span>Category</span><select id="cmOther">${others.map(opt).join('')}</select></label></div>
+    <label class="field"><span>Amount</span><input type="number" inputmode="decimal" id="cmAmt" value="${over?r2(-l):''}" placeholder="0"></label>
+    <p class="sub" style="font-size:13px;margin:0 0 8px">For ${esc(monthName(mDate(thisM)))} only. Next month goes back to the budgets in Settings.</p>
+    <div class="actions"><button class="btn ghost small" data-act="catMoveCancel">Cancel</button><button class="btn small" data-act="doCatMove" data-cat="${c.id}" style="flex:1">Move</button></div></div>`;
+}
 function catHome(c){const h=leftoverSource(c),a=h&&acct(h);return a&&!a.archived&&a.type!=='debt'?h:null}
 function spendNeedCats(aid){return liveCats().filter(c=>c.type==='monthly'&&catHome(c)===aid).map(c=>({c,left:r2(Math.max(0,budgetOf(c,thisM)-spent(c.id)))})).filter(x=>x.left>0.004)}
 function billNeed(aid){return r2(liveFixed().filter(f=>f.acct===aid).reduce((s,f)=>s+fixedOwe(f),0))}
@@ -2568,6 +2581,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.gjump){const el=document.getElementById('g-'+t.dataset.gjump);guideMark(t.dataset.gjump);if(el){el.classList.add('in');el.scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}return}
   if(t.dataset.signout!==undefined&&BOOT){BOOT.signOut();return}
   if(t.dataset.go){resetUI();S.view=t.dataset.go;if(t.dataset.help)UI.help=t.dataset.help;render();window.scrollTo(0,0);if(S.view==='search'){const n=document.getElementById('sq');if(n)n.focus()}const an=t.dataset.anchor&&document.getElementById(t.dataset.anchor);if(an)an.scrollIntoView({block:'start'});return}
+  if(t.dataset.catopen){UI.catOpen=UI.catOpen===t.dataset.catopen?null:t.dataset.catopen;UI.catMove=null;render();return}
   if(t.dataset.txopen){UI.txOpen=UI.txOpen===t.dataset.txopen?null:t.dataset.txopen;render();return}
   if(t.dataset.txclose){UI.txOpen=null;render();return}
   if(t.dataset.del){
@@ -2778,6 +2792,19 @@ function handleAct(t){
     logIt([`Moved ${money(v,true)} from ${aName(src)} to ${aName(to)} to cover this month`]);
     render();toast(`${money(v,true)} moved to ${aName(to)}. Make the transfer in your bank too`,()=>{removeTx(nt);render();toast('Undone')});
     return}
+  if(a==='catMove'){UI.catMove=t.dataset.cat;render();const i=document.getElementById('cmAmt');if(i)i.focus();return}
+  if(a==='catMoveCancel'){UI.catMove=null;render();return}
+  if(a==='doCatMove'){
+    if(S.closed.includes(thisM)){toast('This month is closed');return}
+    const c=cat(t.dataset.cat),o=cat(document.getElementById('cmOther').value),dir=document.getElementById('cmDir').value,v=r2(parseFloat(document.getElementById('cmAmt').value));
+    if(!c||!o){toast('Pick a category');return}
+    if(!(v>0)){toast('Enter an amount to move');return}
+    const from=dir==='in'?o:c,to=dir==='in'?c:o,left=r2(catLeft(from,thisM));
+    if(v>left+0.004){toast(`${from.name} only has ${money(Math.max(0,left),true)} left this month`);return}
+    const m=S.adj[thisM]=S.adj[thisM]||{},snap=JSON.stringify(m);m[from.id]=r2((m[from.id]||0)-v);m[to.id]=r2((m[to.id]||0)+v);MEMO=null;
+    logIt([`Moved ${money(v,true)} from ${from.name} to ${to.name} for ${monthName(mDate(thisM))}`]);
+    const ha=catHome(from),hb=catHome(to),note=ha&&hb&&ha!==hb?` Move the cash from ${aName(ha)} to ${aName(hb)} in your bank too.`:'';
+    UI.catMove=null;render();toast(`${money(v,true)} moved from ${from.name} to ${to.name}.${note}`,()=>{S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Move undone')});return}
   if(a==='moveBudget'){
     if(S.closed.includes(thisM)){toast('This month is closed');return}
     const cs=liveCats().filter(c=>c.type==='monthly');const src=cs.filter(c=>catLeft(c,thisM)>0.004);

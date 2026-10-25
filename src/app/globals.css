@@ -916,3 +916,12 @@ body{transition:background-color .25s}
 .svfree .btn{margin-top:6px}
 .svother{padding:12px 16px;margin-top:18px}
 .mver{text-align:center;font-size:12px;margin:18px 0 6px}
+/* spending categories: slim rows that open */
+.crow{padding:0}
+.crowbtn{display:flex;align-items:baseline;gap:8px;width:100%;background:none;border:0;padding:12px 0 2px;font:inherit;color:var(--ink);text-align:left}
+.crowbtn b{flex:1;min-width:0;font-weight:600}
+.crowbtn .chev{color:var(--muted);width:12px;text-align:center}
+.crow .bar{margin:6px 0 12px;height:6px}
+.crow.open .bar{margin-bottom:8px}
+.cdet{padding:0 0 12px}
+.cmove{margin-top:8px}
