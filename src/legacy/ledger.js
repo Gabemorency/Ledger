@@ -524,7 +524,7 @@ function pinCard(key){
   const [kind,idv]=key.split(':');
   if(kind==='goal'){const g=goal(idv);if(!g||g.done)return null;
     const k=goalInfo(g);
-    if(isBucket(g))return `<div class="panel pincard"><div class="rowtop"><b>${esc(g.name)}</b><b class="num">${money(g.saved)}</b></div><p class="sub" style="font-size:13px;margin:4px 0 0">In ${esc(aName(g.acct))}</p>
+    if(isBucket(g))return `<div class="panel pincard"><div class="rowtop"><b>${esc(g.name)}</b><b class="num">${money(g.saved)}</b></div><p class="sub" style="font-size:13px;margin:4px 0 0">${g.target>0?`Target ${money(g.target)} · `:''}In ${esc(aName(g.acct))}</p>
       <div class="actions"><button class="btn small ghost" data-go="goals">Open in Savings</button></div></div>`;
     const body=isParent(g)?famBar(g,k.fp)+(k.nextShort?`<p class="warnline">${esc(k.nextShort.k.name)} needs ${money(k.nextShort.gap)} more than the fund has.</p>`:'')
       :`<div class="gbar"><div class="fbar"><i class="fpaid" style="width:${Math.min(100,g.saved/g.target*100)}%"></i></div>${expMark(g,k)}</div><p class="fsum"><b class="num">${Math.round(Math.min(100,g.saved/g.target*100))}% saved</b>, ${money(g.saved)} of ${money(g.target)}</p>`;
@@ -711,8 +711,8 @@ function editPanel(g,acctOpts){
     <div class="two"><label class="field"><span>${par?'Overall total':child?'Amount due':'Target (optional)'}</span><input type="number" inputmode="decimal" id="eAmt" value="${g.target>0?g.target:''}" placeholder="None"></label>
     <label class="field"><span>${par?'Finish by':child?'Due date':'By (optional)'}</span><input type="date" id="eDate" value="${g.date||''}"></label></div>
     ${child?`<p class="sub" style="font-size:13px">Kept in ${esc(aName(g.acct))}, with the rest of ${esc(goal(g.parent).name)}.</p>`:`<label class="field"><span>Kept in${par?' (moves the whole fund and its sub-goals)':''}</span><select id="eAcct">${acctOpts(g.acct)}</select></label>`}
-    ${par||child||isBucket(g)?'':`<button class="btn small ghost" data-act="clearTarget" style="margin:2px 0 6px">Remove target and date</button>`}
-    <p class="sub" style="font-size:13px">${par||child?'':'Leave the target and date empty for a plain bucket. '}A new amount is saved as an entry, using money in the account that isn’t in a bucket, so your balances stay right.</p>
+    ${par||child||!g.date?'':`<button class="btn small ghost" data-act="clearDate" style="margin:2px 0 6px">Remove date</button>`}
+    <p class="sub" style="font-size:13px">${par||child?'':'A target with no date is just a reminder of what you’re aiming for. Add a date to get a monthly amount. '}A new amount is saved as an entry, using money in the account that isn’t in a bucket, so your balances stay right.</p>
     <div class="actions"><button class="btn ghost small" data-act="cancel">Cancel</button><button class="btn small" data-act="reviewGoal" data-id="${g.id}" style="flex:1">Review changes</button></div>
     <button class="danger" data-act="archGoal" data-id="${g.id}">${hasHistory(g)?'Archive this '+(isBucket(g)?'bucket':'goal'):'Delete this '+(isBucket(g)?'bucket':'goal')}</button>
   </div>`;
@@ -783,6 +783,7 @@ V.goals=()=>{
   const card=(g,i)=>{
     if(UI.editGoal===g.id)return editPanel(g,acctOpts);
     if(isBucket(g))return `<div class="goal bucket"><div class="gtop"><h3>${esc(g.name)}</h3><b class="num bamt">${money(g.saved)}</b></div>
+      ${g.target>0?`<p class="sub" style="font-size:13px;margin:0">${g.saved>=g.target-0.004?'Reached your':`${money(g.target-g.saved)} to go of your`} ${money(g.target)} target</p><div class="bar"><i style="width:${Math.min(100,g.saved/g.target*100)}%"></i></div>`:''}
       ${panels(g)||`<div class="actions"><button class="btn small" data-act="addTo" data-id="${g.id}">Add money</button>${g.saved>0.004?`<button class="btn small" data-act="spendFrom" data-id="${g.id}">Spend</button>`:''}<button class="btn small ghost" data-act="more" data-id="${g.id}" aria-expanded="${UI.more===g.id}">More</button></div>
       ${UI.more===g.id?`<div class="actions">${g.saved>0.004?`<button class="btn small ghost" data-act="moveFrom" data-id="${g.id}">Move money</button>`:''}<button class="btn small ghost" data-act="gHist" data-id="${g.id}">History</button>${pinBtn('goal:'+g.id,g.name)}<button class="btn small ghost" data-act="editGoal" data-id="${g.id}">Edit</button></div>`:''}`}</div>`;
     const k=goalInfo(g),pl=P.goals.find(x=>x.g.id===g.id),due=shortD(g.date),past=new Date(g.date+'T00:00')<now;
@@ -844,7 +845,7 @@ V.goals=()=>{
     <label class="field"><span>Put in now (optional, ${money(Math.max(0,unassigned(aid)),true)} not in a bucket)</span><input type="number" inputmode="decimal" id="gSaved" placeholder="0"></label>
     <div class="two"><label class="field"><span>Target (optional)</span><input type="number" inputmode="decimal" id="gAmt" placeholder="None"></label>
     <label class="field"><span>By (optional) ${tip('buyby')}</span><input type="date" id="gDate"></label></div>
-    <p class="sub" style="font-size:13px;margin:0 0 10px">Add a target and date if you want progress and a monthly amount to save. Leave them empty for a plain bucket.</p>
+    <p class="sub" style="font-size:13px;margin:0 0 10px">A target on its own is a reminder of what you’re aiming for. Add a date too and you’ll get a monthly amount to save.</p>
     <div class="actions"><button class="btn ghost small" data-act="cancel">Cancel</button><button class="btn small" id="gCreate" style="flex:1">Create bucket</button></div></div>`;
   const section=(a,gs)=>`<section class="svacct">
     <div class="svhead"><div><h2>${esc(a.name)}</h2>${a.bank?`<span class="sub">${esc(a.bank)}</span>`:''}</div><b class="num">${money(a.balance)}</b></div>
@@ -1206,7 +1207,7 @@ V.search=()=>{const q=UI.q||'',R=searchAll(q);
   :!total?`<div class="panel emptycard" style="margin-top:14px"><b>Nothing matches “${esc(q)}”.</b><p class="sub">Check the spelling, or try part of the name.</p></div>`
   :sec(`Entries${R.entries.length>=40?' (latest 40)':''}`,R.entries.map(t=>{const c=t.cat&&cat(t.cat);return row(`data-gotx="${t.id}"`,hl(t.vendor||KIND_LABEL[t.kind]||'Entry',q),`${esc(KIND_LABEL[t.kind]||t.kind)}${c?' · '+hl(c.name,q):''} · ${shortD(t.date)}`,(t.kind==='income'?'+':'')+money(t.amount,true))}))
    +sec('Notes',R.notes.map(n=>row(`data-go="notes" data-nfocus="${esc(n.id)}"`,hl(n.title||'Untitled note',q),hl((n.body||'').slice(0,80),q))))
-   +sec('Goals',R.goals.map(g=>row('data-go="goals"',hl(g.name,q),isBucket(g)?`${money(g.saved)} in ${aName(g.acct)}`:`${money(g.saved)} of ${money(g.target)} saved`)))
+   +sec('Goals',R.goals.map(g=>row('data-go="goals"',hl(g.name,q),isBucket(g)?`${money(g.saved)}${g.target>0?' of '+money(g.target):''} in ${aName(g.acct)}`:`${money(g.saved)} of ${money(g.target)} saved`)))
    +sec('Categories',R.cats.map(c=>row(`data-see="${thisM}" data-seecat="${c.id}"`,hl(c.name,q),`${money(spent(c.id),true)} spent this month · tap for its entries`)))
    +sec('Accounts',R.accts.map(a=>row('data-go="accounts"',hl(a.name,q),esc(typeLabel(a)),money(a.balance,true))))
    +sec('Bills',R.bills.map(f=>row('data-go="config"',hl(f.name,q),esc(schedText(f)),f.pct?f.pct+'%':money(f.amount,true))))
@@ -2599,7 +2600,8 @@ document.getElementById('app').addEventListener('click',e=>{
     const n=document.getElementById('gName').value.trim(),ar=document.getElementById('gAmt').value.trim(),a=ar===''?0:parseFloat(ar),d=document.getElementById('gDate').value,ac=document.getElementById('gAcct').value;
     const sr=document.getElementById('gSaved').value.trim(),sv=sr===''?0:r2(parseFloat(sr));
     if(!n){toast('Give the bucket a name');return}
-    if((a>0)!==!!d||(ar!==''&&!(a>0))){toast('Add both a target and a date, or leave both empty for a plain bucket');return}
+    if(ar!==''&&!(a>0)){toast('The target needs to be more than $0');return}
+    if(d&&!(a>0)){toast('A date needs a target to go with it');return}
     if(d&&d<=todayISO){toast('Pick a date in the future');return}
     if(!ac){toast('Add a savings or checking account in Settings first');return}
     if(!(sv>=0)){toast('The starting amount can’t be negative');return}
@@ -2607,7 +2609,7 @@ document.getElementById('app').addEventListener('click',e=>{
     const g={id:id(),name:n,target:a>0?r2(a):0,saved:0,date:d||'',created:todayISO,acct:ac,done:false};
     S.goals.push(g);if(sv>0.004)addTx({date:todayISO,kind:'assign',acct:ac,goal:g.id,amount:sv,note:'Starting amount'});
     logIt(['Created bucket '+n+' in '+aName(ac)+(a>0?' ('+money(a)+' by '+fmtD(d)+')':'')+(sv>0.004?', starting with '+money(sv,true):'')]);resetUI();render();
-    toast(a>0?'Bucket created: '+money(goalInfo(g).perMonth)+'/month':'Bucket created');return}
+    toast(isBucket(g)?'Bucket created':'Bucket created: '+money(goalInfo(g).perMonth)+'/month');return}
   if(t.id==='testN'){notify('Food is at 84%','$48 left for the rest of the month.');return}
   if(t.id==='reset'&&!BOOT){resetUI();wipeSheet();{const keep=S.sec;S=seed();if(keep)S.sec=keep}S.view='config';render();toast('Sample data restored');return}
   if(t.dataset.act)handleAct(t);
@@ -2668,7 +2670,7 @@ function handleAct(t){
   if(a==='editAccts'){resetUI();UI.editAccts=true;render();return}
   if(a==='editGoal'){resetUI();UI.editGoal=g.id;render();return}
   if(a==='newIn'){const sel=document.getElementById('newInSel'),aid=t.dataset.acct||(sel&&sel.value);if(!aid)return;resetUI();UI.newIn=aid;render();const n=document.getElementById('gName');if(n){n.scrollIntoView({block:'center'});n.focus()}return}
-  if(a==='clearTarget'){['eAmt','eDate'].forEach(k=>{const el=document.getElementById(k);if(el)el.value=''});t.remove();toast('Target and date cleared. Tap Review changes to save.');return}
+  if(a==='clearDate'){const el=document.getElementById('eDate');if(el)el.value='';t.remove();toast('Date cleared. Tap Review changes to save.');return}
   if(a==='spendFrom'){resetUI();UI.spend=g.id;render();const i=document.getElementById('spAmt');if(i)i.focus();return}
   if(a==='doSpend'){
     const v=r2(parseFloat(document.getElementById('spAmt').value)),what=document.getElementById('spWhat').value.trim(),d=document.getElementById('spDate').value||todayISO,w=document.getElementById('spWith').value,mv=w!==g.acct&&document.getElementById('spMove').checked;
@@ -2893,9 +2895,9 @@ function handleAct(t){
     const needT=par||!!g.parent;
     if(ar!==''&&!(amt>0)){toast('The target needs to be more than $0');return}
     if(needT&&!(amt>0&&d)){toast(par?'A fund with payments needs a total and a finish-by date':'A payment needs an amount and a due date');return}
-    if((amt>0)!==!!d){toast('Add both a target and a date, or clear both for a plain bucket');return}
+    if(d&&!(amt>0)){toast('A date needs a target to go with it');return}
     if(par&&amt<fp.covered-0.004){toast(`The total can’t be below the ${money(fp.covered)} already paid or set aside`);return}
-    if(amt!==(g.target||0))ch.push(chg(par?'Overall total':'Target',g.target>0?money(g.target):'none',amt>0?money(amt):'none (plain bucket)'));
+    if(amt!==(g.target||0))ch.push(chg(par?'Overall total':'Target',g.target>0?money(g.target):'none',amt>0?money(amt):'none'));
     if(!(sv>=0)){toast('The amount can’t be negative');return}
     if(Math.abs(dv)>0.004){
       if(ac!==g.acct){toast('Change the amount or the account, one at a time');return}

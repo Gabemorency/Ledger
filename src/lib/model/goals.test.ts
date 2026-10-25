@@ -73,6 +73,11 @@ describe("buckets (no target)", () => {
     expect(k.perMonth).toBe(0);
     expect(k.cur).toBe(250);
   });
+  it("can keep a target as a reminder without a date, and still get no monthly pace", () => {
+    const k = goalInfo(sample(), goal({ target: 1000, date: "", saved: 300 }), now);
+    expect(k.status).toBe("bucket");
+    expect(k.perMonth).toBe(0);
+  });
   it("still hold their money, so it isn't counted as unassigned", () => {
     const s = sample();
     s.goals = [goal({ target: 0, date: "", saved: 200 })];
