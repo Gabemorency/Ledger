@@ -5,6 +5,19 @@ import type { Goal, LedgerState } from "./types";
 
 export type GoalStatus = "funded" | "ahead" | "on track" | "behind" | "bucket";
 
+/** Money put into a goal during month `m` (moves out count against it; spending from it doesn't). */
+export function putInMonth(s: LedgerState, g: Goal, m: string): number {
+  let v = 0;
+  for (const t of s.tx) {
+    if (t.date.slice(0, 7) !== m) continue;
+    if (t.goal === g.id && (t.kind === "assign" || t.kind === "transfer")) v += t.amount;
+    else if (t.goal === g.id && t.kind === "unassign") v -= t.amount;
+    else if (t.kind === "gmove" && t.gTo === g.id) v += t.amount;
+    else if (t.kind === "gmove" && t.gFrom === g.id) v -= t.amount;
+  }
+  return r2(Math.max(0, v));
+}
+
 /** A goal with no target is a bucket: just a named amount kept in an account. */
 export const hasTarget = (g: Goal) => g.target > 0 && !!g.date;
 
@@ -62,11 +75,12 @@ function statusOf(g: Goal, have: number, expected: number, fundedAt: number): Go
 }
 
 export function goalInfo(s: LedgerState, g: Goal, now: Date) {
-  if (!hasTarget(g)) return { perMonth: 0, status: "bucket" as GoalStatus, remaining: 0, expected: null, diff: null, cur: g.saved };
+  const own = g.monthly && g.monthly > 0 ? g.monthly : 0; // a monthly amount you set wins over the worked-out pace
+  if (!hasTarget(g)) return { perMonth: own, status: "bucket" as GoalStatus, remaining: own ? Infinity : 0, expected: null, diff: null, cur: g.saved };
   if (isParent(s, g)) return parentInfo(s, g, now);
   const expected = pace(g, now);
   const remaining = Math.max(0, g.target - g.saved);
-  const perMonth = Math.ceil(remaining / monthsTo(g.date, now));
+  const perMonth = own ? Math.min(own, Math.ceil(remaining)) : Math.ceil(remaining / monthsTo(g.date, now));
   return {
     perMonth,
     status: statusOf(g, g.saved, expected, g.target),

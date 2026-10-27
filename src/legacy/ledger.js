@@ -221,6 +221,10 @@ function pctClass(p){return p>100?'over':p>=80?'warn':''}
 function monthsTo(d){return Model.monthsTo(d,now)}
 function goalInfo(g){return Model.goalInfo(S,g,now)}
 const isBucket=g=>!Model.hasTarget(g);
+/* a monthly amount set by hand: how much is in for this month and what's still to go */
+const monthIn=g=>Model.putInMonth(S,g,thisM),monthToGo=g=>g.monthly>0?r2(Math.max(0,g.monthly-monthIn(g))):0;
+function monthLine(g){if(!(g.monthly>0))return '';const i=monthIn(g),done=i>=g.monthly-0.004;
+  return `<p class="sub num mline">${done?`<b class="okc">Done for this month</b> · ${money(i)} put in`:`<b style="color:var(--ink)">${money(i)} of ${money(g.monthly)}</b> this month · ${money(g.monthly-i)} to go`}</p>`}
 function parentInfo(g){return Model.parentInfo(S,g,now)}
 function monthPlan(){return Model.monthPlan(S,now)}
 
@@ -659,7 +663,7 @@ function statusPill(k,g){
 function addPanel(g){
   const free=unassigned(g.acct),sources=liveAccts().filter(a=>a.type!=='debt'&&a.id!==g.acct);
   return `<div class="inpanel">
-    <label class="field"><span>Amount</span><input type="number" inputmode="decimal" id="addAmt" placeholder="0"></label>
+    <label class="field"><span>Amount${monthToGo(g)>0.004?` (${money(monthToGo(g))} still to go this month)`:''}</span><input type="number" inputmode="decimal" id="addAmt" placeholder="0" value="${monthToGo(g)>0.004?monthToGo(g):''}"></label>
     <label class="field"><span>Where's it coming from? ${tip('unassigned')}</span><select id="addFrom">
       <option value="unassigned">Already in ${esc(aName(g.acct))} (${money(free,true)} unassigned)</option>
       ${sources.map(a=>`<option value="${a.id}">Move from ${esc(a.name)} (${money(a.balance,true)})</option>`).join('')}
@@ -711,6 +715,7 @@ function editPanel(g,acctOpts){
     <div class="editbar" style="margin:0 0 6px"><b>Editing ${esc(g.name)}</b><span>Review before anything is saved.</span></div>
     <label class="field"><span>Name</span><input type="text" id="eName" value="${esc(g.name)}"></label>
     <label class="field"><span>${par?'In the fund now':'Amount in it now'}</span><input type="number" inputmode="decimal" id="eSaved" value="${g.saved}"></label>
+    ${par||child?'':`<label class="field"><span>Put in each month (optional)</span><input type="number" inputmode="decimal" id="eMonthly" value="${g.monthly>0?g.monthly:''}" placeholder="None"></label>`}
     <div class="two"><label class="field"><span>${par?'Overall total':child?'Amount due':'Target (optional)'}</span><input type="number" inputmode="decimal" id="eAmt" value="${g.target>0?g.target:''}" placeholder="None"></label>
     <label class="field"><span>${par?'Finish by':child?'Due date':'By (optional)'}</span><input type="date" id="eDate" value="${g.date||''}"></label></div>
     ${child?`<p class="sub" style="font-size:13px">Kept in ${esc(aName(g.acct))}, with the rest of ${esc(goal(g.parent).name)}.</p>`:`<label class="field"><span>Kept in${par?' (moves the whole fund and its sub-goals)':''}</span><select id="eAcct">${acctOpts(g.acct)}</select></label>`}
@@ -787,7 +792,7 @@ V.goals=()=>{
   const card=(g,i)=>{
     if(UI.editGoal===g.id)return editPanel(g,acctOpts);
     if(isBucket(g))return `<div class="goal bucket"><div class="gtop"><h3>${esc(g.name)}</h3><b class="num bamt">${money(g.saved)}</b></div>
-      ${g.target>0?`<p class="sub num" style="font-size:13px;margin:0"><b style="color:var(--ink)">${money(g.saved)} of ${money(g.target)}</b> · ${g.saved>=g.target-0.004?'Full':`${money(g.target-g.saved)} to go`}</p><div class="bar"><i style="width:${Math.min(100,g.saved/g.target*100)}%"></i></div>`:''}
+      ${g.target>0?`<p class="sub num" style="font-size:13px;margin:0"><b style="color:var(--ink)">${money(g.saved)} of ${money(g.target)}</b> · ${g.saved>=g.target-0.004?'Full':`${money(g.target-g.saved)} to go`}</p><div class="bar"><i style="width:${Math.min(100,g.saved/g.target*100)}%"></i></div>`:''}${monthLine(g)}
       ${panels(g)||`<div class="actions"><button class="btn small" data-act="addTo" data-id="${g.id}">Add money</button>${g.saved>0.004?`<button class="btn small" data-act="spendFrom" data-id="${g.id}">Spend</button>`:''}<button class="btn small ghost" data-act="more" data-id="${g.id}" aria-expanded="${UI.more===g.id}">More</button></div>
       ${UI.more===g.id?`<div class="actions">${g.saved>0.004?`<button class="btn small ghost" data-act="moveFrom" data-id="${g.id}">Move money</button>`:''}<button class="btn small ghost" data-act="gHist" data-id="${g.id}">History</button>${pinBtn('goal:'+g.id,g.name)}<button class="btn small ghost" data-act="editGoal" data-id="${g.id}">Edit</button></div>`:''}`}</div>`;
     const k=goalInfo(g),pl=P.goals.find(x=>x.g.id===g.id),due=shortD(g.date),past=new Date(g.date+'T00:00')<now;
@@ -826,7 +831,7 @@ V.goals=()=>{
       <div class="gtop"><h3>${esc(g.name)}</h3>${statusPill(k,g)}</div>
       <p class="gamt"><strong class="num">${money(g.saved)}</strong> of ${money(g.target)} saved</p>
       <div class="gbar"><div class="bar"><i style="width:${p}%"></i></div>${expMark(g,k)}</div>
-      <p class="need">${k.status==='funded'?'Ready to buy.':past?`The buy-by date (${due}) has passed. ${money(k.remaining)} to go. Push the date back or add money.`:`Set aside <b class="num">${money(k.perMonth)}/month</b> to have it by ${due}. ${tip('pace:'+g.id)}`}</p>
+      <p class="need">${k.status==='funded'?'Ready to buy.':past?`The buy-by date (${due}) has passed. ${money(k.remaining)} to go. Push the date back or add money.`:`Set aside <b class="num">${money(k.perMonth)}/month</b> to have it by ${due}. ${tip('pace:'+g.id)}`}</p>${monthLine(g)}
       ${planWarn}
       ${panels(g)||actions}
     </div>`};
@@ -848,6 +853,7 @@ V.goals=()=>{
     <input type="hidden" id="gAcct" value="${aid}">
     <label class="field"><span>Name</span><input type="text" id="gName" placeholder="e.g. Car repairs, Vacation, Taxes"></label>
     <label class="field"><span>Put in now (optional, ${money(Math.max(0,unassigned(aid)),true)} not in a bucket)</span><input type="number" inputmode="decimal" id="gSaved" placeholder="0"></label>
+    <label class="field"><span>Put in each month (optional)</span><input type="number" inputmode="decimal" id="gMonthly" placeholder="None"></label>
     <div class="two"><label class="field"><span>Target (optional)</span><input type="number" inputmode="decimal" id="gAmt" placeholder="None"></label>
     <label class="field"><span>By (optional) ${tip('buyby')}</span><input type="date" id="gDate"></label></div>
     <p class="sub" style="font-size:13px;margin:0 0 10px">A target on its own is a reminder of what you’re aiming for. Add a date too and you’ll get a monthly amount to save.</p>
@@ -940,7 +946,7 @@ V.unassigned=()=>{
   const tot=r2(list.reduce((s,x)=>s+Math.max(0,x.free),0)),shorts=list.filter(x=>x.free<-0.004),srcs=list.filter(x=>x.free>0.004);
   const cats=open?liveCats().filter(c=>c.type==='monthly'):[];
   const opts=x=>{const aid=x.a.id;
-    const g=gs.filter(g=>g.acct===aid).concat(gs.filter(g=>g.acct!==aid)).map(g=>`<option value="g:${g.id}">${esc(g.name)}${g.acct===aid?'':` (moves to ${esc(aName(g.acct))})`}</option>`).join('');
+    const g=gs.filter(g=>g.acct===aid).concat(gs.filter(g=>g.acct!==aid)).map(g=>`<option value="g:${g.id}" data-need="${monthToGo(g)}">${esc(g.name)}${monthToGo(g)>0.004?`, needs ${money(monthToGo(g))} this month`:''}${g.acct===aid?'':` (moves to ${esc(aName(g.acct))})`}</option>`).join('');
     const c=cats.map(c=>{const h=catHome(c);return `<option value="c:${c.id}">${esc(c.name)}, ${money(Math.max(0,catLeft(c,thisM)),true)} left${h&&h!==aid?` (moves to ${esc(aName(h))})`:''}</option>`}).join('');
     const sh=shorts.filter(y=>y.a.id!==aid).map(y=>`<option value="a:${y.a.id}">${esc(y.a.name)}, short ${money(-y.free,true)}</option>`).join('');
     return (sh?`<optgroup label="Cover a short account">${sh}</optgroup>`:'')+(g?`<optgroup label="Goals">${g}</optgroup>`:'')+(c?`<optgroup label="Add to this month’s spending">${c}</optgroup>`:'')};
@@ -2452,7 +2458,7 @@ function splitFor(v,depositId,m){
   const fixedPart=r2(fixedAmt+pctPart);
   let avail=r2(v-fixedPart);
   const alloc=[];
-  topGoals().forEach(g=>{if(!routeAcct(g.acct))return;const k=goalInfo(g);const monthLeft=Math.max(0,k.perMonth-(done.g[g.id]||0));const want=Math.min(Math.round(k.perMonth*share),monthLeft,k.remaining);const amt=r2(Math.max(0,Math.min(want,avail)));if(amt>0){alloc.push({g,amt});avail=r2(avail-amt)}});
+  topGoals().forEach(g=>{if(!routeAcct(g.acct))return;const k=goalInfo(g);const monthLeft=Math.max(0,k.perMonth-(g.monthly>0?Math.max(done.g[g.id]||0,monthIn(g)):(done.g[g.id]||0)));const want=Math.min(Math.round(k.perMonth*share),monthLeft,k.remaining);const amt=r2(Math.max(0,Math.min(want,avail)));if(amt>0){alloc.push({g,amt});avail=r2(avail-amt)}});
   const budgets=liveCats().reduce((a,c)=>a+(c.type==='monthly'?c.budget:c.budget/12),0);
   const spend=r2(Math.max(0,Math.min(avail,budgets*share,budgets-done.spend)));avail=r2(avail-spend);
   const capped=done.fixed>0&&fixedAmt<fixedMonth*share-0.5;
@@ -2489,7 +2495,7 @@ function offerSplit(v,depositId){
   if(P.extraTo&&P.extraTo!==depositId&&P.extra>0.5)moves.push({label:'Extra',from:depositId,to:P.extraTo,amount:P.extra});
   const lines=[`<span class="sl">This check is ${pct}% of your ${money(S.plan.income)} monthly take-home, so each amount is that share of what’s in Settings${P.capped?'. Earlier paychecks already covered part of this month, so those amounts are capped and the rest becomes extra':''}.</span>`,
     `<b>Bills</b> ${money(P.fixedPart,true)}, stays in ${esc(dep)} <small>your fixed costs</small>`]
-    .concat(P.alloc.map(x=>`<b>${esc(x.g.name)}</b> ${money(x.amt,true)}${x.g.acct!==depositId?' → '+esc(aName(x.g.acct)):', set aside in '+esc(dep)} <small>its monthly pace</small>`))
+    .concat(P.alloc.map(x=>`<b>${esc(x.g.name)}</b> ${money(x.amt,true)}${x.g.acct!==depositId?' → '+esc(aName(x.g.acct)):', set aside in '+esc(dep)} <small>${x.g.monthly>0?'what’s left of its monthly amount':'its monthly pace'}</small>`))
     .concat([`<b>Spending money</b> ${money(P.spend,true)}${P.spendTo&&P.spendTo!==depositId?' → '+esc(aName(P.spendTo)):', stays in '+esc(dep)} <small>your category budgets</small>`])
     .concat(P.extra<-0.5?[`<b>Short</b> ${money(-P.extra,true)}: this check doesn’t cover its share of bills and goals`]:P.extra>0.5?[`<b>Extra</b> ${money(P.extra,true)}${P.extraTo&&P.extraTo!==depositId?' → '+esc(aName(P.extraTo)):', stays in '+esc(dep)} <small>what’s left</small>`]:[])
     .concat(moves.length?(()=>{const n=new Set(moves.map(m=>m.from+'>'+m.to)).size;return [`You’ll get a checklist of the ${n} transfer${n===1?'':'s'} to make in your bank.`]})():[]);
@@ -2532,6 +2538,7 @@ document.getElementById('app').addEventListener('input',e=>{const t=e.target;bin
   if(t.id==='sq'){UI.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('sq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}
   if(t.id==='logq'){LG.q=t.value;const p=t.selectionStart;render();const n=document.getElementById('logq');if(n){n.focus();try{n.setSelectionRange(p,p)}catch(e){}}}});
 document.getElementById('app').addEventListener('change',e=>{const t=e.target;
+  if(t.dataset.uaGoal){const n=+(t.selectedOptions[0]||{dataset:{}}).dataset.need,i=document.querySelector(`[data-ua-amt="${t.dataset.uaGoal}"]`);if(i&&n>0.004)i.value=r2(Math.min(n,uaInfo(acct(t.dataset.uaGoal)).free))}
   if(t.id==='spWith'){const g=goal(UI.spend),r=document.getElementById('spMoveRow');if(g&&r)r.hidden=t.value===g.acct}
   if(t.dataset.pf==='rep'&&UI.pj){UI.pj.rep=t.value;render();return}
   if(t.dataset.pja){const v=parseFloat(t.value);if(isFinite(v)&&v>-50&&v<50){S.proj.a=Object.assign({},S.proj.a||{},{[t.dataset.pja]:v});render()}return}
@@ -2628,7 +2635,8 @@ document.getElementById('app').addEventListener('click',e=>{
     if(!ac){toast('Add a savings or checking account in Settings first');return}
     if(!(sv>=0)){toast('The starting amount can’t be negative');return}
     const free=unassigned(ac);if(sv>free+0.004){toast(`Only ${money(free,true)} in ${aName(ac)} isn’t in a bucket yet`);return}
-    const g={id:id(),name:n,target:a>0?r2(a):0,saved:0,date:d||'',created:todayISO,acct:ac,done:false};
+    const mr=document.getElementById('gMonthly').value.trim(),mo=mr===''?0:r2(parseFloat(mr));if(mr!==''&&!(mo>0)){toast('The monthly amount needs to be more than $0, or leave it empty');return}
+    const g={id:id(),name:n,target:a>0?r2(a):0,saved:0,date:d||'',created:todayISO,acct:ac,done:false};if(mo>0)g.monthly=mo;
     S.goals.push(g);if(sv>0.004)addTx({date:todayISO,kind:'assign',acct:ac,goal:g.id,amount:sv,note:'Starting amount'});
     logIt(['Created bucket '+n+' in '+aName(ac)+(a>0?' ('+money(a)+' by '+fmtD(d)+')':'')+(sv>0.004?', starting with '+money(sv,true):'')]);resetUI();render();
     toast(isBucket(g)?'Bucket created':'Bucket created: '+money(goalInfo(g).perMonth)+'/month');return}
@@ -2927,6 +2935,9 @@ function handleAct(t){
     const ar=document.getElementById('eAmt').value.trim(),amt=ar===''?0:r2(parseFloat(ar)),d=document.getElementById('eDate').value,ae=document.getElementById('eAcct'),ac=ae?ae.value:g.acct;
     const n=document.getElementById('eName').value.trim()||g.name,se=document.getElementById('eSaved'),sv=se&&se.value.trim()!==''?r2(parseFloat(se.value)):g.saved,dv=r2(sv-g.saved);
     if(n!==g.name)ch.push(chg('Name',esc(g.name),esc(n)));
+    const me=document.getElementById('eMonthly'),mr=me?me.value.trim():'',mo=mr===''?0:r2(parseFloat(mr));
+    if(mr!==''&&!(mo>0)){toast('The monthly amount needs to be more than $0, or leave it empty');return}
+    if(me&&mo!==(g.monthly||0))ch.push(chg('Each month',g.monthly>0?money(g.monthly):'none',mo>0?money(mo):'none'));
     const needT=par||!!g.parent;
     if(ar!==''&&!(amt>0)){toast('The target needs to be more than $0');return}
     if(needT&&!(amt>0&&d)){toast(par?'A fund with payments needs a total and a finish-by date':'A payment needs an amount and a due date');return}
@@ -2946,7 +2957,7 @@ function handleAct(t){
     let moveAmt=0;if(ac!==g.acct){moveAmt=r2(par?fp.aside:g.saved);const src=acct(g.acct);if(moveAmt>src.balance+0.004){toast(`${src.name} only has ${money(src.balance,true)}, so the ${money(moveAmt)} can’t move yet`);return}ch.push(chg('Kept in',esc(aName(g.acct)),esc(aName(ac)))+(par?' (with its sub-goals)':''));if(moveAmt>0)ch.push(`${money(moveAmt,true)} moves from ${esc(aName(g.acct))} to ${esc(aName(ac))}`)}
     if(!ch.length){toast('No changes to save');return}
     const label=g.name;
-    confirmBox('Save changes to '+esc(label)+'?',ch,'Save changes',()=>{Object.assign(g,{name:n,target:amt,date:d||''});if(Math.abs(dv)>0.004)addTx({date:todayISO,kind:dv>0?'assign':'unassign',acct:g.acct,goal:g.id,amount:Math.abs(dv),note:'Amount edited'});if(ac!==g.acct){if(moveAmt>0)addTx({date:todayISO,kind:'transfer',from:g.acct,to:ac,amount:moveAmt,note:'Moved with '+g.name});g.acct=ac;if(par)liveKids(g).forEach(k=>k.acct=ac)}logIt(ch.map(c=>label+' — '+c));resetUI();render();toast(n+' updated')});return}
+    confirmBox('Save changes to '+esc(label)+'?',ch,'Save changes',()=>{Object.assign(g,{name:n,target:amt,date:d||''});if(me){if(mo>0)g.monthly=mo;else delete g.monthly}if(Math.abs(dv)>0.004)addTx({date:todayISO,kind:dv>0?'assign':'unassign',acct:g.acct,goal:g.id,amount:Math.abs(dv),note:'Amount edited'});if(ac!==g.acct){if(moveAmt>0)addTx({date:todayISO,kind:'transfer',from:g.acct,to:ac,amount:moveAmt,note:'Moved with '+g.name});g.acct=ac;if(par)liveKids(g).forEach(k=>k.acct=ac)}logIt(ch.map(c=>label+' — '+c));resetUI();render();toast(n+' updated')});return}
   if(a==='reviewAccts'){
     const ch=[],apply=[];
     document.querySelectorAll('#app [data-acct]').forEach(i=>{const x=acct(i.dataset.acct),v=r2(parseFloat(i.value)||0);if(Math.abs(v-x.balance)>0.004){ch.push(chg(esc(x.name),money(x.balance,true),money(v,true)));const d=r2(v-x.balance),moneyIn=x.type==='debt'?-d:d;apply.push(()=>addTx({date:todayISO,kind:'adjust',acct:x.id,amount:Math.abs(moneyIn),dir:moneyIn>0?1:-1}))}});

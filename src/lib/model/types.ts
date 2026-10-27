@@ -74,6 +74,8 @@ export interface Goal {
   name: string;
   target: number;
   saved: number;
+  /** Amount to put in each month, set by hand (optional). */
+  monthly?: number;
   date: ISODate;
   created: ISODate;
   acct?: string;

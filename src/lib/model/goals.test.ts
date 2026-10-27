@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { familyProgress, goalInfo, monthPlan, parentInfo, planCheck, unassigned } from ".";
+import { familyProgress, goalInfo, monthPlan, parentInfo, planCheck, putInMonth, unassigned } from ".";
 import type { Goal } from ".";
 import { sample, tx } from "./fixtures";
 
@@ -90,6 +90,26 @@ describe("buckets (no target)", () => {
     expect(p.goals[0].funded).toBe(0);
     expect(p.goals[1].funded).toBe(p.goals[1].need);
     expect(p.goals[1].funded).toBeGreaterThan(0);
+  });
+});
+
+describe("a monthly amount set by hand", () => {
+  it("counts what went in this month, less what was moved out, ignoring spending", () => {
+    const s = sample();
+    const g = goal({ id: "car", target: 0, date: "", monthly: 50 });
+    s.goals = [g];
+    s.tx = [
+      tx({ kind: "assign", goal: "car", amount: 30, date: "2026-10-03" }),
+      tx({ kind: "assign", goal: "car", amount: 99, date: "2026-09-20" }), // last month
+      tx({ kind: "unassign", goal: "car", amount: 5, date: "2026-10-04" }),
+      tx({ kind: "goalbuy", acct: "sav", goal: "car", spend: true, amount: 20, date: "2026-10-05" }),
+    ];
+    expect(putInMonth(s, g, "2026-10")).toBe(25);
+  });
+  it("becomes the bucket's monthly need, and wins over a worked-out pace", () => {
+    expect(goalInfo(sample(), goal({ target: 0, date: "", monthly: 50 }), now).perMonth).toBe(50);
+    expect(goalInfo(sample(), goal({ target: 1200, monthly: 40 }), now).perMonth).toBe(40);
+    expect(goalInfo(sample(), goal({ target: 1200, saved: 1190, monthly: 40 }), now).perMonth).toBe(10); // never more than is left
   });
 });
 
