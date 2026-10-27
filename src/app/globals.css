@@ -934,12 +934,5 @@ body{transition:background-color .25s}
 .cleft{margin:0 0 10px;font-size:13px;color:var(--muted)}
 .cleft.overtxt{color:var(--over);font-weight:600}
 .mline{font-size:13px;margin:4px 0 0}
-.fxsum{padding:10px 16px 12px;margin-bottom:10px}.fxsum .uaform{margin:4px 0 8px}
-.fxsum .rorow>:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fline{font-size:13px;color:var(--muted);margin-top:3px}
-.fline.okc{color:var(--accent)}
-.fbtns{display:flex;gap:6px;align-items:center;flex:none}
-.fxsum .bar{margin-top:6px}
 .crowbtn .cbig{font-weight:700;font-size:16px;color:var(--ink)}
 .crowbtn .cbig.overtxt{color:var(--over)}
-.fbar2{height:6px;margin-top:8px}
