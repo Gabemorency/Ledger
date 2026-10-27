@@ -3,10 +3,10 @@ import { addMonths, lastDayOf, mIdx, monthsTo, money, r2 } from ".";
 
 describe("money", () => {
   it("formats whole dollars and cents", () => {
-    expect(money(1234.4)).toBe("$1,234");
+    expect(money(1234.4)).toBe("$1,234.40"); // always to the cent
     expect(money(1234.4, true)).toBe("$1,234.40");
     expect(money(-5.5, true)).toBe("-$5.50");
-    expect(money(Number.NaN)).toBe("$0");
+    expect(money(Number.NaN)).toBe("$0.00");
   });
   it("rounds to cents", () => {
     expect(r2(0.1 + 0.2)).toBe(0.3);

@@ -902,7 +902,7 @@ body{transition:background-color .25s}
 .ghgap{display:flex;flex-direction:column;gap:6px;background:var(--over-soft);border-radius:12px;padding:10px 12px;margin:0 0 8px;font-size:13px;color:var(--ink)}
 .ghgap .btn{align-self:flex-start}
 /* Review tabs */
-.seg{display:flex;gap:4px;background:var(--pad);border-radius:12px;padding:4px;margin:10px 0 14px}
+.rtabs{display:flex;gap:4px;background:var(--pad);border-radius:12px;padding:4px;margin:10px 0 14px}
 .segb{flex:1;border:0;background:none;border-radius:9px;padding:8px 4px;font:inherit;font-size:13px;font-weight:600;color:var(--muted);line-height:1.2}
 .segb[aria-pressed=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 /* savings: accounts and their buckets */
@@ -926,3 +926,7 @@ body{transition:background-color .25s}
 .cdet{padding:0 0 12px}
 .cmove{margin-top:8px}
 .backbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:8px 14px 8px 10px;font:inherit;font-weight:600;font-size:14px;pointer-events:auto}
+/* add sheet: grab handle centered, close button on the right */
+.sheettop{position:relative;height:26px;margin:-4px 0 8px}
+.sheettop .grab{position:absolute;left:50%;top:6px;transform:translateX(-50%);margin:0}
+.sheetx{position:absolute;right:-6px;top:-6px;width:36px;height:36px;border-radius:50%;border:0;background:var(--pad);color:var(--ink);font-size:15px;font-weight:700;line-height:1}

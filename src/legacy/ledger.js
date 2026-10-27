@@ -1358,7 +1358,7 @@ function stepRecap(d){if(!RC)return;const n=RC.i+d;if(n<0)return;if(n>=RC.slides
 /* ---------- Review: one place to look back (over time, follow the money, check-up) ---------- */
 const REVIEW=['trends','breakdown','checkup'];let RV='trends';
 function reviewHead(v){RV=v;const tab=(k,l)=>`<button class="segb" data-go="${k}" aria-pressed="${k===v}">${l}</button>`;
-  return `<h1>Review</h1><div class="seg" role="group" aria-label="Review">${tab('trends','Over time')}${tab('breakdown','Follow the money')}${tab('checkup','Check-up')}</div>`}
+  return `<h1>Review</h1><div class="rtabs" role="group" aria-label="Review">${tab('trends','Over time')}${tab('breakdown','Follow the money')}${tab('checkup','Check-up')}</div>`}
 function closeRecap(){if(!RC)return;clearTimeout(RC.timer);RC.el.remove();RC=null}
 document.addEventListener('keydown',e=>{if(!RC)return;if(e.key==='Escape')closeRecap();else if(e.key==='ArrowRight'||e.key===' ')stepRecap(1);else if(e.key==='ArrowLeft')stepRecap(-1)});
 
@@ -3026,7 +3026,7 @@ function drawSheet(){
   if(A.editId)hint=(hint?hint+'. ':'')+'Editing an entry';
   const chipsAcct=(field,list)=>`<div class="chips small">${list.map(a=>`<button class="chip" data-${field}="${a.id}" aria-pressed="${A[field]===a.id}">${esc(a.name)}</button>`).join('')}</div>`;
   const all=liveAccts(), nonDebt=all.filter(a=>a.type!=='debt');
-  document.getElementById('sheet').innerHTML=`<div class="grab"></div>
+  document.getElementById('sheet').innerHTML=`<div class="sheettop"><div class="grab"></div><button class="sheetx" data-sheetclose aria-label="Close">✕</button></div>
   ${A.editId?`<p class="lbl" style="text-align:center;margin:0">Edit ${A.kind==='fixed'?esc(fx?fx.name:'fixed cost')+' payment':A.kind==='income'?'income':'purchase'}</p>`:`<div class="seg" role="group" aria-label="Entry type">${[['expense','Expense'],['income','Income'],['transfer','Transfer']].map(([k,l])=>`<button data-kind="${k}" aria-pressed="${A.kind===k}">${l}</button>`).join('')}</div>`}
   <div class="amount ${A.amt?'':'empty'}">$${A.amt||'0'}</div>
   <p class="hint">${hint}</p>
@@ -3070,6 +3070,7 @@ document.getElementById('sheet').addEventListener('change',e=>{
   if(e.target.id==='aVendor'&&A.kind==='expense'){const l=lastFor(A.vendor);if(l){A.cat=l.cat;const la=acct(l.acct);if(la&&!la.archived&&la.pay)A.acct=l.acct;A.auto=`Filled in from your last ${esc(l.vendor)} entry: ${esc(cat(l.cat).name)}, ${esc(aName(A.acct))}`}else A.auto='';drawSheet()}
 });
 document.getElementById('sheet').addEventListener('click',e=>{
+  if(e.target.closest('[data-sheetclose]')){closeSheet();return}
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.splitAdd!==undefined){const used=new Set([A.cat].concat((A.split||[]).map(p=>p.cat)));const c=liveCats().find(x=>!used.has(x.id));if(!c){toast('Every category is already in this split');return}A.split=(A.split||[]).concat({cat:c.id,amt:''});drawSheet();const ins=document.querySelectorAll('[data-sp-amt]');if(ins.length)ins[ins.length-1].focus();return}
   if(b.dataset.splitDel!==undefined){A.split.splice(+b.dataset.splitDel,1);if(!A.split.length)A.split=null;drawSheet();return}
