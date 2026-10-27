@@ -143,7 +143,7 @@ const cat=cid=>S.categories.find(c=>c.id===cid);
 function adjOf(cid,m){return Model.adjustmentOf(S,cid,m)}
 function carryOf(c,m){return Model.carryOf(S,memo(),c,m||thisM)}
 function budgetOf(c,m){return Model.budgetOf(S,memo(),c,m||thisM)}
-function sanitize(){if(!S.adj)S.adj={};if(!S.proj||typeof S.proj!=='object')S.proj={};if(!Array.isArray(S.proj.events))S.proj.events=[];if(!Array.isArray(S.subs))S.subs=[];if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('safe'))S.dash.order.unshift('safe');if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!S.dash.lean){/* simpler dashboard: the everyday cards first, the extras hidden (turn them back on in Settings) */S.dash.lean=1;S.dash.hidden=[...new Set(S.dash.hidden.concat(DASH_EXTRA))];const front=['safe','start','payday','checkin','cardpay','unassigned','spending','fixed','latest'];S.dash.order=front.filter(k=>S.dash.order.includes(k)).concat(S.dash.order.filter(k=>!front.includes(k)))}S.goals.forEach(g=>{if(g.date==null)g.date='';if(typeof g.target!=='number'||isNaN(g.target))g.target=0});if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
+function sanitize(){if(!S.adj)S.adj={};if(!S.proj||typeof S.proj!=='object')S.proj={};if(!Array.isArray(S.proj.events))S.proj.events=[];if(!Array.isArray(S.subs))S.subs=[];if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('safe'))S.dash.order.unshift('safe');if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!S.dash.lean){/* simpler dashboard: the everyday cards first, the extras hidden (turn them back on in Settings) */S.dash.lean=1;S.dash.hidden=[...new Set(S.dash.hidden.concat(DASH_EXTRA))];const front=['safe','start','payday','checkin','cardpay','unassigned','spending','fixed','latest'];S.dash.order=front.filter(k=>S.dash.order.includes(k)).concat(S.dash.order.filter(k=>!front.includes(k)))}S.goals.forEach(g=>{if(g.date==null)g.date='';if(typeof g.target!=='number'||isNaN(g.target))g.target=0});if(!S.fund||typeof S.fund!=='object')S.fund={};if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
 function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
@@ -265,7 +265,7 @@ function removeBlock(t){
 function removeTx(t){const grp=[t].concat(S.tx.filter(x=>x.link===t.id));grp.slice().reverse().forEach(x=>applyTx(x,-1));S.tx=S.tx.filter(x=>!grp.includes(x));MEMO=null;t._grp=grp;return grp}
 function restoreTx(t){(t._grp||[t]).forEach(x=>{if(!S.tx.includes(x)){S.tx.push(x);applyTx(x,1)}});delete t._grp}
 const UI={editAccts:false,editGoal:null,addTo:null,sec:null,draft:null};
-function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.fxCover=null;UI.catOpen=null;UI.catMove=null;UI.gHist=null;UI.newIn=null;UI.spend=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
+function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.fund=null;UI.catOpen=null;UI.catMove=null;UI.gHist=null;UI.newIn=null;UI.spend=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
 const LOGK={settings:'Settings',goals:'Goals',budget:'Budget moves',entries:'Entries',payday:'Routine',months:'Months'};
 function logKind(t){t=String(t);if(/paycheck|check-in/i.test(t))return 'payday';if(/^(Edited|Deleted|Restored) /.test(t))return 'entries';if(/^Moved .* (into|to) .* for /.test(t))return 'budget';if(/close|closed|reopen|month/i.test(t)&&!/goal/i.test(t))return 'months';if(/goal|Emergency fund|sub-goal|priority/i.test(t))return 'goals';return 'settings'}
 function logIt(lines){lines.forEach(t=>S.log.push({ts:Date.now(),text:t,k:logKind(t)}))}
@@ -514,11 +514,14 @@ function homeCards(){
         <div class="actions" style="margin-top:8px">${overs.map(x=>`<button class="btn small" data-act="cover" data-cat="${x.c.id}">Cover ${esc(x.c.name)}</button>`).join('')}</div></div>`:''}`},
     fixed:()=>{const all=liveFixed().filter(f=>!ended(f));if(!all.length)return `<h2>Fixed costs</h2><div class="panel emptycard"><b>No fixed costs yet.</b><p class="sub">These are bills that repeat, like rent, your phone, a loan payment, or a yearly fee. Add them in Settings and you can mark each one paid here.</p></div>`;
       const fx=all.filter(f=>dueIn(f)),later=all.filter(f=>!dueIn(f));
-      return `<h2>Fixed costs ${tip('fixed')}</h2>${billsCover(fx)}
+      return `<h2>Fixed costs ${tip('fixed')}</h2>${fixedFunding(fx)}
       <div class="panel">${fx.map(f=>{const due=fixedDue(f),owe=fixedOwe(f);
       const late=f.day&&now.getDate()>f.day&&owe>0.004;
-      return `<div class="row"><div class="rowtop" style="align-items:center"><div><b>${esc(f.name)}</b><div class="sub" style="font-size:13px">${f.pct?`${f.pct}% of income logged (${money(due,true)})`:money(f.amount,true)}${f.day?`, due the ${ordinal(f.day)}`:''}, ${esc(aName(f.acct))}${f.to?' → '+esc(aName(f.to)):''}${(f.freq||'monthly')!=='monthly'||f.end?`<br>${esc(schedText(f))}`:''}</div>${late?'<div class="warnline" style="margin:2px 0 0;font-size:13px">Past due</div>':''}</div>
-      ${owe>0.004?`<button class="btn small" data-payfixed="${f.id}">Pay</button>`:`<button class="paidbtn" data-unpay="${f.id}" aria-label="Paid. Tap to undo">Paid ✓</button>`}</div></div>`}).join('')||'<div class="empty">Nothing due this month.</div>'}
+      const fd=fundedOf(f),full=fd>=due-0.004;
+      return `<div class="row"><div class="rowtop" style="align-items:center"><div><b>${esc(f.name)}</b><div class="sub" style="font-size:13px">${f.pct?`${f.pct}% of income logged (${money(due,true)})`:money(f.amount,true)}${f.day?`, due the ${ordinal(f.day)}`:''}, ${esc(aName(f.acct))}${f.to?' → '+esc(aName(f.to)):''}${(f.freq||'monthly')!=='monthly'||f.end?`<br>${esc(schedText(f))}`:''}</div>${late?'<div class="warnline" style="margin:2px 0 0;font-size:13px">Past due</div>':''}
+      <div class="fline num ${full?'okc':''}">${full?`Funded ✓ ${money(due,true)}`:`Funded ${money(fd,true)} of ${money(due,true)}`}</div></div>
+      <div class="fbtns">${!full&&owe>0.004&&UI.fund!==f.id?`<button class="btn small ghost" data-act="fund" data-fixed="${f.id}">Assign</button>`:''}${owe>0.004?`<button class="btn small" data-payfixed="${f.id}">Pay</button>`:`<button class="paidbtn" data-unpay="${f.id}" aria-label="Paid. Tap to undo">Paid ✓</button>`}</div></div>
+      ${UI.fund===f.id?fundForm(f):''}</div>`}).join('')||'<div class="empty">Nothing due this month.</div>'}
       ${later.length?`<div class="row"><p class="lbl" style="margin:0 0 4px">Not due this month</p>${later.map(f=>{const n=nextDue(f);return `<div class="hrow"><span>${esc(f.name)}</span><span class="num">${f.pct?f.pct+'%':money(f.amount)}${n?', next '+monthName(mDate(n),{month:'short',year:'numeric'}):''}</span></div>`}).join('')}</div>`:''}</div>`},
     annual:()=>annual.length?`<h2>Annual budgets</h2><div class="panel">${annual.map(c=>row(c,false)).join('')}</div>`:'',
     latest:()=>{const recent=S.tx.slice().reverse().filter(t=>inMonth(t,thisM)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
@@ -929,22 +932,31 @@ function catMoveForm(c){
     <p class="sub" style="font-size:13px;margin:0 0 8px">For ${esc(monthName(mDate(thisM)))} only. Next month goes back to the budgets in Settings.</p>
     <div class="actions"><button class="btn ghost small" data-act="catMoveCancel">Cancel</button><button class="btn small" data-act="doCatMove" data-cat="${c.id}" style="flex:1">Move</button></div></div>`;
 }
-/* fixed costs: what's paid, what's still due, and whether the account that pays them has it ready */
-function billsCover(fx){
+/* fixed costs as lines of funding: money assigned to each one this month (paying it counts too) */
+const fundRec=f=>((S.fund||{})[thisM]||{})[f.id]||0;
+function fundedOf(f){const due=fixedDue(f),paid=r2(due-fixedOwe(f));return r2(Math.min(due,Math.max(fundRec(f),paid)))}
+/* money in an account already promised to its lines of funding but not yet paid out */
+const fundHeld=aid=>r2(liveFixed().filter(f=>f.acct===aid&&dueIn(f)).reduce((t,f)=>t+Math.max(0,fundRec(f)-r2(fixedDue(f)-fixedOwe(f))),0));
+function fundSources(f){
+  const out=[],a=acct(f.acct);
+  if(a&&uaAccts().some(x=>x.id===a.id)){const v=r2(a.balance-assigned(a.id)-fundHeld(a.id));if(v>0.004)out.push({id:a.id,label:`Already in ${a.name}`,max:v})}
+  uaAccts().filter(x=>x.id!==f.acct).map(uaInfo).filter(x=>x.free>0.004).forEach(x=>out.push({id:x.a.id,label:`Move from ${x.a.name}`,max:x.free}));
+  return out;
+}
+function fundForm(f){
+  const need=r2(fixedDue(f)-fundedOf(f)),src=fundSources(f);
+  if(!src.length)return `<div class="inpanel"><p class="sub" style="font-size:13px;margin:0">No account has free money to assign right now.</p><button class="btn small ghost" data-act="fundX" style="margin-top:6px">Close</button></div>`;
+  return `<div class="inpanel">
+    <label class="field"><span>Amount (${money(need,true)} still to fund)</span><input type="number" inputmode="decimal" id="fdAmt" value="${need>0.004?need:''}" placeholder="0"></label>
+    <label class="field"><span>From</span><select id="fdSrc">${src.map(x=>`<option value="${x.id}">${esc(x.label)}, ${money(x.max,true)} free</option>`).join('')}</select></label>
+    <div class="actions"><button class="btn ghost small" data-act="fundX">Cancel</button><button class="btn small" data-act="fundReview" data-fixed="${f.id}" style="flex:1">Review</button></div></div>`;
+}
+function fixedFunding(fx){
   if(!fx.length||S.closed.includes(thisM))return '';
-  const due=r2(fx.reduce((t,f)=>t+fixedDue(f),0)),owe=r2(fx.reduce((t,f)=>t+fixedOwe(f),0));
-  const liq=uaAccts().map(a=>a.id),ids=[...new Set(fx.map(f=>f.acct))].filter(id=>liq.includes(id)&&billNeed(id)>0.004);
-  const rows=ids.map(id=>{const a=acct(id),need=billNeed(id),have=r2(Math.max(0,Math.min(need,a.balance-assigned(id)))),short=r2(need-have);
-    const srcs=uaAccts().filter(x=>x.id!==id).map(uaInfo).filter(x=>x.free>0.004);
-    const form=UI.fxCover===id?`<div class="uaform">${srcs.length?`<label class="field"><span>Move in from</span><select id="fxSrc">${srcs.map(x=>`<option value="${x.a.id}">${esc(x.a.name)}, ${money(x.free,true)} free</option>`).join('')}</select></label>
-      <div class="inline"><input type="number" inputmode="decimal" id="fxAmt" value="${short>0.004?r2(Math.min(short,srcs[0].free)):''}" placeholder="0" aria-label="Amount to move into ${esc(a.name)}"><button class="btn" data-act="doFxCover" data-acct="${id}">Move</button></div>`
-      :'<p class="sub" style="font-size:13px;margin:6px 0 0">No other account has free money right now.</p>'}<button class="btn small ghost" data-act="fxCoverX" style="margin-top:6px">Cancel</button></div>`:'';
-    return `<div class="rorow"><span>${esc(a.name)}</span><b class="num ${short>0.004?'overtxt':'okc'}">${short>0.004?`${money(have,true)} of ${money(need,true)}`:`${money(need,true)} ✓`}</b></div>
-      ${short>0.004&&UI.fxCover!==id?`<p class="warnline" style="font-size:13px;margin:2px 0 6px">${money(short,true)} short for bills.</p>`:''}
-      ${form||`<button class="btn small ${short>0.004?'':'ghost'}" data-act="fxCover" data-acct="${id}" style="margin:4px 0 6px">Move money in</button>`}`}).join('');
-  return `<div class="panel fxsum"><div class="rorow"><span>Paid this month</span><b class="num">${money(r2(due-owe),true)} of ${money(due,true)}</b></div>
-    <div class="rorow"><span>Still due</span><b class="num">${money(owe,true)}</b></div>${rows?`<p class="lbl" style="margin:10px 0 0">Ready to pay what’s due</p>${rows}`:''}
-    ${(()=>{const card=r2(fx.filter(f=>!liq.includes(f.acct)).reduce((t,f)=>t+fixedOwe(f),0));return card>0.004?`<div class="rorow"><span>Charged to cards</span><b class="num">${money(card,true)}</b></div>`:''})()}</div>`;
+  const due=r2(fx.reduce((t,f)=>t+fixedDue(f),0)),got=r2(fx.reduce((t,f)=>t+fundedOf(f),0)),p=due>0?got/due*100:100;
+  return `<div class="panel fxsum"><div class="rorow"><span>Funded this month</span><b class="num ${got>=due-0.004?'okc':''}">${money(got,true)} of ${money(due,true)}${got>=due-0.004?' ✓':''}</b></div>
+    <div class="bar"><i style="width:${Math.min(100,p)}%"></i></div>
+    ${got<due-0.004?`<p class="sub" style="font-size:13px;margin:6px 0 0">${money(due-got,true)} still to fund. Tap Assign on a line to fund it.</p>`:''}</div>`;
 }
 function catHome(c){const h=leftoverSource(c),a=h&&acct(h);return a&&!a.archived&&a.type!=='debt'?h:null}
 function spendNeedCats(aid){return liveCats().filter(c=>c.type==='monthly'&&catHome(c)===aid).map(c=>({c,left:r2(Math.max(0,budgetOf(c,thisM)-spent(c.id)))})).filter(x=>x.left>0.004)}
@@ -2814,15 +2826,25 @@ function handleAct(t){
     const a1=S.notes.indexOf(grp[i]),a2=S.notes.indexOf(grp[j]);[S.notes[a1],S.notes[a2]]=[S.notes[a2],S.notes[a1]];render();return}
   if(a==='nDel'){const i=S.notes.findIndex(x=>x.id===t.dataset.id);if(i<0)return;const [n]=S.notes.splice(i,1);UI.noteOpen=null;logIt(['Notes — deleted a note']);render();
     toast('Note deleted',()=>{S.notes.splice(Math.min(i,S.notes.length),0,n);render();toast('Note restored')});return}
-  if(a==='fxCover'){UI.fxCover=t.dataset.acct;render();const i=document.getElementById('fxAmt');if(i)i.focus();return}
-  if(a==='fxCoverX'){UI.fxCover=null;render();return}
-  if(a==='doFxCover'){
-    const to=t.dataset.acct,src=(document.getElementById('fxSrc')||{}).value,v=r2(parseFloat((document.getElementById('fxAmt')||{}).value));
-    if(!src){toast('Pick an account to move from');return}if(!(v>0)){toast('Enter an amount');return}
-    const free=uaInfo(acct(src)).free;if(v>free+0.004){toast(`Only ${money(free,true)} in ${aName(src)} is free`);return}
-    const nt=addTx({date:todayISO,kind:'transfer',from:src,to,amount:v,note:'For bills'});
-    logIt([`Moved ${money(v,true)} from ${aName(src)} to ${aName(to)} for bills`]);UI.fxCover=null;
-    render();toast(`${money(v,true)} moved to ${aName(to)} for bills. Make the transfer in your bank too`,()=>{removeTx(nt);render();toast('Undone')});return}
+  if(a==='fund'){UI.fund=t.dataset.fixed;render();const i=document.getElementById('fdAmt');if(i)i.focus();return}
+  if(a==='fundX'){UI.fund=null;render();return}
+  if(a==='fundReview'){
+    if(S.closed.includes(thisM)){toast('This month is closed');return}
+    const f=S.fixed.find(x=>x.id===t.dataset.fixed),v=r2(parseFloat(document.getElementById('fdAmt').value)),sid=document.getElementById('fdSrc').value;
+    const src=fundSources(f).find(x=>x.id===sid),need=r2(fixedDue(f)-fundedOf(f));
+    if(!(v>0)){toast('Enter an amount');return}
+    if(v>need+0.004){toast(`${f.name} only needs ${money(need,true)} more this month`);return}
+    if(!src||v>src.max+0.004){toast(`Only ${money(src?src.max:0,true)} is free there`);return}
+    const move=sid!==f.acct;
+    confirmBox(`Assign ${money(v,true)} to ${esc(f.name)}?`,[
+      chg(esc(f.name)+' funded',money(fundedOf(f),true),money(r2(fundedOf(f)+v),true)+' of '+money(fixedDue(f),true)),
+      move?`Moves ${money(v,true)} from ${esc(aName(sid))} to ${esc(aName(f.acct))}. Make the same transfer in your bank`:`Uses money already in ${esc(aName(f.acct))}. Nothing moves`],
+      'Assign it',()=>{
+        const m=(S.fund=S.fund||{})[thisM]=(S.fund[thisM]||{}),was=m[f.id];
+        m[f.id]=r2(fundedOf(f)+v);
+        const nt=move?addTx({date:todayISO,kind:'transfer',from:sid,to:f.acct,amount:v,note:'Fund '+f.name}):null;
+        logIt([`Assigned ${money(v,true)} to ${f.name}`+(move?` (moved from ${aName(sid)} to ${aName(f.acct)})`:'')]);UI.fund=null;render();
+        toast(`${f.name} funded ${money(fundedOf(f),true)} of ${money(fixedDue(f),true)}`,()=>{if(was==null)delete m[f.id];else m[f.id]=was;if(nt)removeTx(nt);render();toast('Undone')})});return}
   if(a==='uaCover'){
     const to=t.dataset.acct,src=(document.querySelector(`[data-ua-src="${to}"]`)||{}).value,v=r2(parseFloat((document.querySelector(`[data-ua-cov="${to}"]`)||{}).value));
     if(!src){toast('Pick an account to move from');return}if(!(v>0)){toast('Enter an amount');return}
