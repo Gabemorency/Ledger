@@ -2391,7 +2391,10 @@ function countUp(root){
 }
 function render(){
   MEMO=null;if(UI.lookDraft&&S.view!=='config')UI.lookDraft=null;applyLook();const y=window.scrollY||0,same=lastView===S.view;lastView=S.view;
-  const app=document.getElementById('app');app.dataset.view=S.view;app.innerHTML=appBar()+V[S.view]();
+  const app=document.getElementById('app');app.dataset.view=S.view;
+  /* entrance animations are for opening a screen; re-drawing the same screen (tapping a row, saving) must not replay them */
+  if(same)app.classList.remove('enter');app.classList.toggle('dmore',!!UI.dmJust);UI.dmJust=false;
+  app.classList.add('settle');app.innerHTML=appBar()+V[S.view]();requestAnimationFrame(()=>requestAnimationFrame(()=>app.classList.remove('settle')));
   if(!same&&!REDUCED){app.classList.remove('enter');void app.offsetWidth;app.classList.add('enter');countUp(app)}
   if(S.view==='guide')setupGuide();else if(GOBS){GOBS.disconnect();GOBS=null}
   document.querySelectorAll('nav [data-view]').forEach(b=>{if(b.dataset.view===S.view||(b.dataset.view==='trends'&&REVIEW.includes(S.view)))b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
@@ -2617,7 +2620,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.mtools!==undefined){UI.mtools=!UI.mtools;render();return}
   if(t.dataset.ckm){const ms=ckMonths(),i=ms.indexOf(CK.m)+(+t.dataset.ckm);if(i>=0&&i<ms.length){CK.m=ms[i];render()}return}
   if(t.dataset.bm){const ms=bkMonths(),i=ms.indexOf(BK.m)+(+t.dataset.bm);if(i>=0&&i<ms.length){BK.m=ms[i];render()}return}
-  if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;render();return}
+  if(t.dataset.dashmore!==undefined){UI.dashMore=!UI.dashMore;UI.dmJust=UI.dashMore;render();return}
   if(t.dataset.gjump){const el=document.getElementById('g-'+t.dataset.gjump);guideMark(t.dataset.gjump);if(el){el.classList.add('in');el.scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}return}
   if(t.dataset.signout!==undefined&&BOOT){BOOT.signOut();return}
   if(t.dataset.go){resetUI();S.view=t.dataset.go;if(t.dataset.help)UI.help=t.dataset.help;render();window.scrollTo(0,0);if(S.view==='search'){const n=document.getElementById('sq');if(n)n.focus()}const an=t.dataset.anchor&&document.getElementById(t.dataset.anchor);if(an)an.scrollIntoView({block:'start'});return}

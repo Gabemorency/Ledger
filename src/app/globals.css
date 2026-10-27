@@ -368,7 +368,7 @@ input[type=month]{width:100%;padding:12px;border-radius:12px;border:1px solid va
 #app.enter .dcard:nth-child(4){animation-delay:.15s}
 #app.enter .goal:nth-of-type(2){animation-delay:.05s}
 #app.enter .goal:nth-of-type(3){animation-delay:.1s}
-.dc-more{animation:cardIn .4s var(--ease-out) both}
+#app.dmore .dc-more{animation:cardIn .4s var(--ease-out) both}
 #app.enter :is(.bar i,.fbar i,.gsbar i,.stack i,.pbar .pfill){animation:grow .8s var(--ease-out) .12s both;transform-origin:left center}
 @keyframes viewIn{from{opacity:0;transform:translateY(8px)}}
 @keyframes cardIn{from{opacity:0;transform:translateY(16px) scale(.985)}}
@@ -936,3 +936,6 @@ body{transition:background-color .25s}
 .mline{font-size:13px;margin:4px 0 0}
 .crowbtn .cbig{font-weight:700;font-size:16px;color:var(--ink)}
 .crowbtn .cbig.overtxt{color:var(--over)}
+
+/* a freshly drawn screen starts in its final look; no fades from the default state */
+#app.settle .appbar,#app.settle .appbar *{transition:none!important}
