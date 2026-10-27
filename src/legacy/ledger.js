@@ -926,6 +926,13 @@ function uaAccts(){return liveAccts().filter(a=>['checking','cash','savings'].in
 /* quick move of this month's budget into or out of one category */
 /* add money to a category from an account's free money (raises this month's budget) */
 /* savings buckets can be a source too: "Performance Savings · Car maintenance" */
+/* every everyday account can be a source; money already planned for budgets or bills can be used, with a warning */
+function acctSources(skip){return uaAccts().filter(a=>a.id!==skip).map(a=>{const x=uaInfo(a),avail=r2(a.balance-x.held-fundHeld(a.id)),free=r2(Math.max(0,x.free));
+  return {id:a.id,a,avail,free,label:free>=avail-0.004?`${a.name}, ${money(free,true)} free`:`${a.name}, ${money(free,true)} free of ${money(avail,true)}`}}).filter(x=>x.avail>0.004)}
+/* what taking v from an account would leave short (budgets and bills planned from it this month) */
+function shortNote(aid,v){const x=uaInfo(acct(aid)),free=Math.max(0,x.free),loose=r2(free+x.extra);if(v<=free+0.004)return '';
+  if(v<=loose+0.004)return `This uses ${money(r2(v-free),true)} of the everyday spending money in ${aName(aid)}`;
+  return `This uses ${money(r2(v-loose),true)} that ${aName(aid)} needs for this month’s ${[x.spend>0.004?'spending':'',x.bills>0.004?'fixed costs':''].filter(Boolean).join(' and ')||'plans'}. It will show as short on the Unassigned page until you cover it`}
 function bucketSources(){return activeGoals().filter(g=>!isParent(g)&&g.saved>0.004&&uaAccts().some(a=>a.id===g.acct)).map(g=>({id:'g:'+g.id,label:`${aName(g.acct)} · ${g.name}`,max:r2(g.saved)}))}
 /* take money from an account's free money or from a bucket and put it in `to` (an account); returns the entries made */
 function takeFrom(sid,v,to,note){
@@ -938,10 +945,10 @@ function takeFrom(sid,v,to,note){
 const srcName=sid=>sid.startsWith('g:')?(()=>{const g=goal(sid.slice(2));return g?`${g.name} (${aName(g.acct)})`:'a bucket'})():aName(sid);
 const srcAcct=sid=>sid.startsWith('g:')?(goal(sid.slice(2))||{}).acct:sid;
 function catAddForm(c){
-  const src=uaAccts().map(uaInfo).filter(x=>x.free>0.004),bs=bucketSources(),l=r2(catLeft(c,thisM));
-  if(!src.length&&!bs.length)return `<div class="inpanel"><p class="sub" style="font-size:13px;margin:0">No account has free money right now. Try Move from another category.</p><button class="btn small ghost" data-act="catMoveCancel" style="margin-top:6px">Close</button></div>`;
+  const src=acctSources(),bs=bucketSources(),l=r2(catLeft(c,thisM));
+  if(!src.length&&!bs.length)return `<div class="inpanel"><p class="sub" style="font-size:13px;margin:0">None of your accounts or buckets has money to add right now.</p><button class="btn small ghost" data-act="catMoveCancel" style="margin-top:6px">Close</button></div>`;
   return `<div class="inpanel cmove">
-    <label class="field"><span>From</span><select id="caSrc">${src.length?`<optgroup label="Free money">${src.map(x=>`<option value="${x.a.id}">${esc(x.a.name)}, ${money(x.free,true)} free</option>`).join('')}</optgroup>`:''}${bs.length?`<optgroup label="Savings buckets">${bs.map(x=>`<option value="${x.id}">${esc(x.label)}, ${money(x.max,true)}</option>`).join('')}</optgroup>`:''}</select></label>
+    <label class="field"><span>From</span><select id="caSrc">${src.length?`<optgroup label="Accounts">${src.map(x=>`<option value="${x.id}">${esc(x.label)}</option>`).join('')}</optgroup>`:''}${bs.length?`<optgroup label="Savings buckets">${bs.map(x=>`<option value="${x.id}">${esc(x.label)}, ${money(x.max,true)}</option>`).join('')}</optgroup>`:''}</select></label>
     <label class="field"><span>Amount</span><input type="number" inputmode="decimal" id="caAmt" value="${l<-0.004?r2(-l):''}" placeholder="0"></label>
     <p class="sub" style="font-size:13px;margin:0 0 8px">Adds to ${esc(c.name)} for ${esc(monthName(mDate(thisM)))} only.</p>
     <div class="actions"><button class="btn ghost small" data-act="catMoveCancel">Cancel</button><button class="btn small" data-act="doCatAdd" data-cat="${c.id}" style="flex:1">Add</button></div></div>`;
@@ -965,9 +972,9 @@ function fundedOf(f){return r2(Math.min(fixedDue(f),Math.max(fundRec(f),fixedSpe
 const fundHeld=aid=>r2(liveFixed().filter(f=>f.acct===aid&&dueIn(f)).reduce((t,f)=>t+Math.max(0,fundRec(f)-fixedSpent(f)),0));
 function fundSources(f){
   const out=[],a=acct(f.acct);
-  if(a&&uaAccts().some(x=>x.id===a.id)){const v=r2(a.balance-assigned(a.id)-fundHeld(a.id));if(v>0.004)out.push({id:a.id,label:`Already in ${a.name}`,max:v})}
-  uaAccts().filter(x=>x.id!==f.acct).map(uaInfo).filter(x=>x.free>0.004).forEach(x=>out.push({id:x.a.id,label:`Move from ${x.a.name}`,max:x.free}));
-  bucketSources().forEach(x=>out.push({id:x.id,label:`From ${x.label}`,max:x.max}));
+  if(a&&uaAccts().some(x=>x.id===a.id)){const v=r2(a.balance-assigned(a.id)-fundHeld(a.id));if(v>0.004)out.push({id:a.id,label:`Already in ${a.name}, ${money(v,true)}`,max:v})}
+  acctSources(f.acct).forEach(x=>out.push({id:x.id,label:`Move from ${x.label}`,max:x.avail}));
+  bucketSources().forEach(x=>out.push({id:x.id,label:`From ${x.label}, ${money(x.max,true)}`,max:x.max}));
   return out;
 }
 function fundForm(f){
@@ -975,7 +982,7 @@ function fundForm(f){
   if(!src.length)return `<div class="inpanel"><p class="sub" style="font-size:13px;margin:0">No account has free money to assign right now.</p><button class="btn small ghost" data-act="fundX" style="margin-top:6px">Close</button></div>`;
   return `<div class="inpanel">
     <label class="field"><span>Amount (${money(need,true)} not paid in yet)</span><input type="number" inputmode="decimal" id="fdAmt" value="${need>0.004?need:''}" placeholder="0"></label>
-    <label class="field"><span>From</span><select id="fdSrc">${src.map(x=>`<option value="${x.id}">${esc(x.label)}, ${money(x.max,true)} free</option>`).join('')}</select></label>
+    <label class="field"><span>From</span><select id="fdSrc">${src.map(x=>`<option value="${x.id}">${esc(x.label)}</option>`).join('')}</select></label>
     <div class="actions"><button class="btn ghost small" data-act="fundX">Cancel</button><button class="btn small" data-act="fundReview" data-fixed="${f.id}" style="flex:1">Review</button></div></div>`;
 }
 function fixedSpendForm(f,left){
@@ -2888,6 +2895,7 @@ function handleAct(t){
     confirmBox(`Pay ${money(v,true)} into ${esc(f.name)}?`,[
       chg(esc(f.name)+' paid in',money(fundedOf(f),true),money(r2(fundedOf(f)+v),true)+' of '+money(fixedDue(f),true)),
       ...(fromB?[`Takes ${money(v,true)} out of ${esc(srcName(sid))}`]:[]),
+      ...(!fromB&&sid!==f.acct&&shortNote(sid,v)?[esc(shortNote(sid,v))]:[]),
       move?`Moves ${money(v,true)} from ${esc(aName(srcAcct(sid)))} to ${esc(aName(f.acct))}. Make the same transfer in your bank`:`Uses money already in ${esc(aName(f.acct))}. Nothing moves between accounts`],
       'Pay it in',()=>{
         const m=(S.fund=S.fund||{})[thisM]=(S.fund[thisM]||{}),was=m[f.id];
@@ -2909,12 +2917,14 @@ function handleAct(t){
     const c=cat(t.dataset.cat),aid=document.getElementById('caSrc').value,v=r2(parseFloat(document.getElementById('caAmt').value));
     if(!(v>0)){toast('Enter an amount');return}
     if(aid.startsWith('g:')){const g=goal(aid.slice(2));if(!g||v>g.saved+0.004){toast(`${g?g.name:'That bucket'} only has ${money(g?g.saved:0,true)}`);return}}
-    else{const free=uaInfo(acct(aid)).free;if(v>free+0.004){toast(`Only ${money(free,true)} in ${aName(aid)} is free`);return}}
-    const h=catHome(c),m=S.adj[thisM]=S.adj[thisM]||{},snap=JSON.stringify(m);
+    else{const sx=acctSources().find(x=>x.id===aid);if(!sx||v>sx.avail+0.004){toast(`${aName(aid)} only has ${money(sx?sx.avail:0,true)} that isn’t in a bucket`);return}}
+    const go=()=>{const h=catHome(c),m=S.adj[thisM]=S.adj[thisM]||{},snap=JSON.stringify(m);
     const made=takeFrom(aid,v,h,'For '+c.name),moved=h&&srcAcct(aid)!==h;
     m[c.id]=r2((m[c.id]||0)+v);MEMO=null;UI.catAdd=null;
     logIt([`Added ${money(v,true)} from ${srcName(aid)} to ${c.name} for ${monthName(mDate(thisM))}`+(moved?` (transfer to ${aName(h)})`:'')]);
-    render();toast(`${c.name} gets ${money(v,true)} more this month${moved?`. Make the transfer to ${aName(h)} in your bank too`:''}`,()=>{made.slice().reverse().forEach(x=>removeTx(x));S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Undone')});return}
+    render();toast(`${c.name} gets ${money(v,true)} more this month${moved?`. Make the transfer to ${aName(h)} in your bank too`:''}`,()=>{made.slice().reverse().forEach(x=>removeTx(x));S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Undone')})};
+    const warn=aid.startsWith('g:')?'':shortNote(aid,v);
+    if(warn)confirmBox(`Add ${money(v,true)} to ${esc(c.name)} from ${esc(aName(aid))}?`,[esc(warn)],'Add it anyway',go);else go();return}
   if(a==='catMove'){UI.catMove=t.dataset.cat;UI.catAdd=null;render();const i=document.getElementById('cmAmt');if(i)i.focus();return}
   if(a==='catMoveCancel'){UI.catMove=null;UI.catAdd=null;render();return}
   if(a==='doCatMove'){
