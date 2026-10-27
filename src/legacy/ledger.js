@@ -265,7 +265,7 @@ function removeBlock(t){
 function removeTx(t){const grp=[t].concat(S.tx.filter(x=>x.link===t.id));grp.slice().reverse().forEach(x=>applyTx(x,-1));S.tx=S.tx.filter(x=>!grp.includes(x));MEMO=null;t._grp=grp;return grp}
 function restoreTx(t){(t._grp||[t]).forEach(x=>{if(!S.tx.includes(x)){S.tx.push(x);applyTx(x,1)}});delete t._grp}
 const UI={editAccts:false,editGoal:null,addTo:null,sec:null,draft:null};
-function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.fund=null;UI.fspend=null;UI.catOpen=null;UI.catMove=null;UI.gHist=null;UI.newIn=null;UI.spend=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
+function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.fund=null;UI.fspend=null;UI.catOpen=null;UI.catMove=null;UI.catAdd=null;UI.gHist=null;UI.newIn=null;UI.spend=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
 const LOGK={settings:'Settings',goals:'Goals',budget:'Budget moves',entries:'Entries',payday:'Routine',months:'Months'};
 function logKind(t){t=String(t);if(/paycheck|check-in/i.test(t))return 'payday';if(/^(Edited|Deleted|Restored) /.test(t))return 'entries';if(/^Moved .* (into|to) .* for /.test(t))return 'budget';if(/close|closed|reopen|month/i.test(t)&&!/goal/i.test(t))return 'months';if(/goal|Emergency fund|sub-goal|priority/i.test(t))return 'goals';return 'settings'}
 function logIt(lines){lines.forEach(t=>S.log.push({ts:Date.now(),text:t,k:logKind(t)}))}
@@ -426,10 +426,10 @@ function homeCards(){
   const ov=(label,v,prev,inv,ts)=>ts&&!has(ts)?'':`<div class="ov"><div class="sub">${label}</div><div class="ovv num">${money(v)}</div>${prev===undefined?'':delta(v,prev,inv)}</div>`;
   /* one slim row per category; tap it to see the details and move money */
   const row=(c,showCut)=>{const s=spent(c.id),p=B(c)?s/B(c)*100:0,l=B(c)-s,k=showCut?cut(c):0,open=UI.catOpen===c.id;
-    return `<div class="row crow ${open?'open':''}"><button class="crowbtn" data-catopen="${c.id}" aria-expanded="${open}"><b>${esc(c.name)}</b><span class="num">${money(s)} of ${money(B(c))}</span><span class="chev" aria-hidden="true">${open?'▾':'›'}</span></button><div class="bar"><i class="${pctClass(p)}" style="width:${Math.min(100,p)}%"></i></div>
-    <p class="cleft num ${l<-0.004?'overtxt':''}">${l>0.004?money(l)+' left':l<-0.004?money(-l)+' over':'Used up'}</p>
+    return `<div class="row crow ${open?'open':''}"><button class="crowbtn" data-catopen="${c.id}" aria-expanded="${open}"><b>${esc(c.name)}</b><span class="num cbig ${l<-0.004?'overtxt':''}">${l>0.004?money(l)+' left':l<-0.004?money(-l)+' over':'Used up'}</span><span class="chev" aria-hidden="true">${open?'▾':'›'}</span></button><div class="bar"><i class="${pctClass(p)}" style="width:${Math.min(100,p)}%"></i></div>
+    <p class="cleft num">${money(s)} spent of ${money(B(c))}</p>
     ${open?`<div class="cdet"><div class="cols num"><span>Budgeted ${money(B(c))}${carryOf(c,thisM)?` (incl. ${money(carryOf(c,thisM))} rolled over)`:''}${c.type==='monthly'&&adjOf(c.id,thisM)?` (${adjOf(c.id,thisM)>0?'+':'−'}${money(Math.abs(adjOf(c.id,thisM)))} this month)`:''}</span><span>Spent ${money(s)}</span></div>
-      ${c.type!=='monthly'?'':UI.catMove===c.id?catMoveForm(c):`<div class="actions"><button class="btn small" data-act="catMove" data-cat="${c.id}">Move money</button></div>`}</div>`:''}</div>`};
+      ${c.type!=='monthly'?'':UI.catMove===c.id?catMoveForm(c):UI.catAdd===c.id?catAddForm(c):`<div class="actions"><button class="btn small" data-act="catAdd" data-cat="${c.id}">Add money</button><button class="btn small ghost" data-act="catMove" data-cat="${c.id}">Move from another category</button></div>`}</div>`:''}</div>`};
   return {
     start:()=>{if(S.gsHidden)return '';const st=gsSteps(),n=st.filter(x=>x.done||x.skipped).length;if(n===st.length)return '';
       const nxt=st.find(x=>!x.done&&!x.skipped);
@@ -519,9 +519,10 @@ function homeCards(){
       const fd=fundedOf(f),full=fd>=due-0.004;
       const sp=fixedSpent(f),lf=r2(fd-sp);
       return `<div class="row"><div class="rowtop" style="align-items:center"><div><b>${esc(f.name)}</b><div class="sub" style="font-size:13px">${f.pct?`${f.pct}% of income (${money(due,true)} this month)`:money(f.amount,true)+' a month'}, from ${esc(aName(f.acct))}${f.to?' → '+esc(aName(f.to)):''}${(f.freq||'monthly')!=='monthly'||f.end?`<br>${esc(schedText(f))}`:''}</div>
-      <div class="fline num ${full?'okc':''}">${full?`Assigned ✓ ${money(due,true)}`:`Assigned ${money(fd,true)} of ${money(due,true)}`}</div>
+      <div class="fline num ${full?'okc':''}">${full?`Paid in ✓ ${money(due,true)}`:`Paid in ${money(fd,true)} of ${money(due,true)}`}</div>
       ${sp>0.004||fd>0.004?`<div class="fline num">Spent ${money(sp,true)} · ${money(Math.max(0,lf),true)} left</div>`:''}</div>
-      <div class="fbtns">${!full&&UI.fund!==f.id?`<button class="btn small ghost" data-act="fund" data-fixed="${f.id}">Assign</button>`:''}${lf>0.004&&UI.fspend!==f.id?`<button class="btn small" data-act="fspend" data-fixed="${f.id}">Spend</button>`:''}</div></div>
+      <div class="fbtns">${!full&&UI.fund!==f.id?`<button class="btn small ghost" data-act="fund" data-fixed="${f.id}">Pay</button>`:''}${lf>0.004&&UI.fspend!==f.id?`<button class="btn small" data-act="fspend" data-fixed="${f.id}">Spend</button>`:''}</div></div>
+      ${fd>0.004?(()=>{const pc=sp/fd*100;return `<div class="bar fbar2"><i class="${pc>=80?'over':''}" style="width:${Math.min(100,pc)}%"></i></div>`})():''}
       ${UI.fund===f.id?fundForm(f):UI.fspend===f.id?fixedSpendForm(f,lf):''}</div>`}).join('')||'<div class="empty">No lines of funding this month.</div>'}
       ${later.length?`<div class="row"><p class="lbl" style="margin:0 0 4px">Not this month</p>${later.map(f=>{const n=nextDue(f);return `<div class="hrow"><span>${esc(f.name)}</span><span class="num">${f.pct?f.pct+'%':money(f.amount)}${n?', next '+monthName(mDate(n),{month:'short',year:'numeric'}):''}</span></div>`}).join('')}</div>`:''}</div>`},
     annual:()=>annual.length?`<h2>Annual budgets</h2><div class="panel">${annual.map(c=>row(c,false)).join('')}</div>`:'',
@@ -923,6 +924,16 @@ function safeToSpend(){const dim=new Date(now.getFullYear(),now.getMonth()+1,0).
 function uaAccts(){return liveAccts().filter(a=>['checking','cash','savings'].includes(a.type))}
 /* where a category's spending comes out of: its linked account, else the usual pay-from account */
 /* quick move of this month's budget into or out of one category */
+/* add money to a category from an account's free money (raises this month's budget) */
+function catAddForm(c){
+  const src=uaAccts().map(uaInfo).filter(x=>x.free>0.004),l=r2(catLeft(c,thisM));
+  if(!src.length)return `<div class="inpanel"><p class="sub" style="font-size:13px;margin:0">No account has free money right now. Try Move from another category.</p><button class="btn small ghost" data-act="catMoveCancel" style="margin-top:6px">Close</button></div>`;
+  return `<div class="inpanel cmove">
+    <label class="field"><span>From</span><select id="caSrc">${src.map(x=>`<option value="${x.a.id}">${esc(x.a.name)}, ${money(x.free,true)} free</option>`).join('')}</select></label>
+    <label class="field"><span>Amount</span><input type="number" inputmode="decimal" id="caAmt" value="${l<-0.004?r2(-l):''}" placeholder="0"></label>
+    <p class="sub" style="font-size:13px;margin:0 0 8px">Adds to ${esc(c.name)} for ${esc(monthName(mDate(thisM)))} only.</p>
+    <div class="actions"><button class="btn ghost small" data-act="catMoveCancel">Cancel</button><button class="btn small" data-act="doCatAdd" data-cat="${c.id}" style="flex:1">Add</button></div></div>`;
+}
 function catMoveForm(c){
   const others=liveCats().filter(x=>x.type==='monthly'&&x.id!==c.id),l=r2(catLeft(c,thisM)),over=l<-0.004;
   const opt=x=>`<option value="${x.id}">${esc(x.name)} (${money(Math.max(0,catLeft(x,thisM)),true)} left)</option>`;
@@ -950,7 +961,7 @@ function fundForm(f){
   const need=r2(fixedDue(f)-fundedOf(f)),src=fundSources(f);
   if(!src.length)return `<div class="inpanel"><p class="sub" style="font-size:13px;margin:0">No account has free money to assign right now.</p><button class="btn small ghost" data-act="fundX" style="margin-top:6px">Close</button></div>`;
   return `<div class="inpanel">
-    <label class="field"><span>Amount (${money(need,true)} not assigned yet)</span><input type="number" inputmode="decimal" id="fdAmt" value="${need>0.004?need:''}" placeholder="0"></label>
+    <label class="field"><span>Amount (${money(need,true)} not paid in yet)</span><input type="number" inputmode="decimal" id="fdAmt" value="${need>0.004?need:''}" placeholder="0"></label>
     <label class="field"><span>From</span><select id="fdSrc">${src.map(x=>`<option value="${x.id}">${esc(x.label)}, ${money(x.max,true)} free</option>`).join('')}</select></label>
     <div class="actions"><button class="btn ghost small" data-act="fundX">Cancel</button><button class="btn small" data-act="fundReview" data-fixed="${f.id}" style="flex:1">Review</button></div></div>`;
 }
@@ -964,11 +975,11 @@ function fixedSpendForm(f,left){
 function fixedFunding(fx){
   if(!fx.length||S.closed.includes(thisM))return '';
   const due=r2(fx.reduce((t,f)=>t+fixedDue(f),0)),got=r2(fx.reduce((t,f)=>t+fundedOf(f),0)),sp=r2(fx.reduce((t,f)=>t+fixedSpent(f),0)),p=due>0?got/due*100:100;
-  return `<div class="panel fxsum"><div class="rorow"><span>Assigned this month</span><b class="num ${got>=due-0.004?'okc':''}">${money(got,true)} of ${money(due,true)}${got>=due-0.004?' ✓':''}</b></div>
+  return `<div class="panel fxsum"><div class="rorow"><span>Paid in this month</span><b class="num ${got>=due-0.004?'okc':''}">${money(got,true)} of ${money(due,true)}${got>=due-0.004?' ✓':''}</b></div>
     <div class="bar"><i style="width:${Math.min(100,p)}%"></i></div>
     <div class="rorow" style="margin-top:6px"><span>Spent</span><b class="num">${money(sp,true)}</b></div>
     <div class="rorow"><span>Left to spend</span><b class="num">${money(r2(got-sp),true)}</b></div>
-    ${got<due-0.004?`<p class="sub" style="font-size:13px;margin:6px 0 0">${money(due-got,true)} not assigned yet. Tap Assign on a line when you’re ready.</p>`:''}</div>`;
+    ${got<due-0.004?`<p class="sub" style="font-size:13px;margin:6px 0 0">${money(due-got,true)} not paid in yet. Tap Pay on a line when you’re ready.</p>`:''}</div>`;
 }
 function catHome(c){const h=leftoverSource(c),a=h&&acct(h);return a&&!a.archived&&a.type!=='debt'?h:null}
 function spendNeedCats(aid){return liveCats().filter(c=>c.type==='monthly'&&catHome(c)===aid).map(c=>({c,left:r2(Math.max(0,budgetOf(c,thisM)-spent(c.id)))})).filter(x=>x.left>0.004)}
@@ -2100,7 +2111,7 @@ const TIPS={
   payday:['When you split a paycheck, the app records the moves right away. This list is the matching transfers to make in your real bank. Amounts come from Settings: fixed costs, each goal’s monthly pace, and your category budgets, scaled to this paycheck.','payday'],
   spendto:['Where your spending money for the month should live, like a spending bucket or checking. When you split a paycheck, your category budgets’ share moves there.','payday'],
   extrato:['Where money left after bills, goals, and spending should go, like a high-yield savings account. Leave it alone to keep extra where paychecks land.','payday'],
-  fixed:['Lines of funding for expenses that come back every month. Assign money to a line when you’re ready, then Spend from it. To undo a spend, delete it in Activity.','bills'],
+  fixed:['Lines of funding for expenses that come back every month. Pay money into a line when you’re ready, then Spend from it. To undo a spend, delete it in Activity.','bills'],
   goals:['Each goal holds money for something specific. Priority decides which goal the plan funds first when money is tight.','goal'],
   unassigned:['Money in an account that isn’t set aside for any goal. Goals can only use money that’s really there.','move'],
   gmove:['Moves money from one goal to another, or back to unassigned. If both goals are in the same account, nothing leaves the bank; only the label changes.','move'],
@@ -2634,7 +2645,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.signout!==undefined&&BOOT){BOOT.signOut();return}
   if(t.dataset.go){resetUI();S.view=t.dataset.go;if(t.dataset.help)UI.help=t.dataset.help;render();window.scrollTo(0,0);if(S.view==='search'){const n=document.getElementById('sq');if(n)n.focus()}const an=t.dataset.anchor&&document.getElementById(t.dataset.anchor);if(an)an.scrollIntoView({block:'start'});return}
   if(t.dataset.back!==undefined){if(NAV_DEPTH>0){history.back();return}resetUI();S.view='more';render();window.scrollTo(0,0);return}
-  if(t.dataset.catopen){UI.catOpen=UI.catOpen===t.dataset.catopen?null:t.dataset.catopen;UI.catMove=null;render();return}
+  if(t.dataset.catopen){UI.catOpen=UI.catOpen===t.dataset.catopen?null:t.dataset.catopen;UI.catMove=null;UI.catAdd=null;render();return}
   if(t.dataset.txopen){UI.txOpen=UI.txOpen===t.dataset.txopen?null:t.dataset.txopen;render();return}
   if(t.dataset.txclose){UI.txOpen=null;render();return}
   if(t.dataset.del){
@@ -2844,7 +2855,7 @@ function handleAct(t){
     const f=S.fixed.find(x=>x.id===t.dataset.fixed),v=r2(parseFloat(document.getElementById('fsAmt').value)),d=document.getElementById('fsDate').value||todayISO,what=document.getElementById('fsWhat').value.trim();
     const left=r2(fundedOf(f)-fixedSpent(f));
     if(!(v>0)){toast('Enter what you spent');return}
-    if(v>left+0.004){toast(`${f.name} only has ${money(left,true)} assigned and not spent. Assign more first.`);return}
+    if(v>left+0.004){toast(`${f.name} only has ${money(left,true)} paid in and not spent. Pay more in first.`);return}
     if(d>todayISO||d.slice(0,7)!==thisM){toast('Pick a date in this month, today or earlier');return}
     const base=Object.assign({date:d,vendor:what||f.name,amount:v,kind:'fixed',fixedId:f.id,acct:f.acct},f.to?{to:f.to}:{});
     {const g=guardTx([base]);if(g){toast(g);return}}
@@ -2861,15 +2872,15 @@ function handleAct(t){
     if(v>need+0.004){toast(`${f.name} only takes ${money(need,true)} more this month`);return}
     if(!src||v>src.max+0.004){toast(`Only ${money(src?src.max:0,true)} is free there`);return}
     const move=sid!==f.acct;
-    confirmBox(`Assign ${money(v,true)} to ${esc(f.name)}?`,[
-      chg(esc(f.name)+' assigned',money(fundedOf(f),true),money(r2(fundedOf(f)+v),true)+' of '+money(fixedDue(f),true)),
+    confirmBox(`Pay ${money(v,true)} into ${esc(f.name)}?`,[
+      chg(esc(f.name)+' paid in',money(fundedOf(f),true),money(r2(fundedOf(f)+v),true)+' of '+money(fixedDue(f),true)),
       move?`Moves ${money(v,true)} from ${esc(aName(sid))} to ${esc(aName(f.acct))}. Make the same transfer in your bank`:`Uses money already in ${esc(aName(f.acct))}. Nothing moves`],
-      'Assign it',()=>{
+      'Pay it in',()=>{
         const m=(S.fund=S.fund||{})[thisM]=(S.fund[thisM]||{}),was=m[f.id];
         m[f.id]=r2(fundedOf(f)+v);
         const nt=move?addTx({date:todayISO,kind:'transfer',from:sid,to:f.acct,amount:v,note:'Fund '+f.name}):null;
-        logIt([`Assigned ${money(v,true)} to ${f.name}`+(move?` (moved from ${aName(sid)} to ${aName(f.acct)})`:'')]);UI.fund=null;render();
-        toast(`${f.name}: ${money(fundedOf(f),true)} of ${money(fixedDue(f),true)} assigned`,()=>{if(was==null)delete m[f.id];else m[f.id]=was;if(nt)removeTx(nt);render();toast('Undone')})});return}
+        logIt([`Paid ${money(v,true)} into ${f.name}`+(move?` (moved from ${aName(sid)} to ${aName(f.acct)})`:'')]);UI.fund=null;render();
+        toast(`${f.name}: ${money(fundedOf(f),true)} of ${money(fixedDue(f),true)} paid in`,()=>{if(was==null)delete m[f.id];else m[f.id]=was;if(nt)removeTx(nt);render();toast('Undone')})});return}
   if(a==='uaCover'){
     const to=t.dataset.acct,src=(document.querySelector(`[data-ua-src="${to}"]`)||{}).value,v=r2(parseFloat((document.querySelector(`[data-ua-cov="${to}"]`)||{}).value));
     if(!src){toast('Pick an account to move from');return}if(!(v>0)){toast('Enter an amount');return}
@@ -2878,8 +2889,19 @@ function handleAct(t){
     logIt([`Moved ${money(v,true)} from ${aName(src)} to ${aName(to)} to cover this month`]);
     render();toast(`${money(v,true)} moved to ${aName(to)}. Make the transfer in your bank too`,()=>{removeTx(nt);render();toast('Undone')});
     return}
-  if(a==='catMove'){UI.catMove=t.dataset.cat;render();const i=document.getElementById('cmAmt');if(i)i.focus();return}
-  if(a==='catMoveCancel'){UI.catMove=null;render();return}
+  if(a==='catAdd'){UI.catAdd=t.dataset.cat;UI.catMove=null;render();const i=document.getElementById('caAmt');if(i)i.focus();return}
+  if(a==='doCatAdd'){
+    if(S.closed.includes(thisM)){toast('This month is closed');return}
+    const c=cat(t.dataset.cat),aid=document.getElementById('caSrc').value,v=r2(parseFloat(document.getElementById('caAmt').value));
+    if(!(v>0)){toast('Enter an amount');return}
+    const free=uaInfo(acct(aid)).free;if(v>free+0.004){toast(`Only ${money(free,true)} in ${aName(aid)} is free`);return}
+    const h=catHome(c),m=S.adj[thisM]=S.adj[thisM]||{},snap=JSON.stringify(m);
+    const nt=h&&h!==aid?addTx({date:todayISO,kind:'transfer',from:aid,to:h,amount:v,note:'For '+c.name}):null;
+    m[c.id]=r2((m[c.id]||0)+v);MEMO=null;UI.catAdd=null;
+    logIt([`Added ${money(v,true)} from ${aName(aid)} to ${c.name} for ${monthName(mDate(thisM))}`+(nt?` (transfer to ${aName(h)})`:'')]);
+    render();toast(`${c.name} gets ${money(v,true)} more this month${nt?`. Make the transfer to ${aName(h)} in your bank too`:''}`,()=>{if(nt)removeTx(nt);S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Undone')});return}
+  if(a==='catMove'){UI.catMove=t.dataset.cat;UI.catAdd=null;render();const i=document.getElementById('cmAmt');if(i)i.focus();return}
+  if(a==='catMoveCancel'){UI.catMove=null;UI.catAdd=null;render();return}
   if(a==='doCatMove'){
     if(S.closed.includes(thisM)){toast('This month is closed');return}
     const c=cat(t.dataset.cat),o=cat(document.getElementById('cmOther').value),dir=document.getElementById('cmDir').value,v=r2(parseFloat(document.getElementById('cmAmt').value));
