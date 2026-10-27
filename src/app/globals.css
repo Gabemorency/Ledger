@@ -930,3 +930,6 @@ body{transition:background-color .25s}
 .sheettop{position:relative;height:26px;margin:-4px 0 8px}
 .sheettop .grab{position:absolute;left:50%;top:6px;transform:translateX(-50%);margin:0}
 .sheetx{position:absolute;right:-6px;top:-6px;width:36px;height:36px;border-radius:50%;border:0;background:var(--pad);color:var(--ink);font-size:15px;font-weight:700;line-height:1}
+.crow .bar{margin-bottom:4px}
+.cleft{margin:0 0 10px;font-size:13px;color:var(--muted)}
+.cleft.overtxt{color:var(--over);font-weight:600}

@@ -422,7 +422,8 @@ function homeCards(){
   const ov=(label,v,prev,inv,ts)=>ts&&!has(ts)?'':`<div class="ov"><div class="sub">${label}</div><div class="ovv num">${money(v)}</div>${prev===undefined?'':delta(v,prev,inv)}</div>`;
   /* one slim row per category; tap it to see the details and move money */
   const row=(c,showCut)=>{const s=spent(c.id),p=B(c)?s/B(c)*100:0,l=B(c)-s,k=showCut?cut(c):0,open=UI.catOpen===c.id;
-    return `<div class="row crow ${open?'open':''}"><button class="crowbtn" data-catopen="${c.id}" aria-expanded="${open}"><b>${esc(c.name)}</b><span class="num ${l<0?'overtxt':''}">${l>=0?money(l)+' left':money(-l)+' over'}</span><span class="chev" aria-hidden="true">${open?'▾':'›'}</span></button><div class="bar"><i class="${pctClass(p)}" style="width:${Math.min(100,p)}%"></i></div>
+    return `<div class="row crow ${open?'open':''}"><button class="crowbtn" data-catopen="${c.id}" aria-expanded="${open}"><b>${esc(c.name)}</b><span class="num">${money(s)} of ${money(B(c))}</span><span class="chev" aria-hidden="true">${open?'▾':'›'}</span></button><div class="bar"><i class="${pctClass(p)}" style="width:${Math.min(100,p)}%"></i></div>
+    <p class="cleft num ${l<-0.004?'overtxt':''}">${l>0.004?money(l)+' left':l<-0.004?money(-l)+' over':'Used up'}</p>
     ${open?`<div class="cdet"><div class="cols num"><span>Budgeted ${money(B(c))}${carryOf(c,thisM)?` (incl. ${money(carryOf(c,thisM))} rolled over)`:''}${c.type==='monthly'&&adjOf(c.id,thisM)?` (${adjOf(c.id,thisM)>0?'+':'−'}${money(Math.abs(adjOf(c.id,thisM)))} this month)`:''}</span><span>Spent ${money(s)}</span></div>
       ${c.type!=='monthly'?'':UI.catMove===c.id?catMoveForm(c):`<div class="actions"><button class="btn small" data-act="catMove" data-cat="${c.id}">Move money</button></div>`}</div>`:''}</div>`};
   return {
@@ -786,7 +787,7 @@ V.goals=()=>{
   const card=(g,i)=>{
     if(UI.editGoal===g.id)return editPanel(g,acctOpts);
     if(isBucket(g))return `<div class="goal bucket"><div class="gtop"><h3>${esc(g.name)}</h3><b class="num bamt">${money(g.saved)}</b></div>
-      ${g.target>0?`<p class="sub" style="font-size:13px;margin:0">${g.saved>=g.target-0.004?'Reached your':`${money(g.target-g.saved)} to go of your`} ${money(g.target)} target</p><div class="bar"><i style="width:${Math.min(100,g.saved/g.target*100)}%"></i></div>`:''}
+      ${g.target>0?`<p class="sub num" style="font-size:13px;margin:0"><b style="color:var(--ink)">${money(g.saved)} of ${money(g.target)}</b> · ${g.saved>=g.target-0.004?'Full':`${money(g.target-g.saved)} to go`}</p><div class="bar"><i style="width:${Math.min(100,g.saved/g.target*100)}%"></i></div>`:''}
       ${panels(g)||`<div class="actions"><button class="btn small" data-act="addTo" data-id="${g.id}">Add money</button>${g.saved>0.004?`<button class="btn small" data-act="spendFrom" data-id="${g.id}">Spend</button>`:''}<button class="btn small ghost" data-act="more" data-id="${g.id}" aria-expanded="${UI.more===g.id}">More</button></div>
       ${UI.more===g.id?`<div class="actions">${g.saved>0.004?`<button class="btn small ghost" data-act="moveFrom" data-id="${g.id}">Move money</button>`:''}<button class="btn small ghost" data-act="gHist" data-id="${g.id}">History</button>${pinBtn('goal:'+g.id,g.name)}<button class="btn small ghost" data-act="editGoal" data-id="${g.id}">Edit</button></div>`:''}`}</div>`;
     const k=goalInfo(g),pl=P.goals.find(x=>x.g.id===g.id),due=shortD(g.date),past=new Date(g.date+'T00:00')<now;
