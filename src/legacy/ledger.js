@@ -265,7 +265,7 @@ function removeBlock(t){
 function removeTx(t){const grp=[t].concat(S.tx.filter(x=>x.link===t.id));grp.slice().reverse().forEach(x=>applyTx(x,-1));S.tx=S.tx.filter(x=>!grp.includes(x));MEMO=null;t._grp=grp;return grp}
 function restoreTx(t){(t._grp||[t]).forEach(x=>{if(!S.tx.includes(x)){S.tx.push(x);applyTx(x,1)}});delete t._grp}
 const UI={editAccts:false,editGoal:null,addTo:null,sec:null,draft:null};
-function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.catOpen=null;UI.catMove=null;UI.gHist=null;UI.newIn=null;UI.spend=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
+function resetUI(){UI.menu=false;UI.editAccts=false;UI.editGoal=null;UI.addTo=null;UI.moveFrom=null;UI.addSub=null;UI.more=null;UI.sec=null;UI.draft=null;UI.sd=null;UI.help=null;UI.txOpen=null;UI.fxCover=null;UI.catOpen=null;UI.catMove=null;UI.gHist=null;UI.newIn=null;UI.spend=null;UI.sub=null;UI.pj=null;if(typeof hideTip==='function')hideTip()}
 const LOGK={settings:'Settings',goals:'Goals',budget:'Budget moves',entries:'Entries',payday:'Routine',months:'Months'};
 function logKind(t){t=String(t);if(/paycheck|check-in/i.test(t))return 'payday';if(/^(Edited|Deleted|Restored) /.test(t))return 'entries';if(/^Moved .* (into|to) .* for /.test(t))return 'budget';if(/close|closed|reopen|month/i.test(t)&&!/goal/i.test(t))return 'months';if(/goal|Emergency fund|sub-goal|priority/i.test(t))return 'goals';return 'settings'}
 function logIt(lines){lines.forEach(t=>S.log.push({ts:Date.now(),text:t,k:logKind(t)}))}
@@ -514,7 +514,7 @@ function homeCards(){
         <div class="actions" style="margin-top:8px">${overs.map(x=>`<button class="btn small" data-act="cover" data-cat="${x.c.id}">Cover ${esc(x.c.name)}</button>`).join('')}</div></div>`:''}`},
     fixed:()=>{const all=liveFixed().filter(f=>!ended(f));if(!all.length)return `<h2>Fixed costs</h2><div class="panel emptycard"><b>No fixed costs yet.</b><p class="sub">These are bills that repeat, like rent, your phone, a loan payment, or a yearly fee. Add them in Settings and you can mark each one paid here.</p></div>`;
       const fx=all.filter(f=>dueIn(f)),later=all.filter(f=>!dueIn(f));
-      return `<h2>Fixed costs ${tip('fixed')}</h2>
+      return `<h2>Fixed costs ${tip('fixed')}</h2>${billsCover(fx)}
       <div class="panel">${fx.map(f=>{const due=fixedDue(f),owe=fixedOwe(f);
       const late=f.day&&now.getDate()>f.day&&owe>0.004;
       return `<div class="row"><div class="rowtop" style="align-items:center"><div><b>${esc(f.name)}</b><div class="sub" style="font-size:13px">${f.pct?`${f.pct}% of income logged (${money(due,true)})`:money(f.amount,true)}${f.day?`, due the ${ordinal(f.day)}`:''}, ${esc(aName(f.acct))}${f.to?' → '+esc(aName(f.to)):''}${(f.freq||'monthly')!=='monthly'||f.end?`<br>${esc(schedText(f))}`:''}</div>${late?'<div class="warnline" style="margin:2px 0 0;font-size:13px">Past due</div>':''}</div>
@@ -928,6 +928,23 @@ function catMoveForm(c){
     <label class="field"><span>Amount</span><input type="number" inputmode="decimal" id="cmAmt" value="${over?r2(-l):''}" placeholder="0"></label>
     <p class="sub" style="font-size:13px;margin:0 0 8px">For ${esc(monthName(mDate(thisM)))} only. Next month goes back to the budgets in Settings.</p>
     <div class="actions"><button class="btn ghost small" data-act="catMoveCancel">Cancel</button><button class="btn small" data-act="doCatMove" data-cat="${c.id}" style="flex:1">Move</button></div></div>`;
+}
+/* fixed costs: what's paid, what's still due, and whether the account that pays them has it ready */
+function billsCover(fx){
+  if(!fx.length||S.closed.includes(thisM))return '';
+  const due=r2(fx.reduce((t,f)=>t+fixedDue(f),0)),owe=r2(fx.reduce((t,f)=>t+fixedOwe(f),0));
+  const liq=uaAccts().map(a=>a.id),ids=[...new Set(fx.map(f=>f.acct))].filter(id=>liq.includes(id)&&billNeed(id)>0.004);
+  const rows=ids.map(id=>{const a=acct(id),need=billNeed(id),have=r2(Math.max(0,Math.min(need,a.balance-assigned(id)))),short=r2(need-have);
+    const srcs=uaAccts().filter(x=>x.id!==id).map(uaInfo).filter(x=>x.free>0.004);
+    const form=UI.fxCover===id?`<div class="uaform">${srcs.length?`<label class="field"><span>Move in from</span><select id="fxSrc">${srcs.map(x=>`<option value="${x.a.id}">${esc(x.a.name)}, ${money(x.free,true)} free</option>`).join('')}</select></label>
+      <div class="inline"><input type="number" inputmode="decimal" id="fxAmt" value="${short>0.004?r2(Math.min(short,srcs[0].free)):''}" placeholder="0" aria-label="Amount to move into ${esc(a.name)}"><button class="btn" data-act="doFxCover" data-acct="${id}">Move</button></div>`
+      :'<p class="sub" style="font-size:13px;margin:6px 0 0">No other account has free money right now.</p>'}<button class="btn small ghost" data-act="fxCoverX" style="margin-top:6px">Cancel</button></div>`:'';
+    return `<div class="rorow"><span>${esc(a.name)}</span><b class="num ${short>0.004?'overtxt':'okc'}">${short>0.004?`${money(have,true)} of ${money(need,true)}`:`${money(need,true)} ✓`}</b></div>
+      ${short>0.004&&UI.fxCover!==id?`<p class="warnline" style="font-size:13px;margin:2px 0 6px">${money(short,true)} short for bills.</p>`:''}
+      ${form||`<button class="btn small ${short>0.004?'':'ghost'}" data-act="fxCover" data-acct="${id}" style="margin:4px 0 6px">Move money in</button>`}`}).join('');
+  return `<div class="panel fxsum"><div class="rorow"><span>Paid this month</span><b class="num">${money(r2(due-owe),true)} of ${money(due,true)}</b></div>
+    <div class="rorow"><span>Still due</span><b class="num">${money(owe,true)}</b></div>${rows?`<p class="lbl" style="margin:10px 0 0">Ready to pay what’s due</p>${rows}`:''}
+    ${(()=>{const card=r2(fx.filter(f=>!liq.includes(f.acct)).reduce((t,f)=>t+fixedOwe(f),0));return card>0.004?`<div class="rorow"><span>Charged to cards</span><b class="num">${money(card,true)}</b></div>`:''})()}</div>`;
 }
 function catHome(c){const h=leftoverSource(c),a=h&&acct(h);return a&&!a.archived&&a.type!=='debt'?h:null}
 function spendNeedCats(aid){return liveCats().filter(c=>c.type==='monthly'&&catHome(c)===aid).map(c=>({c,left:r2(Math.max(0,budgetOf(c,thisM)-spent(c.id)))})).filter(x=>x.left>0.004)}
@@ -2797,6 +2814,15 @@ function handleAct(t){
     const a1=S.notes.indexOf(grp[i]),a2=S.notes.indexOf(grp[j]);[S.notes[a1],S.notes[a2]]=[S.notes[a2],S.notes[a1]];render();return}
   if(a==='nDel'){const i=S.notes.findIndex(x=>x.id===t.dataset.id);if(i<0)return;const [n]=S.notes.splice(i,1);UI.noteOpen=null;logIt(['Notes — deleted a note']);render();
     toast('Note deleted',()=>{S.notes.splice(Math.min(i,S.notes.length),0,n);render();toast('Note restored')});return}
+  if(a==='fxCover'){UI.fxCover=t.dataset.acct;render();const i=document.getElementById('fxAmt');if(i)i.focus();return}
+  if(a==='fxCoverX'){UI.fxCover=null;render();return}
+  if(a==='doFxCover'){
+    const to=t.dataset.acct,src=(document.getElementById('fxSrc')||{}).value,v=r2(parseFloat((document.getElementById('fxAmt')||{}).value));
+    if(!src){toast('Pick an account to move from');return}if(!(v>0)){toast('Enter an amount');return}
+    const free=uaInfo(acct(src)).free;if(v>free+0.004){toast(`Only ${money(free,true)} in ${aName(src)} is free`);return}
+    const nt=addTx({date:todayISO,kind:'transfer',from:src,to,amount:v,note:'For bills'});
+    logIt([`Moved ${money(v,true)} from ${aName(src)} to ${aName(to)} for bills`]);UI.fxCover=null;
+    render();toast(`${money(v,true)} moved to ${aName(to)} for bills. Make the transfer in your bank too`,()=>{removeTx(nt);render();toast('Undone')});return}
   if(a==='uaCover'){
     const to=t.dataset.acct,src=(document.querySelector(`[data-ua-src="${to}"]`)||{}).value,v=r2(parseFloat((document.querySelector(`[data-ua-cov="${to}"]`)||{}).value));
     if(!src){toast('Pick an account to move from');return}if(!(v>0)){toast('Enter an amount');return}

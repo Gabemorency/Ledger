@@ -934,3 +934,5 @@ body{transition:background-color .25s}
 .cleft{margin:0 0 10px;font-size:13px;color:var(--muted)}
 .cleft.overtxt{color:var(--over);font-weight:600}
 .mline{font-size:13px;margin:4px 0 0}
+.fxsum{padding:10px 16px 12px;margin-bottom:10px}.fxsum .uaform{margin:4px 0 8px}
+.fxsum .rorow>:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
