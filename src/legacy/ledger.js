@@ -614,7 +614,7 @@ V.accounts=()=>{
   const hist=S.snapshots.slice(-3);
   const debts=liveAccts().filter(a=>a.type==='debt');
   const bal=a=>E?`<input class="balin num" type="number" inputmode="decimal" data-acct="${a.id}" value="${a.balance}" aria-label="${esc(a.name)} balance">`:`<span class="num" style="font:700 17px var(--display);color:var(--ink)">${money(a.balance,true)}</span>`;
-  return `<button class="btn small ghost" data-go="home" style="margin-bottom:8px">Back to dashboard</button><h1>Accounts</h1>
+  return `<h1>Accounts</h1>
   ${E?`<div class="editbar"><b>Editing accounts</b><span>Use this for corrections. Day-to-day changes come from your entries. Nothing saves until you review it. ${tip('correction')}</span></div>`:`<div class="lockrow"><p class="sub">🔒 Balances update from your entries.</p><button class="btn small ghost" data-act="editAccts">Edit</button></div>`}
   ${!E&&uaAccts().length?`<button class="loglink" data-go="unassigned" style="margin-top:12px"><span><b>◇ Unassigned money</b><small>${(()=>{const L=uaAccts().map(uaInfo),n=L.filter(x=>x.free<-0.004).length;return money(r2(L.reduce((s,x)=>s+Math.max(0,x.free),0)),true)+' free to assign'+(n?`, ${n} account${n===1?'':'s'} short`:'')})()}</small></span><span class="chev">›</span></button>`:''}
   ${(()=>{const all=liveAccts().slice().sort((x,y)=>groups.indexOf(x.type)-groups.indexOf(y.type));const banks=[...new Set(all.map(a=>a.bank||''))].sort((x,y)=>(x==='')-(y===''));
@@ -943,7 +943,7 @@ V.unassigned=()=>{
     const c=cats.map(c=>{const h=catHome(c);return `<option value="c:${c.id}">${esc(c.name)}, ${money(Math.max(0,catLeft(c,thisM)),true)} left${h&&h!==aid?` (moves to ${esc(aName(h))})`:''}</option>`}).join('');
     const sh=shorts.filter(y=>y.a.id!==aid).map(y=>`<option value="a:${y.a.id}">${esc(y.a.name)}, short ${money(-y.free,true)}</option>`).join('');
     return (sh?`<optgroup label="Cover a short account">${sh}</optgroup>`:'')+(g?`<optgroup label="Goals">${g}</optgroup>`:'')+(c?`<optgroup label="Add to this month’s spending">${c}</optgroup>`:'')};
-  return `<button class="btn small ghost" data-go="home" style="margin-bottom:8px">Back to dashboard</button><h1>Unassigned ${tip('uafree')}</h1>
+  return `<h1>Unassigned ${tip('uafree')}</h1>
   <p class="sub">Money that no goal holds and that this month’s spending and bills won’t need. Give it a job: a goal, more room in a category, or cover an account that’s running short.</p>
   <div class="panel networth"><span class="sub">Free to assign</span><div class="num" style="font:800 40px/1.1 var(--display)">${money(tot,true)}</div>
     ${shorts.length?`<p class="warnline" style="margin:6px 0 0">${shorts.map(x=>`${esc(x.a.name)} is short ${money(-x.free,true)}`).join('. ')}.</p>`:''}</div>
@@ -1184,7 +1184,7 @@ function subForm(){const d=UI.sub;
     <label class="field"><span>Note</span><input type="text" data-sf="note" maxlength="120" value="${esc(d.note||'')}" placeholder="Optional, e.g. cancel before the trial ends"></label>
     <div class="actions">${d.id?`<button class="btn small dangerline" data-act="subDel">Delete</button>`:''}<span style="flex:1"></span><button class="btn ghost" data-act="subCancel">Cancel</button><button class="btn" data-act="subSave">Save</button></div></div>`}
 V.subs=()=>{const L=(S.subs||[]).slice().sort((a,b)=>(subDays(a)??999)-(subDays(b)??999)),mo=r2(L.reduce((t,x)=>t+subMonthly(x),0)),sug=subSuggestions();
-  return `<button class="btn small ghost" data-go="more" style="margin-bottom:8px">Back to menu</button><h1>Subscriptions</h1>
+  return `<h1>Subscriptions</h1>
   <p class="sub">Everything that charges you on repeat, and when it renews. Tracking here doesn’t change your budgets.</p>
   <div class="panel networth"><span class="sub">You pay</span><div class="num" style="font:800 40px/1.1 var(--display)">${money(mo,true)}<small style="font-size:16px;font-weight:600;color:var(--muted)"> /month</small></div>
     <p class="sub" style="margin-top:4px">${money(r2(mo*12),true)} a year across ${L.length} subscription${L.length===1?'':'s'}</p></div>
@@ -1216,7 +1216,7 @@ V.search=()=>{const q=UI.q||'',R=searchAll(q);
   const sec=(title,items)=>items.length?`<p class="lbl" style="margin:16px 0 6px">${title}</p><div class="panel">${items.join('')}</div>`:'';
   const row=(attrs,a,b,c)=>`<button class="srow" ${attrs}><span><b>${a}</b><small>${b}</small></span>${c?`<span class="num">${c}</span>`:''}</button>`;
   const total=R?Object.values(R).reduce((t,x)=>t+x.length,0):0;
-  return `<button class="btn small ghost" data-go="more" style="margin-bottom:8px">Back to menu</button><h1>Search</h1>
+  return `<h1>Search</h1>
   <input type="search" id="sq" class="sinput" value="${esc(q)}" placeholder="Try a store, a category, a note or an amount" autocomplete="off" aria-label="Search">
   ${!R?`<p class="sub" style="margin-top:12px;font-size:14px">Searches every entry, note, goal, category, account, bill and subscription. Type an amount like 12.50 to find it.</p>`
   :!total?`<div class="panel emptycard" style="margin-top:14px"><b>Nothing matches “${esc(q)}”.</b><p class="sub">Check the spelling, or try part of the name.</p></div>`
@@ -1270,7 +1270,7 @@ function planOut(){const P=UI.plan||{},B=planBase(),raise=+P.raise||0,cut=+P.cut
   <p class="sub" style="font-size:12px;margin-top:10px">Based on your average month: ${money(B.inc)} in, ${money(B.spend)} spent. Nothing here changes your budget.</p>`}
 V.planner=()=>{const P=UI.plan||{},B=planBase(),sl=(k,l,min,max,step,v,fmt)=>`<label class="pslider"><span>${l}<b id="pv-${k}">${fmt(v)}</b></span><input type="range" data-plan="${k}" min="${min}" max="${max}" step="${step}" value="${v}" aria-label="${l}"></label>`;
   const sgn=v=>(v>0?'+':v<0?'−':'')+money(Math.abs(v))+'/mo';
-  return `<button class="btn small ghost" data-go="more" style="margin-bottom:8px">Back to menu</button><h1>What if…</h1>
+  return `<h1>What if…</h1>
   <p class="sub">Play with a raise, spending less or putting more toward goals, and see where it leads. Nothing here is saved.</p>
   <div class="panel" style="padding:12px 16px 14px;margin-top:12px">
     ${sl('raise','Take-home change',-1000,3000,50,+P.raise||0,sgn)}
@@ -1313,7 +1313,7 @@ function confetti(){if(REDUCED)return;const box=document.createElement('div');bo
   document.body.appendChild(box);setTimeout(()=>box.remove(),2200)}
 V.milestones=()=>{const L=milestones(),done=L.filter(m=>m.done).sort((a,b)=>(b.date||'').localeCompare(a.date||'')),next=L.filter(m=>!m.done).sort((a,b)=>b.prog-a.prog);
   const nextOnes=[];const seenKind=new Set();next.forEach(m=>{const k=m.id.replace(/\d+$/,'').replace(/^goal.*/,'goal'+m.id);if(seenKind.has(k))return;seenKind.add(k);nextOnes.push(m)});
-  return `<button class="btn small ghost" data-go="more" style="margin-bottom:8px">Back to menu</button><h1>Milestones</h1>
+  return `<h1>Milestones</h1>
   <p class="sub">Little wins worth noticing. New ones get a small celebration when you reach them.</p>
   <div class="panel networth"><span class="sub">Earned</span><div class="num" style="font:800 40px/1.1 var(--display)">${done.length}<small style="font-size:16px;font-weight:600;color:var(--muted)"> of ${L.length}</small></div></div>
   ${nextOnes.length?`<h2>Up next</h2><div class="panel">${nextOnes.slice(0,6).map(m=>`<div class="row mrow2"><div class="rowtop"><span><span class="msic">${m.icon}</span><b>${esc(m.title)}</b></span><span class="sub">${Math.round(m.prog*100)}%</span></div><div class="bar"><i class="ok" style="width:${m.prog*100}%"></i></div><p class="sub" style="font-size:13px;margin:4px 0 0">${esc(m.sub)}</p></div>`).join('')}</div>`:''}
@@ -1393,7 +1393,7 @@ function pjForm(){const d=UI.pj;
     ${d.rep!=='once'?`<label class="field"><span>Until (optional)</span><input type="month" data-pf="until" value="${esc((d.until||'').slice(0,7))}"></label>`:'<span></span>'}</div>
     <div class="actions">${d.id?`<button class="btn small dangerline" data-act="pjDel">Delete</button>`:''}<span style="flex:1"></span><button class="btn ghost" data-act="pjCancel">Cancel</button><button class="btn" data-act="pjSave">Save</button></div></div>`}
 V.projections=()=>{const yrs=S.proj.years||5,P=project(yrs),A=pjA(),E=S.proj.events||[];
-  const head=`<button class="btn small ghost" data-go="more" style="margin-bottom:8px">Back to menu</button><h1>Projections</h1>
+  const head=`<h1>Projections</h1>
   <p class="sub">Where your money is heading, from your real averages. Add expenses you know are coming and see what they do. Estimates, not promises.</p>
   <div class="chips" style="margin:14px 0 4px">${[1,3,5,10,20,30].map(y=>`<button class="chip" data-pjyears="${y}" aria-pressed="${yrs===y}">${y} yr${y>1?'s':''}</button>`).join('')}</div>`;
   if(!P)return head+'<div class="panel emptycard" style="margin-top:12px"><b>Finish a full month first.</b><p class="sub">Projections start from your real monthly averages.</p></div>';
@@ -1445,7 +1445,7 @@ function noteComposer(){const d=UI.note;
     <div class="ncolors" role="group" aria-label="Color">${NCOL.map(([k,l])=>`<button class="ncol nc-${k}" data-ncol="${k}" aria-pressed="${(d.color||'plain')===k}" aria-label="${l}"></button>`).join('')}</div>
     <div class="actions"><button class="btn ghost" data-act="nCancel">Cancel</button><button class="btn" data-act="nSave" style="flex:1">${d.id?'Save changes':'Save note'}</button></div></div>`}
 V.notes=()=>{const N=S.notes||[],pins=N.filter(n=>n.pinned),rest=N.filter(n=>!n.pinned);
-  return `<button class="btn small ghost" data-go="home" style="margin-bottom:8px">Back to dashboard</button><h1>Notes</h1>
+  return `<h1>Notes</h1>
   <p class="sub">Reminders for yourself, like what your last paycheck did or where the next one should go.</p>
   ${UI.note?noteComposer():`<div class="nnew"><button class="btn" data-act="nNew">＋ New note</button><button class="chip" data-act="nNew" data-tpl="paid">Last paycheck</button><button class="chip" data-act="nNew" data-tpl="plan">Next paycheck plan</button></div>`}
   ${pins.length?`<p class="lbl" style="margin:18px 0 8px">📌 Pinned</p><div class="ngrid" data-ngroup="1">${pins.map(noteCard).join('')}</div>`:''}
@@ -1494,12 +1494,12 @@ V.checkup=()=>{
 };
 V.close=()=>{
   const T=closeTarget(),open=openMonths();
-  if(!T)return `<button class="btn small ghost" data-go="activity" style="margin-bottom:8px">Back to activity</button><h1>All caught up</h1><p class="sub">Every finished month is closed. The next one opens for closing on the 1st.</p>`;
+  if(!T)return `<h1>All caught up</h1><p class="sub">Every finished month is closed. The next one opens for closing on the 1st.</p>`;
   const pname=monthName(mDate(T),{month:'long',year:'numeric'});
   const monthly=S.categories.filter(c=>c.type==='monthly'&&(!c.archived||spent(c.id,T)>0));
   const unpaid=liveFixed().filter(f=>fixedOwe(f,T)>0.004);
   const older=T<mkey(new Date(now.getFullYear(),now.getMonth()-1,1));
-  return `<button class="btn small ghost" data-go="activity" style="margin-bottom:8px">Back to activity</button>
+  return `
   <h1>Close ${esc(pname)} ${tip('closewhy')}</h1>
   <p class="sub">${open.length>1?`${open.length} months are waiting. Months close in order, so this is the oldest. `:''}Review the month, then confirm balances against your bank.</p>
   <p class="step">Step 1: Review</p>
@@ -1612,7 +1612,7 @@ V.log=()=>{
   const q=LG.q.trim().toLowerCase(),list=S.log.map(l=>Object.assign({k:l.k||logKind(l.text)},l)).filter(l=>(LG.k==='all'||l.k===LG.k)&&(!q||l.text.toLowerCase().includes(q))).reverse();
   const months=[...new Set(list.map(l=>{const d=new Date(l.ts);return d.getFullYear()+'-'+pad2(d.getMonth()+1)}))];
   const counts=Object.keys(LOGK).reduce((o,k)=>(o[k]=S.log.filter(l=>(l.k||logKind(l.text))===k).length,o),{});
-  return `<button class="btn small ghost" data-go="activity" style="margin-bottom:8px">Back to Activity</button><h1>Change log</h1>
+  return `<h1>Change log</h1>
   <p class="sub">A record of every change you’ve made, kept for when you need to look something up. Nothing here needs your attention.</p>
   <input type="search" id="logq" placeholder="Search changes" value="${esc(LG.q)}" style="margin-top:14px" aria-label="Search changes">
   <div class="chips" role="group" aria-label="Filter changes"><button class="chip" data-logk="all" aria-pressed="${LG.k==='all'}">All</button>${Object.entries(LOGK).filter(([k])=>counts[k]).map(([k,l])=>`<button class="chip" data-logk="${k}" aria-pressed="${LG.k===k}">${l} <small>${counts[k]}</small></button>`).join('')}</div>
@@ -1718,7 +1718,7 @@ V.config=()=>{
   const fwNow=E('framework')?D.framework:S.plan.framework, custNow=E('framework')?D.custom:S.plan.custom;
   const bl=buckets(fwNow,custNow);
 
-  return `<button class="btn small ghost" data-go="home" style="margin-bottom:8px">Back to dashboard</button><h1>Settings</h1>
+  return `<h1>Settings</h1>
   <p class="sub">Everything here is locked. Edit one section at a time, review, then confirm. Changes apply from this month forward and are recorded in the change log.</p>
   <div class="actions"><button class="btn ghost" data-act="runSetup" ${UI.sec?'disabled':''}>Run setup again</button><button class="btn ghost" data-go="help">Help</button></div>
   ${lookPanel()}
@@ -2145,7 +2145,7 @@ const GUIDES=[
   {id:'plan',t:'Change your plan',s:['Settings holds your framework, income, categories, fixed costs, accounts, and other assets.','Each section is locked. Tap Edit, make changes, then Review changes to confirm.','To walk through everything again, use Run setup again at the top of Settings. Your current settings are filled in, so you only change what’s different.'],go:['config','Open Settings']}
 ];
 V.help=()=>{
-  return `<button class="btn small ghost" data-go="home" style="margin-bottom:8px">Back to dashboard</button><h1>Help</h1>
+  return `<h1>Help</h1>
   <p class="sub">Short guides for common tasks. Look for the ? next to anything on screen for a quick explanation.</p>
   <button class="loglink" data-go="guide" style="margin-top:14px"><span><b>✦ The full guide</b><small>A tour of everything Ledger does, chapter by chapter</small></span><span class="chev">›</span></button>
   ${S.gsHidden?`<div class="actions"><button class="btn ghost" data-act="gsShow">Show the getting-started checklist</button></div>`:''}
@@ -2243,7 +2243,9 @@ function appBar(){
   const T={home:'Dashboard',trends:'Review',goals:'Savings',activity:'Activity',accounts:'Accounts',config:'Settings',help:'Help',close:'Close a month',log:'Change log',unassigned:'Unassigned',breakdown:'Review',notes:'Notes',subs:'Subscriptions',search:'Search',planner:'What if',milestones:'Milestones',projections:'Projections',checkup:'Review'};
   const on=S.view==='more';
   const eye=(S.look||{}).hide?`<button class="eyebtn" data-eye aria-pressed="${!!UI.reveal}" aria-label="${UI.reveal?'Hide amounts':'Show amounts'}">${UI.reveal?'🙈':'👁'}</button>`:'';
-  return `<div class="appbar"><span class="brand">Ledger</span>${eye}<button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
+  /* iPhone home-screen apps have no back swipe, so screens off the bottom tabs get a Back button */
+  const top=['home','trends','breakdown','checkup','goals','activity','more'].includes(S.view);
+  return `<div class="appbar">${top?'<span class="brand">Ledger</span>':'<button class="backbtn" data-back aria-label="Back">‹ Back</button>'}${eye}<button class="menubtn" data-menu aria-expanded="${on}" aria-label="${on?'Close menu':'Menu'}">${on?'✕ Close':'☰ Menu'}</button></div>`;
 }
 V.more=()=>{CK.from=null;const L=uaAccts().map(uaInfo),free=r2(L.reduce((t,x)=>t+Math.max(0,x.free),0)),short=L.filter(x=>x.free<-0.004).length,ct=closeTarget(),N=(S.notes||[]).length;
   const tile=(v,i,t,sub,extra)=>`<button class="mtile ${extra||''}" data-go="${v}"><span class="mti" aria-hidden="true">${i}</span><b>${esc(t)}</b><small>${sub}</small></button>`;
@@ -2363,10 +2365,10 @@ function render(){
   save();
 }
 /* ---------- the phone's back gesture/button steps back through screens ---------- */
-let NAV_POP=false,NAV_INIT=false;
+let NAV_POP=false,NAV_INIT=false,NAV_DEPTH=0;
 function navRecord(same){
   try{if(!NAV_INIT){NAV_INIT=true;history.replaceState(Object.assign({},history.state,{lv:S.view}),'')}
-    else if(!same&&!NAV_POP&&S.setupDone)history.pushState({lv:S.view},'')}catch(_){}
+    else if(!same&&!NAV_POP&&S.setupDone){history.pushState({lv:S.view},'');NAV_DEPTH++}}catch(_){}
   NAV_POP=false;
 }
 const stay=()=>{try{history.pushState({lv:S.view},'')}catch(_){}};
@@ -2376,6 +2378,7 @@ window.addEventListener('popstate',e=>{
   if(document.getElementById('sheet').classList.contains('open')){closeSheet();stay();return}
   if(typeof RC!=='undefined'&&RC){closeRecap();stay();return}
   const v=e.state&&e.state.lv;
+  NAV_DEPTH=Math.max(0,NAV_DEPTH-1);
   if(!S.setupDone||v===S.view)return;
   resetUI();NAV_POP=true;S.view=v&&V[v]?v:'home';render();window.scrollTo(0,0);
 });
@@ -2581,6 +2584,7 @@ document.getElementById('app').addEventListener('click',e=>{
   if(t.dataset.gjump){const el=document.getElementById('g-'+t.dataset.gjump);guideMark(t.dataset.gjump);if(el){el.classList.add('in');el.scrollIntoView({block:'start',behavior:REDUCED?'auto':'smooth'})}return}
   if(t.dataset.signout!==undefined&&BOOT){BOOT.signOut();return}
   if(t.dataset.go){resetUI();S.view=t.dataset.go;if(t.dataset.help)UI.help=t.dataset.help;render();window.scrollTo(0,0);if(S.view==='search'){const n=document.getElementById('sq');if(n)n.focus()}const an=t.dataset.anchor&&document.getElementById(t.dataset.anchor);if(an)an.scrollIntoView({block:'start'});return}
+  if(t.dataset.back!==undefined){if(NAV_DEPTH>0){history.back();return}resetUI();S.view='more';render();window.scrollTo(0,0);return}
   if(t.dataset.catopen){UI.catOpen=UI.catOpen===t.dataset.catopen?null:t.dataset.catopen;UI.catMove=null;render();return}
   if(t.dataset.txopen){UI.txOpen=UI.txOpen===t.dataset.txopen?null:t.dataset.txopen;render();return}
   if(t.dataset.txclose){UI.txOpen=null;render();return}

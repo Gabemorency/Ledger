@@ -376,8 +376,8 @@ input[type=month]{width:100%;padding:12px;border-radius:12px;border:1px solid va
 @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
 @keyframes fadeIn{from{opacity:0}}
 /* tactile presses */
-:is(.btn,.chip,.pad button,.lpad button,.paidbtn,.menubtn,.morebtn,nav button,.mrow,.txbtn,.loglink){transition:transform .12s var(--ease-out),background-color .2s,color .2s,box-shadow .2s}
-:is(.btn,.chip,.pad button,.lpad button,.paidbtn,.menubtn,.morebtn,nav button,.loglink):active{transform:scale(.96)}
+:is(.btn,.chip,.pad button,.lpad button,.paidbtn,.menubtn,.backbtn,.morebtn,nav button,.mrow,.txbtn,.loglink){transition:transform .12s var(--ease-out),background-color .2s,color .2s,box-shadow .2s}
+:is(.btn,.chip,.pad button,.lpad button,.paidbtn,.menubtn,.backbtn,.morebtn,nav button,.loglink):active{transform:scale(.96)}
 nav .plus{transition:transform .2s var(--spring),box-shadow .2s;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 35%,transparent)}
 nav .plus:active{transform:scale(.9) rotate(90deg)}
 nav button .ico{transition:transform .25s var(--spring)}
@@ -416,8 +416,8 @@ details *{box-sizing:border-box}
 .appbar>*{pointer-events:auto}
 .appbar .brand{transition:opacity .2s,transform .2s}
 .scrolled .appbar .brand{opacity:0;transform:translateY(-6px);pointer-events:none}
-.appbar .menubtn{transition:box-shadow .25s,transform .12s var(--ease-out),background-color .2s}
-.scrolled .appbar .menubtn{box-shadow:0 8px 24px rgba(0,0,0,.14);background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.appbar :is(.menubtn,.backbtn){transition:box-shadow .25s,transform .12s var(--ease-out),background-color .2s}
+.scrolled .appbar :is(.menubtn,.backbtn){box-shadow:0 8px 24px rgba(0,0,0,.14);background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .appbar .menu{position:absolute;right:0;top:calc(100% + 8px);width:min(300px,calc(100vw - 32px));margin:0;z-index:21}
 /* ---------- guide ---------- */
 .gnav{position:sticky;top:60px;z-index:15;display:flex;gap:8px;overflow-x:auto;padding:10px 2px;margin:10px -2px 4px;scrollbar-width:none;background:var(--bg);box-shadow:0 8px 10px -8px var(--bg)}
@@ -925,3 +925,4 @@ body{transition:background-color .25s}
 .crow.open .bar{margin-bottom:8px}
 .cdet{padding:0 0 12px}
 .cmove{margin-top:8px}
+.backbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:8px 14px 8px 10px;font:inherit;font-weight:600;font-size:14px;pointer-events:auto}
