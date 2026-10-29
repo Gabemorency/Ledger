@@ -429,7 +429,8 @@ function homeCards(){
     return `<div class="row crow ${open?'open':''}"><button class="crowbtn" data-catopen="${c.id}" aria-expanded="${open}"><b>${esc(c.name)}</b><span class="num cbig ${l<-0.004?'overtxt':''}">${l>0.004?money(l)+' left':l<-0.004?money(-l)+' over':'Used up'}</span><span class="chev" aria-hidden="true">${open?'▾':'›'}</span></button><div class="bar"><i class="${pctClass(p)}" style="width:${Math.min(100,p)}%"></i></div>
     <p class="cleft num">${money(s)} spent of ${money(B(c))}</p>
     ${open?`<div class="cdet"><div class="cols num"><span>Budgeted ${money(B(c))}${carryOf(c,thisM)?` (incl. ${money(carryOf(c,thisM))} rolled over)`:''}${c.type==='monthly'&&adjOf(c.id,thisM)?` (${adjOf(c.id,thisM)>0?'+':'−'}${money(Math.abs(adjOf(c.id,thisM)))} this month)`:''}</span><span>Spent ${money(s)}</span></div>
-      ${c.type!=='monthly'?'':UI.catMove===c.id?catMoveForm(c):UI.catAdd===c.id?catAddForm(c):`<div class="actions"><button class="btn small" data-act="catAdd" data-cat="${c.id}">Add money</button><button class="btn small ghost" data-act="catMove" data-cat="${c.id}">Move from another category</button></div>`}</div>`:''}</div>`};
+      ${c.type==='monthly'&&Math.abs(adjOf(c.id,thisM))>0.004&&!UI.catMove&&!UI.catAdd?`<div class="adjnote"><span>Limit this month ${money(B(c))}, normally ${money(r2(B(c)-adjOf(c.id,thisM)))}</span><button class="btn small ghost" data-act="catResetOne" data-cat="${c.id}">Put limit back to ${money(r2(B(c)-adjOf(c.id,thisM)))}</button></div>`:''}
+      ${c.type!=='monthly'?'':UI.catMove===c.id?catMoveForm(c):UI.catAdd===c.id?catAddForm(c):`<div class="actions">${catHome(c)?`<button class="btn small" data-act="catAdd" data-cat="${c.id}">Move money in</button>`:''}<button class="btn small ghost" data-act="catMove" data-cat="${c.id}">Move budget from another category</button></div>`}</div>`:''}</div>`};
   return {
     start:()=>{if(S.gsHidden)return '';const st=gsSteps(),n=st.filter(x=>x.done||x.skipped).length;if(n===st.length)return '';
       const nxt=st.find(x=>!x.done&&!x.skipped);
@@ -940,13 +941,13 @@ function takeFrom(sid,v,to,note){
 const srcName=sid=>sid.startsWith('g:')?(()=>{const g=goal(sid.slice(2));return g?`${g.name} (${aName(g.acct)})`:'a bucket'})():aName(sid);
 const srcAcct=sid=>sid.startsWith('g:')?(goal(sid.slice(2))||{}).acct:sid;
 function catAddForm(c){
-  const src=acctSources(),bs=bucketSources(),l=r2(catLeft(c,thisM));
-  if(!src.length&&!bs.length)return `<div class="inpanel"><p class="sub" style="font-size:13px;margin:0">None of your accounts or buckets has money to add right now.</p><button class="btn small ghost" data-act="catMoveCancel" style="margin-top:6px">Close</button></div>`;
+  const h=catHome(c),src=acctSources(h),bs=bucketSources(),need=r2(Math.max(0,-uaInfo(acct(h)).free));
+  if(!src.length&&!bs.length)return `<div class="inpanel"><p class="sub" style="font-size:13px;margin:0">None of your other accounts or buckets has money to move right now.</p><button class="btn small ghost" data-act="catMoveCancel" style="margin-top:6px">Close</button></div>`;
   return `<div class="inpanel cmove">
+    <p class="sub" style="font-size:13px;margin:0 0 6px">Moves money into <b>${esc(aName(h))}</b>, where ${esc(c.name)} is paid from. ${esc(c.name)}’s limit stays ${money(budgetOf(c,thisM),true)}.${need>0.004?` ${esc(aName(h))} is ${money(need,true)} short for this month.`:''}</p>
     <label class="field"><span>From</span><select id="caSrc">${src.length?`<optgroup label="Accounts">${src.map(x=>`<option value="${x.id}">${esc(x.label)}</option>`).join('')}</optgroup>`:''}${bs.length?`<optgroup label="Savings buckets">${bs.map(x=>`<option value="${x.id}">${esc(x.label)}, ${money(x.max,true)}</option>`).join('')}</optgroup>`:''}</select></label>
-    <label class="field"><span>Amount</span><input type="number" inputmode="decimal" id="caAmt" value="${l<-0.004?r2(-l):''}" placeholder="0"></label>
-    <p class="sub" style="font-size:13px;margin:0 0 8px">Adds to ${esc(c.name)} for ${esc(monthName(mDate(thisM)))} only.</p>
-    <div class="actions"><button class="btn ghost small" data-act="catMoveCancel">Cancel</button><button class="btn small" data-act="doCatAdd" data-cat="${c.id}" style="flex:1">Add</button></div></div>`;
+    <label class="field"><span>Amount</span><input type="number" inputmode="decimal" id="caAmt" value="${need>0.004?need:''}" placeholder="0"></label>
+    <div class="actions"><button class="btn ghost small" data-act="catMoveCancel">Cancel</button><button class="btn small" data-act="doCatAdd" data-cat="${c.id}" style="flex:1">Move it</button></div></div>`;
 }
 function catMoveForm(c){
   const others=liveCats().filter(x=>x.type==='monthly'&&x.id!==c.id),l=r2(catLeft(c,thisM)),over=l<-0.004;
@@ -2839,18 +2840,21 @@ function handleAct(t){
     return}
   if(a==='catAdd'){UI.catAdd=t.dataset.cat;UI.catMove=null;render();const i=document.getElementById('caAmt');if(i)i.focus();return}
   if(a==='doCatAdd'){
-    if(S.closed.includes(thisM)){toast('This month is closed');return}
-    const c=cat(t.dataset.cat),aid=document.getElementById('caSrc').value,v=r2(parseFloat(document.getElementById('caAmt').value));
+    const c=cat(t.dataset.cat),h=catHome(c),aid=document.getElementById('caSrc').value,v=r2(parseFloat(document.getElementById('caAmt').value));
+    if(!h){toast(`${c.name} isn’t paid from a particular account`);return}
     if(!(v>0)){toast('Enter an amount');return}
     if(aid.startsWith('g:')){const g=goal(aid.slice(2));if(!g||v>g.saved+0.004){toast(`${g?g.name:'That bucket'} only has ${money(g?g.saved:0,true)}`);return}}
-    else{const sx=acctSources().find(x=>x.id===aid);if(!sx||v>sx.avail+0.004){toast(`${aName(aid)} only has ${money(sx?sx.avail:0,true)} that isn’t in a bucket`);return}}
-    const go=()=>{const h=catHome(c),m=S.adj[thisM]=S.adj[thisM]||{},snap=JSON.stringify(m);
-    const made=takeFrom(aid,v,h,'For '+c.name),moved=h&&srcAcct(aid)!==h;
-    m[c.id]=r2((m[c.id]||0)+v);MEMO=null;UI.catAdd=null;
-    logIt([`Added ${money(v,true)} from ${srcName(aid)} to ${c.name} for ${monthName(mDate(thisM))}`+(moved?` (transfer to ${aName(h)})`:'')]);
-    render();toast(`${c.name} gets ${money(v,true)} more this month${moved?`. Make the transfer to ${aName(h)} in your bank too`:''}`,()=>{made.slice().reverse().forEach(x=>removeTx(x));S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Undone')})};
+    else{const sx=acctSources(h).find(x=>x.id===aid);if(!sx||v>sx.avail+0.004){toast(`${aName(aid)} only has ${money(sx?sx.avail:0,true)} that isn’t in a bucket`);return}}
+    const go=()=>{const made=takeFrom(aid,v,h,'For '+c.name),moved=srcAcct(aid)!==h;UI.catAdd=null;
+      logIt([`Moved ${money(v,true)} from ${srcName(aid)} into ${aName(h)} for ${c.name}`]);
+      render();toast(`${money(v,true)} moved into ${aName(h)}${moved?'. Make the same transfer in your bank':''}`,()=>{made.slice().reverse().forEach(x=>removeTx(x));render();toast('Undone')})};
     const warn=aid.startsWith('g:')?'':shortNote(aid,v);
-    if(warn)confirmBox(`Add ${money(v,true)} to ${esc(c.name)} from ${esc(aName(aid))}?`,[esc(warn)],'Add it anyway',go);else go();return}
+    if(warn)confirmBox(`Move ${money(v,true)} from ${esc(aName(aid))}?`,[esc(warn)],'Move it anyway',go);else go();return}
+  if(a==='catResetOne'){
+    const c=cat(t.dataset.cat),d=adjOf(c.id,thisM),base=r2(budgetOf(c,thisM)-d);
+    confirmBox(`Put ${esc(c.name)}’s limit back to ${money(base,true)}?`,[chg(esc(c.name)+' limit this month',money(budgetOf(c,thisM),true),money(base,true)),'Money in your accounts doesn’t change. Other categories aren’t touched'],'Put it back',()=>{
+      const m=S.adj[thisM]||{},was=m[c.id];delete m[c.id];MEMO=null;logIt([`${c.name} limit for ${monthName(mDate(thisM))} put back to ${money(base,true)}`]);
+      render();toast(`${c.name}’s limit is ${money(base,true)} again`,()=>{(S.adj[thisM]=S.adj[thisM]||{})[c.id]=was;MEMO=null;render();toast('Undone')})});return}
   if(a==='catMove'){UI.catMove=t.dataset.cat;UI.catAdd=null;render();const i=document.getElementById('cmAmt');if(i)i.focus();return}
   if(a==='catMoveCancel'){UI.catMove=null;UI.catAdd=null;render();return}
   if(a==='doCatMove'){

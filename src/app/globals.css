@@ -939,3 +939,4 @@ body{transition:background-color .25s}
 
 /* a freshly drawn screen starts in its final look; no fades from the default state */
 #app.settle .appbar,#app.settle .appbar *{transition:none!important}
+.adjnote{display:flex;flex-direction:column;gap:6px;align-items:flex-start;font-size:13px;color:var(--muted);margin:6px 0 4px}
