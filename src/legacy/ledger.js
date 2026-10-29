@@ -157,7 +157,11 @@ const TYPE_CHOICES=[['checking','Checking'],['cash','Cash'],['savings','Savings'
 function applyTx(t,sign){MEMO=null;Model.applyTx(S,t,sign)}
 /* never let a regular account drop below $0, or below what its goals have set aside */
 function guardTx(add,rem){return Model.guardTx(S,add,rem)}
-function catLeft(c,m){return Model.categoryLeft(S,memo(),c,m||thisM)}
+/* this month, a monthly category's "left" is the money in its line of funding (see envelope.ts) */
+const lineOf=(c,m)=>c&&c.type==='monthly'&&(m||thisM)===thisM&&S.env&&S.env[c.id]||null;
+function catLeft(c,m){const e=lineOf(c,m);if(!e)return Model.categoryLeft(S,memo(),c,m||thisM);const ix=memo(),k='_line';ix[k]=ix[k]||{};return ix[k][c.id]!=null?ix[k][c.id]:(ix[k][c.id]=Model.inLine(S,c,e))}
+/* every monthly category gets a line, starting with what it has left today */
+function envInit(){if(!S.setupDone)return;S.env=S.env||{};let n=0;liveCats().filter(c=>c.type==='monthly'&&!S.env[c.id]).forEach(c=>{S.env[c.id]=Model.openEnvelope(S,c.id,Model.categoryLeft(S,memo(),c,thisM),thisM);n++});if(n)MEMO=null}
 function addTx(t){t.id=id();S.tx.push(t);applyTx(t,1);return t}
 const inMonth=(t,m)=>t.date.slice(0,7)===m;
 let MEMO=null;
@@ -414,10 +418,9 @@ function homeCards(){
   const B=c=>budgetOf(c,thisM);
   const monthly=liveCats().filter(c=>c.type==='monthly');
   const annual=liveCats().filter(c=>c.type==='annual');
-  const budget=monthly.reduce((a,c)=>a+B(c),0);
-  const used=monthly.reduce((a,c)=>a+spent(c.id),0);
-  const left=budget-used;
-  const overs=monthly.map(c=>({c,o:spent(c.id)-B(c)})).filter(x=>x.o>0);
+  const budget=r2(monthly.reduce((a,c)=>a+(lineOf(c)?(c.budget||0):B(c)),0));
+  const left=r2(monthly.reduce((a,c)=>a+catLeft(c),0));
+  const overs=monthly.map(c=>({c,o:-catLeft(c)})).filter(x=>x.o>0.004);
   const overTotal=overs.reduce((a,x)=>a+x.o,0);
   const remainPool=monthly.reduce((a,c)=>a+Math.max(0,B(c)-spent(c.id)),0);
   const cut=c=>{const r=Math.max(0,B(c)-spent(c.id));return overTotal>0&&remainPool>0?Math.min(r,overTotal*r/remainPool):0};
@@ -426,10 +429,15 @@ function homeCards(){
   const ov=(label,v,prev,inv,ts)=>ts&&!has(ts)?'':`<div class="ov"><div class="sub">${label}</div><div class="ovv num">${money(v)}</div>${prev===undefined?'':delta(v,prev,inv)}</div>`;
   /* one slim row per category; tap it to see the details and move money */
   const row=(c,showCut)=>{const s=spent(c.id),p=B(c)?s/B(c)*100:0,l=B(c)-s,k=showCut?cut(c):0,open=UI.catOpen===c.id;
+    if(lineOf(c)){const have=catLeft(c),lim=c.budget||0,need=Model.refillNeed(c,have),ratio=lim>0?have/lim:have>0?1:0;
+      return `<div class="row crow ${open?'open':''}"><button class="crowbtn" data-catopen="${c.id}" aria-expanded="${open}"><b>${esc(c.name)}</b><span class="num cbig ${have<-0.004?'overtxt':''}">${have<-0.004?money(-have)+' over':money(have)+' in it'}</span><span class="chev" aria-hidden="true">${open?'▾':'›'}</span></button>
+      <div class="bar"><i class="${have<-0.004?'over':ratio<0.2?'over':ratio<0.4?'warn':''}" style="width:${Math.max(0,Math.min(1,ratio))*100}%"></i></div>
+      <p class="cleft num">Limit ${money(lim)} · ${have>lim+0.004?`<span class="overtxt">${money(have-lim)} over the limit</span>`:need>0.004?`refill ${money(need)}`:'full'}</p>
+      ${open?`<div class="cdet"><div class="cols num"><span>Spent this month ${money(s)}</span></div>
+        ${UI.catMove===c.id?catMoveForm(c):UI.catAdd===c.id?catAddForm(c):`<div class="actions"><button class="btn small" data-act="catAdd" data-cat="${c.id}">Refill</button><button class="btn small ghost" data-act="catMove" data-cat="${c.id}">Move from another line</button></div>`}</div>`:''}</div>`}
     return `<div class="row crow ${open?'open':''}"><button class="crowbtn" data-catopen="${c.id}" aria-expanded="${open}"><b>${esc(c.name)}</b><span class="num cbig ${l<-0.004?'overtxt':''}">${l>0.004?money(l)+' left':l<-0.004?money(-l)+' over':'Used up'}</span><span class="chev" aria-hidden="true">${open?'▾':'›'}</span></button><div class="bar"><i class="${pctClass(p)}" style="width:${Math.min(100,p)}%"></i></div>
     <p class="cleft num">${money(s)} spent of ${money(B(c))}</p>
     ${open?`<div class="cdet"><div class="cols num"><span>Budgeted ${money(B(c))}${carryOf(c,thisM)?` (incl. ${money(carryOf(c,thisM))} rolled over)`:''}${c.type==='monthly'&&adjOf(c.id,thisM)?` (${adjOf(c.id,thisM)>0?'+':'−'}${money(Math.abs(adjOf(c.id,thisM)))} this month)`:''}</span><span>Spent ${money(s)}</span></div>
-      ${c.type==='monthly'&&Math.abs(adjOf(c.id,thisM))>0.004&&!UI.catMove&&!UI.catAdd?`<div class="adjnote"><span>Limit this month ${money(B(c))}, normally ${money(r2(B(c)-adjOf(c.id,thisM)))}</span><button class="btn small ghost" data-act="catResetOne" data-cat="${c.id}">Put limit back to ${money(r2(B(c)-adjOf(c.id,thisM)))}</button></div>`:''}
       ${c.type!=='monthly'?'':UI.catMove===c.id?catMoveForm(c):UI.catAdd===c.id?catAddForm(c):`<div class="actions">${catHome(c)?`<button class="btn small" data-act="catAdd" data-cat="${c.id}">Move money in</button>`:''}<button class="btn small ghost" data-act="catMove" data-cat="${c.id}">Move budget from another category</button></div>`}</div>`:''}</div>`};
   return {
     start:()=>{if(S.gsHidden)return '';const st=gsSteps(),n=st.filter(x=>x.done||x.skipped).length;if(n===st.length)return '';
@@ -508,10 +516,10 @@ function homeCards(){
       const bkWarn=bk.filter(x=>x.have!=null&&x.have<x.need-0.5);
       return `<h2>Spending</h2>
       ${bkWarn.map(x=>`<div class="note">${esc(x.a.name)} has ${money(x.have,true)}, but ${money(x.need,true)} is still budgeted for ${x.cs.map(c=>esc(c.name)).join(', ')} this month. Move ${money(x.need-x.have,true)} into it, or lower those budgets. ${tip('bucketwarn')}<div class="actions" style="margin-top:8px"><button class="btn small" data-go="unassigned">Cover it</button></div></div>`).join('')}
-      <div class="panel"><div class="row"><div class="rowtop"><b>Left to spend</b><span class="num" style="font-size:16px;color:${left<0?'var(--over)':'var(--ink)'};font-weight:700">${money(left)} of ${money(budget)}</span></div></div></div>
-      <div class="actions" style="margin-top:8px"><button class="btn small ghost" data-act="moveBudget">Move budget ${tip('movebudget')}</button><button class="btn small ghost" data-act="setLeft">Set what’s left ${tip('setleft')}</button>${Object.values(S.adj[thisM]||{}).some(v=>Math.abs(v)>0.004)?`<button class="btn small ghost" data-act="resetLimits">Reset this month’s limits</button>`:''}</div>
+      <div class="panel"><div class="row"><div class="rowtop"><b>In your lines</b><span class="num" style="font-size:16px;color:${left<0?'var(--over)':'var(--ink)'};font-weight:700">${money(left)} of ${money(budget)}</span></div></div></div>
+      <div class="actions" style="margin-top:8px"><button class="btn small ghost" data-act="moveBudget">Move between lines ${tip('movebudget')}</button><button class="btn small ghost" data-act="setLeft">Set what’s left ${tip('setleft')}</button>${Object.values(S.adj[thisM]||{}).some(v=>Math.abs(v)>0.004)?`<button class="btn small ghost" data-act="resetLimits">Undo this month’s moves</button>`:''}</div>
       ${groups.map(x=>`<p class="lbl" style="margin:14px 0 6px">${esc(x.b.name)}</p><div class="panel">${x.cats.map(c=>row(c,true)).join('')}</div>`).join('')}
-      ${overTotal>0?`<div class="note">You're ${money(overTotal,true)} over in ${overs.map(x=>esc(x.c.name.toLowerCase())).join(' and ')}. Cover it by moving budget from categories that have money left. ${tip('cut')}
+      ${overTotal>0?`<div class="note">You're ${money(overTotal,true)} over in ${overs.map(x=>esc(x.c.name.toLowerCase())).join(' and ')}. Refill it, or move money from a line that has some. ${tip('cut')}
         <div class="actions" style="margin-top:8px">${overs.map(x=>`<button class="btn small" data-act="cover" data-cat="${x.c.id}">Cover ${esc(x.c.name)}</button>`).join('')}</div></div>`:''}`},
     fixed:()=>{const all=liveFixed().filter(f=>!ended(f));if(!all.length)return `<h2>Fixed costs</h2><div class="panel emptycard"><b>No fixed costs yet.</b><p class="sub">These are bills that repeat, like rent, your phone, a loan payment, or a yearly fee. Add them in Settings and you can mark each one paid here.</p></div>`;
       const fx=all.filter(f=>dueIn(f)),later=all.filter(f=>!dueIn(f));
@@ -905,7 +913,7 @@ function chart(){
 /* leftovers when closing a month: unspent budget can stay put, top up next month, or go to a goal */
 const nextMonthOf=m=>mkey(new Date(mDate(m).getFullYear(),mDate(m).getMonth()+1,1));
 const rollsOver=(c,m)=>c.roll&&c.rollFrom&&c.type==='monthly'&&m>=c.rollFrom;
-function leftoversFor(T){return S.categories.filter(c=>c.type==='monthly'&&!c.archived).map(c=>({c,left:r2(budgetOf(c,T)-spent(c.id,T))})).filter(x=>x.left>0.004)}
+function leftoversFor(T){return S.categories.filter(c=>c.type==='monthly'&&!c.archived&&!(S.env&&S.env[c.id]&&S.env[c.id].from<=T)).map(c=>({c,left:r2(budgetOf(c,T)-spent(c.id,T))})).filter(x=>x.left>0.004)}
 function leftoverSource(c){return routeAcct(c.acct)||routeAcct(S.plan.payDefault)||routeAcct(S.plan.deposit)||(payAccts()[0]||{}).id||null}
 function leftoverPlan(T){const N=nextMonthOf(T);return leftoversFor(T).filter(x=>!rollsOver(x.c,T)).map(x=>{const ch=(UI.lo||{})[x.c.id]||'stay';
   if(ch==='next')return {...x,to:'next',N};
@@ -914,7 +922,7 @@ function leftoverPlan(T){const N=nextMonthOf(T);return leftoversFor(T).filter(x=
 /* Unassigned: money in an account that no goal holds, with a quick way to give it a job */
 /* what can be spent today without touching bills, goals or more than this month's budgets */
 function safeToSpend(){const dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate(),days=Math.max(1,dim-now.getDate()+1);
-  const homes={};liveCats().filter(c=>c.type==='monthly').forEach(c=>{const h=catHome(c);if(!h)return;homes[h]=r2((homes[h]||0)+Math.max(0,budgetOf(c,thisM)-spent(c.id)))});
+  const homes={};liveCats().filter(c=>c.type==='monthly').forEach(c=>{const h=catHome(c);if(!h)return;homes[h]=r2((homes[h]||0)+Math.max(0,catLeft(c,thisM)))});
   const rows=Object.entries(homes).map(([h,need])=>{const a=acct(h),cash=r2(unassigned(h)-billNeed(h));return {a,need,cash,safe:r2(Math.max(0,Math.min(need,cash)))}}).filter(r=>r.a).sort((x,y)=>y.safe-x.safe);
   const safe=r2(rows.reduce((t,r)=>t+r.safe,0));return {safe,days,perDay:r2(safe/days),rows}}
 function uaAccts(){return liveAccts().filter(a=>['checking','cash','savings'].includes(a.type))}
@@ -941,13 +949,15 @@ function takeFrom(sid,v,to,note){
 const srcName=sid=>sid.startsWith('g:')?(()=>{const g=goal(sid.slice(2));return g?`${g.name} (${aName(g.acct)})`:'a bucket'})():aName(sid);
 const srcAcct=sid=>sid.startsWith('g:')?(goal(sid.slice(2))||{}).acct:sid;
 function catAddForm(c){
-  const h=catHome(c),src=acctSources(h),bs=bucketSources(),need=r2(Math.max(0,-uaInfo(acct(h)).free));
-  if(!src.length&&!bs.length)return `<div class="inpanel"><p class="sub" style="font-size:13px;margin:0">None of your other accounts or buckets has money to move right now.</p><button class="btn small ghost" data-act="catMoveCancel" style="margin-top:6px">Close</button></div>`;
+  const h=catHome(c),have=catLeft(c),lim=c.budget||0,need=Model.refillNeed(c,have);
+  const home=h?(()=>{const x=uaInfo(acct(h)),v=r2(Math.max(0,x.free)+x.extra);return v>0.004?[{id:h,label:`Already in ${aName(h)}, ${money(v,true)} free`}]:[]})():[];
+  const src=home.concat(acctSources(h).map(x=>({id:x.id,label:x.label}))),bs=bucketSources();
+  if(!src.length&&!bs.length)return `<div class="inpanel"><p class="sub" style="font-size:13px;margin:0">None of your accounts or buckets has money to put in right now.</p><button class="btn small ghost" data-act="catMoveCancel" style="margin-top:6px">Close</button></div>`;
   return `<div class="inpanel cmove">
-    <p class="sub" style="font-size:13px;margin:0 0 6px">Moves money into <b>${esc(aName(h))}</b>, where ${esc(c.name)} is paid from. ${esc(c.name)}’s limit stays ${money(budgetOf(c,thisM),true)}.${need>0.004?` ${esc(aName(h))} is ${money(need,true)} short for this month.`:''}</p>
+    <p class="sub" style="font-size:13px;margin:0 0 6px">${esc(c.name)} has ${money(have,true)} of its ${money(lim,true)} limit.${h?` The money goes to ${esc(aName(h))}, where ${esc(c.name)} is paid from.`:''}</p>
     <label class="field"><span>From</span><select id="caSrc">${src.length?`<optgroup label="Accounts">${src.map(x=>`<option value="${x.id}">${esc(x.label)}</option>`).join('')}</optgroup>`:''}${bs.length?`<optgroup label="Savings buckets">${bs.map(x=>`<option value="${x.id}">${esc(x.label)}, ${money(x.max,true)}</option>`).join('')}</optgroup>`:''}</select></label>
     <label class="field"><span>Amount</span><input type="number" inputmode="decimal" id="caAmt" value="${need>0.004?need:''}" placeholder="0"></label>
-    <div class="actions"><button class="btn ghost small" data-act="catMoveCancel">Cancel</button><button class="btn small" data-act="doCatAdd" data-cat="${c.id}" style="flex:1">Move it</button></div></div>`;
+    <div class="actions"><button class="btn ghost small" data-act="catMoveCancel">Cancel</button><button class="btn small" data-act="doCatAdd" data-cat="${c.id}" style="flex:1">Refill</button></div></div>`;
 }
 function catMoveForm(c){
   const others=liveCats().filter(x=>x.type==='monthly'&&x.id!==c.id),l=r2(catLeft(c,thisM)),over=l<-0.004;
@@ -960,7 +970,7 @@ function catMoveForm(c){
     <div class="actions"><button class="btn ghost small" data-act="catMoveCancel">Cancel</button><button class="btn small" data-act="doCatMove" data-cat="${c.id}" style="flex:1">Move</button></div></div>`;
 }
 function catHome(c){const h=leftoverSource(c),a=h&&acct(h);return a&&!a.archived&&a.type!=='debt'?h:null}
-function spendNeedCats(aid){return liveCats().filter(c=>c.type==='monthly'&&catHome(c)===aid).map(c=>({c,left:r2(Math.max(0,budgetOf(c,thisM)-spent(c.id)))})).filter(x=>x.left>0.004)}
+function spendNeedCats(aid){return liveCats().filter(c=>c.type==='monthly'&&catHome(c)===aid).map(c=>({c,left:r2(Math.max(0,catLeft(c,thisM)))})).filter(x=>x.left>0.004)}
 function billNeed(aid){return r2(liveFixed().filter(f=>f.acct===aid).reduce((s,f)=>s+fixedOwe(f),0))}
 /* money in an account that no goal holds and that this month's spending and bills won't need */
 function uaInfo(a){const held=r2(assigned(a.id)),cs=S.closed.includes(thisM)?[]:spendNeedCats(a.id),spend=r2(cs.reduce((s,x)=>s+x.left,0)),bills=S.closed.includes(thisM)?0:billNeed(a.id);
@@ -2391,7 +2401,7 @@ function countUp(root){
   });
 }
 function render(){
-  MEMO=null;if(UI.lookDraft&&S.view!=='config')UI.lookDraft=null;applyLook();const y=window.scrollY||0,same=lastView===S.view;lastView=S.view;
+  MEMO=null;envInit();if(UI.lookDraft&&S.view!=='config')UI.lookDraft=null;applyLook();const y=window.scrollY||0,same=lastView===S.view;lastView=S.view;
   const app=document.getElementById('app');app.dataset.view=S.view;
   /* entrance animations are for opening a screen; re-drawing the same screen (tapping a row, saving) must not replay them */
   if(same)app.classList.remove('enter');app.classList.toggle('dmore',!!UI.dmJust);UI.dmJust=false;
@@ -2841,20 +2851,18 @@ function handleAct(t){
   if(a==='catAdd'){UI.catAdd=t.dataset.cat;UI.catMove=null;render();const i=document.getElementById('caAmt');if(i)i.focus();return}
   if(a==='doCatAdd'){
     const c=cat(t.dataset.cat),h=catHome(c),aid=document.getElementById('caSrc').value,v=r2(parseFloat(document.getElementById('caAmt').value));
-    if(!h){toast(`${c.name} isn’t paid from a particular account`);return}
     if(!(v>0)){toast('Enter an amount');return}
     if(aid.startsWith('g:')){const g=goal(aid.slice(2));if(!g||v>g.saved+0.004){toast(`${g?g.name:'That bucket'} only has ${money(g?g.saved:0,true)}`);return}}
+    else if(aid===h){const x=uaInfo(acct(h)),f=r2(Math.max(0,x.free)+x.extra);if(v>f+0.004){toast(`Only ${money(f,true)} in ${aName(h)} is free`);return}}
     else{const sx=acctSources(h).find(x=>x.id===aid);if(!sx||v>sx.avail+0.004){toast(`${aName(aid)} only has ${money(sx?sx.avail:0,true)} that isn’t in a bucket`);return}}
-    const go=()=>{const made=takeFrom(aid,v,h,'For '+c.name),moved=srcAcct(aid)!==h;UI.catAdd=null;
-      logIt([`Moved ${money(v,true)} from ${srcName(aid)} into ${aName(h)} for ${c.name}`]);
-      render();toast(`${money(v,true)} moved into ${aName(h)}${moved?'. Make the same transfer in your bank':''}`,()=>{made.slice().reverse().forEach(x=>removeTx(x));render();toast('Undone')})};
-    const warn=aid.startsWith('g:')?'':shortNote(aid,v);
-    if(warn)confirmBox(`Move ${money(v,true)} from ${esc(aName(aid))}?`,[esc(warn)],'Move it anyway',go);else go();return}
-  if(a==='catResetOne'){
-    const c=cat(t.dataset.cat),d=adjOf(c.id,thisM),base=r2(budgetOf(c,thisM)-d);
-    confirmBox(`Put ${esc(c.name)}’s limit back to ${money(base,true)}?`,[chg(esc(c.name)+' limit this month',money(budgetOf(c,thisM),true),money(base,true)),'Money in your accounts doesn’t change. Other categories aren’t touched'],'Put it back',()=>{
-      const m=S.adj[thisM]||{},was=m[c.id];delete m[c.id];MEMO=null;logIt([`${c.name} limit for ${monthName(mDate(thisM))} put back to ${money(base,true)}`]);
-      render();toast(`${c.name}’s limit is ${money(base,true)} again`,()=>{(S.adj[thisM]=S.adj[thisM]||{})[c.id]=was;MEMO=null;render();toast('Undone')})});return}
+    const have=catLeft(c),lim=c.budget||0,after=r2(have+v);
+    const go=()=>{const made=takeFrom(aid,v,h,'Refill '+c.name),add={id:id(),date:todayISO,amount:v,src:aid,tx:made.map(x=>x.id)};
+      S.env[c.id].adds.push(add);MEMO=null;UI.catAdd=null;
+      logIt([`Refilled ${c.name} with ${money(v,true)} from ${srcName(aid)} (now ${money(after,true)} of ${money(lim,true)})`]);
+      render();toast(`${c.name} now has ${money(after,true)}${made.some(x=>x.kind==='transfer')?`. Make the transfer to ${aName(h)} in your bank too`:''}`,()=>{const e=S.env[c.id];e.adds=e.adds.filter(x=>x!==add);made.slice().reverse().forEach(x=>removeTx(x));MEMO=null;render();toast('Undone')})};
+    const warns=[];if(after>lim+0.004)warns.push(`${c.name} will have ${money(after,true)}: ${money(r2(after-lim),true)} over its ${money(lim,true)} limit`);
+    if(!aid.startsWith('g:')&&aid!==h){const w=shortNote(aid,v);if(w)warns.push(w)}
+    if(warns.length)confirmBox(`Refill ${esc(c.name)} with ${money(v,true)}?`,warns.map(esc),'Refill anyway',go);else go();return}
   if(a==='catMove'){UI.catMove=t.dataset.cat;UI.catAdd=null;render();const i=document.getElementById('cmAmt');if(i)i.focus();return}
   if(a==='catMoveCancel'){UI.catMove=null;UI.catAdd=null;render();return}
   if(a==='doCatMove'){
@@ -3083,7 +3091,7 @@ function drawSheet(){
   const vendors=[...new Set(S.tx.filter(t=>t.kind==='expense').map(t=>t.vendor).filter(Boolean))];
   let hint='';
   if(A.kind==='expense'&&!cats.length)hint='Add a category in Settings first';
-  if(A.kind==='expense'&&A.cat){const c=cat(A.cat);const l=budgetOf(c,thisM)-spent(c.id)-(parseFloat(A.amt)||0);hint=`${esc(c.name)}: ${l>=0?money(l,true)+' left after this':money(-l,true)+' more than it has left. You’ll move budget in before saving'}`}
+  if(A.kind==='expense'&&A.cat){const c=cat(A.cat);const l=(c.type==='monthly'?catLeft(c,thisM):budgetOf(c,thisM)-spent(c.id))-(parseFloat(A.amt)||0);hint=`${esc(c.name)}: ${l>=0?money(l,true)+' left after this':money(-l,true)+' more than it has left. You’ll move budget in before saving'}`}
   if(A.kind==='income'&&parseFloat(A.amt)>0&&!A.editId)hint='You\u2019ll get a suggested split after saving';
   if(A.editId)hint=(hint?hint+'. ':'')+'Editing an entry';
   const chipsAcct=(field,list)=>`<div class="chips small">${list.map(a=>`<button class="chip" data-${field}="${a.id}" aria-pressed="${A[field]===a.id}">${esc(a.name)}</button>`).join('')}</div>`;
@@ -3242,8 +3250,8 @@ function openSetLeft(){
     const plan=[];
     for(const r of rows){if(!(r.id in ml)||Math.abs(ml[r.id]-r.left)<0.005)continue;const want=ml[r.id];
       if(!isFinite(want)){toast(`Enter an amount for ${r.label}`);return}
-      const logged=r2(r.spent-r.before),amt=r2(r.budget-want-logged);
-      if(amt<-0.004){toast(`${r.label} can have at most ${money(Math.max(0,r.budget-logged),true)} left: its limit minus what you’ve logged. Raise the limit in Settings first.`);return}
+      const amt=r2(r.before+r.left-want);
+      if(amt<-0.004){toast(`${r.label} can have at most ${money(r2(r.left+r.before),true)} left. To put more in, use Refill.`);return}
       plan.push({r,want,amt})}
     if(!plan.length){toast('Nothing changed');return}
     const snapTx=S.tx.slice();
@@ -3257,9 +3265,9 @@ function openSetLeft(){
 }
 function resetLimits(){
   const m=S.adj[thisM]||{},list=liveCats().filter(c=>Math.abs(m[c.id]||0)>0.004);
-  confirmBox('Reset this month’s limits?',['Every category goes back to its normal budget for '+monthName(mDate(thisM))].concat(list.map(c=>`${esc(c.name)}: ${money(budgetOf(c,thisM))} → ${money(c.budget)}`)),'Reset',()=>{
-    const snap=JSON.stringify(m);delete S.adj[thisM];MEMO=null;logIt(['Reset '+monthName(mDate(thisM))+' limits to normal budgets']);
-    render();toast('Limits reset',()=>{S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Reset undone')})});
+  confirmBox('Undo this month’s moves?',['Money moved between lines in '+monthName(mDate(thisM))+' goes back where it came from'].concat(list.map(c=>`${esc(c.name)}: ${(m[c.id]>0?'gives back ':'gets back ')+money(Math.abs(m[c.id]),true)}`)),'Undo moves',()=>{
+    const snap=JSON.stringify(m);delete S.adj[thisM];MEMO=null;logIt(['Undid the moves between lines for '+monthName(mDate(thisM))]);
+    render();toast('Moves undone',()=>{S.adj[thisM]=JSON.parse(snap);MEMO=null;render();toast('Reset undone')})});
 }
 function doRestore(d){resetUI();wipeSheet();{const keep=S.sec;S=d;sanitize();if(keep)S.sec=keep;else delete S.sec}S.view='home';S.log.push({ts:Date.now(),text:'Restored from a backup'});render();window.scrollTo(0,0);toast('Backup restored')}
 function doErase(){resetUI();wipeSheet();const keep=S.sec;S=blank();if(keep)S.sec=keep;render();window.scrollTo(0,0);toast('Everything erased. Let’s set things up.')}

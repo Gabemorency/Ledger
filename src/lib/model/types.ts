@@ -163,4 +163,6 @@ export interface LedgerState {
   closed: MonthKey[];
   /** Per-month budget moves: adj[month][categoryId] = +/- amount. */
   adj?: Record<MonthKey, Record<string, number>>;
+  /** Lines of funding: money held in each monthly category (see envelope.ts). */
+  env?: Record<string, import("./envelope").Envelope>;
 }
