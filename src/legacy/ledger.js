@@ -950,7 +950,7 @@ const srcName=sid=>sid.startsWith('g:')?(()=>{const g=goal(sid.slice(2));return 
 const srcAcct=sid=>sid.startsWith('g:')?(goal(sid.slice(2))||{}).acct:sid;
 function catAddForm(c){
   const h=catHome(c),have=catLeft(c),lim=c.budget||0,need=Model.refillNeed(c,have);
-  const home=h?(()=>{const x=uaInfo(acct(h)),v=r2(Math.max(0,x.free)+x.extra);return v>0.004?[{id:h,label:`Already in ${aName(h)}, ${money(v,true)} free`}]:[]})():[];
+  const home=h?(()=>{const x=uaInfo(acct(h)),f=r2(Math.max(0,x.free)+x.extra),all=r2(acct(h).balance-x.held);return all>0.004?[{id:h,label:f>=all-0.004?`Already in ${aName(h)}, ${money(f,true)} free`:`Already in ${aName(h)}, ${money(f,true)} free of ${money(all,true)}`}]:[]})():[];
   const src=home.concat(acctSources(h).map(x=>({id:x.id,label:x.label}))),bs=bucketSources();
   if(!src.length&&!bs.length)return `<div class="inpanel"><p class="sub" style="font-size:13px;margin:0">None of your accounts or buckets has money to put in right now.</p><button class="btn small ghost" data-act="catMoveCancel" style="margin-top:6px">Close</button></div>`;
   return `<div class="inpanel cmove">
@@ -2854,7 +2854,7 @@ function handleAct(t){
     const c=cat(t.dataset.cat),h=catHome(c),aid=document.getElementById('caSrc').value,v=r2(parseFloat(document.getElementById('caAmt').value));
     if(!(v>0)){toast('Enter an amount');return}
     if(aid.startsWith('g:')){const g=goal(aid.slice(2));if(!g||v>g.saved+0.004){toast(`${g?g.name:'That bucket'} only has ${money(g?g.saved:0,true)}`);return}}
-    else if(aid===h){const x=uaInfo(acct(h)),f=r2(Math.max(0,x.free)+x.extra);if(v>f+0.004){toast(`Only ${money(f,true)} in ${aName(h)} is free`);return}}
+    else if(aid===h){const x=uaInfo(acct(h)),all=r2(acct(h).balance-x.held);if(v>all+0.004){toast(`${aName(h)} only has ${money(all,true)} that isn’t in a savings bucket`);return}}
     else{const sx=acctSources(h).find(x=>x.id===aid);if(!sx||v>sx.avail+0.004){toast(`${aName(aid)} only has ${money(sx?sx.avail:0,true)} that isn’t in a bucket`);return}}
     const have=catLeft(c),lim=c.budget||0,after=r2(have+v);
     const go=()=>{const made=takeFrom(aid,v,h,'Refill '+c.name),add={id:id(),date:todayISO,amount:v,src:aid,tx:made.map(x=>x.id)};
@@ -2862,7 +2862,9 @@ function handleAct(t){
       logIt([`Refilled ${c.name} with ${money(v,true)} from ${srcName(aid)} (now ${money(after,true)} of ${money(lim,true)})`]);
       render();toast(`${c.name} now has ${money(after,true)}${made.some(x=>x.kind==='transfer')?`. Make the transfer to ${aName(h)} in your bank too`:''}`,()=>{const e=S.env[c.id];e.adds=e.adds.filter(x=>x!==add);made.slice().reverse().forEach(x=>removeTx(x));MEMO=null;render();toast('Undone')})};
     const warns=[];if(after>lim+0.004)warns.push(`${c.name} will have ${money(after,true)}: ${money(r2(after-lim),true)} over its ${money(lim,true)} limit`);
-    if(!aid.startsWith('g:')&&aid!==h){const w=shortNote(aid,v);if(w)warns.push(w)}
+    if(aid===h){const x=uaInfo(acct(h)),f=r2(Math.max(0,x.free)+x.extra),over=r2(v-f);
+      if(over>0.004){const others=spendNeedCats(h).filter(y=>y.c.id!==c.id).map(y=>y.c.name);warns.push(`${money(over,true)} of this is money ${aName(h)} is already holding for ${others.length?others.join(', '):'your other lines'}. Those lines will show as short on the Unassigned page until it’s covered`)}}
+    else if(!aid.startsWith('g:')){const w=shortNote(aid,v);if(w)warns.push(w)}
     if(warns.length)confirmBox(`Refill ${esc(c.name)} with ${money(v,true)}?`,warns.map(esc),'Refill anyway',go);else go();return}
   if(a==='catMove'){UI.catMove=t.dataset.cat;UI.catAdd=null;render();const i=document.getElementById('cmAmt');if(i)i.focus();return}
   if(a==='catMoveCancel'){UI.catMove=null;UI.catAdd=null;render();return}
