@@ -283,7 +283,7 @@ function confirmBox(title,lines,okLabel,onOk,opt){
     +(opt.word?`<label class="field"><span>${opt.wordLabel||`Type <b>${opt.word}</b> to confirm`}</span><input type="text" ${opt.word.includes('@')?'inputmode="email"':''} id="mWord" autocomplete="off" autocapitalize="off" spellcheck="false"></label>`:'')
     +(opt.select?`<label class="field"><span>${opt.select.label}</span><select id="mSel">${opt.select.options.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select></label>`:'')
     +(opt.multi?`<p class="lbl" style="margin:10px 0 4px">${opt.multi.label}</p>${opt.multi.rows.map(r=>`<label class="mcrow"><span>${esc(r.label)}<small>${money(r.max,true)} left</small></span><input type="number" inputmode="decimal" class="mcIn" data-id="${r.id}" data-max="${r.max}" value="${r.value||''}" placeholder="0" aria-label="Amount from ${esc(r.label)}"></label>`).join('')}<p class="mctot" id="mcTot"></p>`:'')
-    +(opt.left?opt.left.map(r=>`<label class="mcrow"><span>${esc(r.label)}<small>${money(r.budget,true)} limit, ${money(r.spent,true)} spent</small></span><input type="number" inputmode="decimal" class="mlIn" data-id="${r.id}" value="${r.left}" aria-label="Left in ${esc(r.label)}"></label>`).join(''):'');
+    +(opt.left?opt.left.map(r=>`<label class="mcrow"><span>${esc(r.label)}<small>${money(r.budget,true)} limit${r.spent!=null?`, ${money(r.spent,true)} spent`:''}</small></span><input type="number" inputmode="decimal" class="mlIn" data-id="${r.id}" value="${r.left}" aria-label="Left in ${esc(r.label)}"></label>`).join(''):'');
   mMulti=opt.multi||null;if(mMulti)updMulti();
   const y=document.getElementById('mYes');y.textContent=okLabel;y.classList.toggle('dangerbtn',!!opt.danger);mWord=opt.word||null;y.disabled=!!mWord;
   document.getElementById('mNo').textContent=opt.cancel||'Cancel';
@@ -517,7 +517,7 @@ function homeCards(){
       return `<h2>Spending</h2>
       ${bkWarn.map(x=>`<div class="note">${esc(x.a.name)} has ${money(x.have,true)}, but ${money(x.need,true)} is still budgeted for ${x.cs.map(c=>esc(c.name)).join(', ')} this month. Move ${money(x.need-x.have,true)} into it, or lower those budgets. ${tip('bucketwarn')}<div class="actions" style="margin-top:8px"><button class="btn small" data-go="unassigned">Cover it</button></div></div>`).join('')}
       <div class="panel"><div class="row"><div class="rowtop"><b>In your lines</b><span class="num" style="font-size:16px;color:${left<0?'var(--over)':'var(--ink)'};font-weight:700">${money(left)} of ${money(budget)}</span></div></div></div>
-      <div class="actions" style="margin-top:8px"><button class="btn small ghost" data-act="moveBudget">Move between lines ${tip('movebudget')}</button><button class="btn small ghost" data-act="setLeft">Set what’s left ${tip('setleft')}</button>${Object.values(S.adj[thisM]||{}).some(v=>Math.abs(v)>0.004)?`<button class="btn small ghost" data-act="resetLimits">Undo this month’s moves</button>`:''}</div>
+      <div class="actions" style="margin-top:8px"><button class="btn small ghost" data-act="moveBudget">Move between lines ${tip('movebudget')}</button><button class="btn small ghost" data-act="setLeft">Set what’s in each line ${tip('setleft')}</button>${Object.values(S.adj[thisM]||{}).some(v=>Math.abs(v)>0.004)?`<button class="btn small ghost" data-act="resetLimits">Undo this month’s moves</button>`:''}</div>
       ${groups.map(x=>`<p class="lbl" style="margin:14px 0 6px">${esc(x.b.name)}</p><div class="panel">${x.cats.map(c=>row(c,true)).join('')}</div>`).join('')}
       ${overTotal>0?`<div class="note">You're ${money(overTotal,true)} over in ${overs.map(x=>esc(x.c.name.toLowerCase())).join(' and ')}. Refill it, or move money from a line that has some. ${tip('cut')}
         <div class="actions" style="margin-top:8px">${overs.map(x=>`<button class="btn small" data-act="cover" data-cat="${x.c.id}">Cover ${esc(x.c.name)}</button>`).join('')}</div></div>`:''}`},
@@ -2086,7 +2086,7 @@ const TIPS={
     const list=r.its.length?`<p style="margin-top:6px"><b>What’s in it now (${money(r.v)} ÷ ${money(inc)} = ${Math.round(r.pct)}%):</b></p><ul class="tiplist">${r.its.slice(0,7).map(x=>`<li><span>${esc(x.n)}${x.note?` <em>${x.note}</em>`:''}</span><b>${money(x.v)}</b></li>`).join('')}${r.its.length>7?`<li><span>${r.its.length-7} more</span><b>${money(r.its.slice(7).reduce((a,x)=>a+x.v,0))}</b></li>`:''}</ul>`:`<p style="margin-top:6px">Nothing is in this group yet.</p>`;
     return [`<p><b>${esc(b.name)}:</b> ${b.roles.map(x=>what[x]).join(' and ')}.</p>${list}${tg}`,'planread']},
   leftovers:['A category’s budget is a limit, so unspent money just stays in your account. Here you can top up next month’s budget for that category (that month only), or set it aside for a goal. Leaving it is fine too.'],
-  setleft:['Started mid-month? Type what’s really left in each category. Ledger records the difference as “Spent before Ledger”, so your limits stay the same and your account balances don’t change.'],
+  setleft:['Type how much should be in each line right now, higher or lower. It only changes what the lines hold: your limits, account balances and spending stay the same.'],
   movebudget:['Planning to spend differently this month? Move budget from one or more categories into another, like clothes into food for a family dinner. It only changes this month. Each category can only give what it has left.'],
   cut:['Cover it moves this month’s budget from categories with money left into the one that’s over. It suggests amounts, starting with the categories that have the most left, and you can change them. Other months keep their normal budgets.'],
   security:['Two layers. Your account (email sign-in) protects your data on the server and on new devices. The PIN locks the app on a device that’s already signed in. Forget it? Reset it with a code sent to your email. Five wrong tries signs you out.'],
@@ -2787,6 +2787,7 @@ function handleAct(t){
     if(S.closed.includes(thisM)){toast('This month is closed');return}
     if(!liveCats().some(c=>c.type==='monthly')){toast('Add a monthly category first');return}
     if(SEC().hash){lockOpen('verify','setleft');return}
+    if(liveCats().some(c=>c.type==='monthly'&&lineOf(c))){openSetLines();return}
     openSetLeft();return}
   if(a==='resetLimits'){resetLimits();return}
   if(a==='uaAssign'){
@@ -3242,6 +3243,21 @@ const LK={on:false,mode:'unlock',buf:'',first:'',err:'',after:null,code:'',email
 /* Set what's left: records spending from before Ledger (from no account) so each category's
    'left' matches what's typed. Limits and account balances stay as they are. */
 const isBefore=t=>t.kind==='expense'&&t.before;
+/* type what's really in each line of funding, up or down; recorded as a correction to the line, no money moves */
+function openSetLines(){
+  const cs=liveCats().filter(c=>c.type==='monthly'&&lineOf(c));
+  const rows=cs.map(c=>({id:c.id,label:c.name,budget:c.budget||0,spent:r2(spent(c.id,thisM)),left:r2(catLeft(c,thisM))}));
+  confirmBox('Set what’s in each line',['Type how much should be in each line right now','Only changes what the lines hold. Account balances and spending don’t change'],'Save',(v,sv,mv,ml)=>{
+    const plan=[];
+    for(const r of rows){if(!(r.id in ml))continue;const want=ml[r.id];
+      if(!isFinite(want)){toast(`Enter an amount for ${r.label}`);return}
+      if(Math.abs(want-r.left)<0.005)continue;plan.push({r,want,d:r2(want-r.left)})}
+    if(!plan.length){toast('Nothing changed');return}
+    const added=plan.map(({r,d})=>{const a={id:id(),date:todayISO,amount:d,src:'set'};S.env[r.id].adds.push(a);return [r.id,a]});MEMO=null;
+    logIt(['Set what’s in each line: '+plan.map(x=>`${x.r.label} ${money(x.r.left,true)} → ${money(x.want,true)}`).join(', ')]);
+    render();toast(plan.length===1?`${plan[0].r.label} updated`:`Updated ${plan.length} lines`,()=>{added.forEach(([cid,a])=>{const e=S.env[cid];e.adds=e.adds.filter(x=>x!==a)});MEMO=null;render();toast('Change undone')})},
+    {left:rows});
+}
 function openSetLeft(){
   const cs=liveCats().filter(c=>c.type==='monthly');
   const rows=cs.map(c=>{const before=r2(S.tx.filter(t=>isBefore(t)&&t.cat===c.id&&inMonth(t,thisM)).reduce((a,t)=>a+t.amount,0));
@@ -3310,7 +3326,7 @@ function lockDigit(k){
       if(a==='change'){LK.mode='set1';LK.after='change';drawLock();return}
       if(a==='erase'){lockClose();doErase();return}
       if(a==='restore'){const d=LK.restore;LK.restore=null;lockClose();if(d)doRestore(d);return}
-      if(a==='setleft'){lockClose();openSetLeft();return}}
+      if(a==='setleft'){lockClose();if(liveCats().some(c=>c.type==='monthly'&&lineOf(c)))openSetLines();else openSetLeft();return}}
     sec.tries=(sec.tries||0)+1;save();
     if(sec.tries>=5){sec.signedOut=true;sec.tries=0;save();logIt(['Signed out after 5 wrong PINs']);LK.mode='signedout';LK.err='';drawLock();return}
     LK.err=`Wrong PIN. ${5-sec.tries} ${5-sec.tries===1?'try':'tries'} left before you’re signed out.`;drawLock();return}
