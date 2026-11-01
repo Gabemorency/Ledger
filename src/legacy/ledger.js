@@ -395,7 +395,7 @@ const ordinal=n=>n+(['th','st','nd','rd'][(n%100-20)%10]||['th','st','nd','rd'][
 function closeBanner(){
   const open=openMonths();if(!open.length)return '';
   const first=monthName(mDate(open[0]));
-  return `<div class="editbar" style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:12px 0 0"><div><b>${open.length>1?open.length+' months aren\u2019t closed yet':first+' isn\u2019t closed yet'} ${tip('closewhy')}</b><span>${open.length>1?'Close them oldest first, starting with '+first+'.':'Confirm balances and lock the month.'}</span></div><button class="btn small" data-go="close">Close ${esc(first)}</button></div>`;
+  return `<div class="editbar" style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:12px 0 18px"><div><b>${open.length>1?open.length+' months aren\u2019t closed yet':first+' isn\u2019t closed yet'} ${tip('closewhy')}</b><span>${open.length>1?'Close them oldest first, starting with '+first+'.':'Confirm balances and lock the month.'}</span></div><button class="btn small" data-go="close">Close ${esc(first)}</button></div>`;
 }
 function planRow(r){
   const inc=S.plan.income||0,b=r.b,p=Math.round(r.pct);
