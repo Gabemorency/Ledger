@@ -195,6 +195,23 @@ describe("devices sharing one account", () => {
     expect(await b.changedElsewhere()).toBe(true); // B knows to reload
   });
 
+  it("keeps another device's setting changes when this device saves a different setting", async () => {
+    const { fake, a, b, loaded } = await twoDevices();
+    const sa = state() as Record<string, unknown>;
+    (sa.plan as { income: number }).income = 3000; // desktop changes the plan
+    sa.env = { food: { start: 120 } }; // ...and a line's amount
+    a.schedule(sa);
+    await vi.runAllTimersAsync();
+    const sb = { ...(loaded.state as Record<string, unknown>), notes: [{ id: "n1", title: "hi" }] }; // phone, still on the old copy, adds a note
+    b.schedule(sb);
+    await vi.runAllTimersAsync();
+    const saved = fake.tables.settings.get(USER)!.data as Record<string, unknown>;
+    expect((saved.plan as { income: number }).income).toBe(3000);
+    expect(saved.env).toEqual({ food: { start: 120 } });
+    expect(saved.notes).toEqual([{ id: "n1", title: "hi" }]);
+    expect(await b.changedElsewhere()).toBe(true); // and the phone knows to reload
+  });
+
   it("writes nothing after sign-out starts", async () => {
     const { fake, b, loaded } = await twoDevices();
     b.stop();

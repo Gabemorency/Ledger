@@ -7,7 +7,7 @@
  * device and is retried, including on the next visit.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { TABLES, diff, rowsToState, stateToRows } from "./rows";
+import { TABLES, diff, rowsToState, stable, stateToRows } from "./rows";
 
 type Obj = Record<string, unknown>;
 type Saved = ReturnType<typeof stateToRows>;
@@ -73,6 +73,22 @@ export function clearCache(userId: string) {
   try {
     localStorage.removeItem(cacheKey(userId));
   } catch {}
+}
+
+/**
+ * The settings document as it should be after this device's save: the copy
+ * another device saved, with only the parts this device changed since its
+ * last save laid on top. Without this, a device holding an older copy would
+ * overwrite changes made elsewhere whenever it saved any setting.
+ */
+export function mergeSettings(base: Obj, mine: Obj, theirs: Obj): Obj {
+  const out: Obj = { ...theirs };
+  for (const k of new Set([...Object.keys(base), ...Object.keys(mine)])) {
+    if (stable(base[k]) === stable(mine[k])) continue;
+    if (mine[k] === undefined) delete out[k];
+    else out[k] = mine[k];
+  }
+  return out;
 }
 
 const newRev = () => `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
@@ -166,7 +182,14 @@ export class CloudSync {
     try {
       const remote = await this.sb.from("settings").select("rev").maybeSingle();
       if (remote.error) throw remote.error;
-      if (remote.data && remote.data.rev !== this.rev) this.behind = true;
+      const elsewhere = !!remote.data && remote.data.rev !== this.rev;
+      if (elsewhere) this.behind = true;
+      let settingsOut = next.settings;
+      if (changes.settings && elsewhere && this.saved) {
+        const cur = await this.sb.from("settings").select("data").maybeSingle();
+        if (cur.error) throw cur.error;
+        settingsOut = mergeSettings(this.saved.settings, next.settings, ((cur.data?.data as Obj) || {}) as Obj);
+      }
       for (const [table, rows] of Object.entries(changes.upserts)) {
         for (let i = 0; i < rows.length; i += CHUNK) {
           const batch = rows.slice(i, i + CHUNK).map((r) => ({ ...r, user_id: this.userId }));
@@ -186,7 +209,7 @@ export class CloudSync {
       const rev = newRev();
       const { error } =
         changes.settings || !remote.data
-          ? await this.sb.from("settings").upsert({ user_id: this.userId, data: next.settings, rev }, { onConflict: "user_id" })
+          ? await this.sb.from("settings").upsert({ user_id: this.userId, data: settingsOut, rev }, { onConflict: "user_id" })
           : await this.sb.from("settings").update({ rev }).eq("user_id", this.userId);
       if (error) throw error;
       this.saved = next;

@@ -138,6 +138,17 @@ export default function LegacyApp() {
         } else if (Date.now() - hiddenAt > 15000 && (await sync.changedElsewhere())) location.reload();
       });
       window.addEventListener("pagehide", () => void sync.flush());
+      // While the app stays open on screen, look for changes from other devices
+      // once a minute and offer a refresh (never reload under the person's fingers).
+      window.setInterval(async () => {
+        if (document.visibilityState !== "visible" || !(await sync.changedElsewhere())) return;
+        const el = document.getElementById("syncPill");
+        if (!el || el.dataset.s === "remote") return;
+        el.dataset.s = "remote";
+        el.innerHTML = "<i></i>Updated on another device · Tap to refresh";
+        el.classList.add("show");
+        el.onclick = () => location.reload();
+      }, 60000);
 
       await import("@/legacy/ledger");
       setLoading(false);
