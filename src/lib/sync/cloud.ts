@@ -64,7 +64,19 @@ export function startState(cached: Cached | null, remote: { state: Obj | null; r
   if (!cached?.pending || !cached.state) return { state: remote.state, pending: false };
   if (!remote.state || cached.rev === remote.rev) return { state: cached.state, pending: true };
   if (cached.edits) return { state: applyEdits(remote.state, cached.state, cached.edits), pending: true };
-  return { state: remote.state, pending: false }; // an older copy with no record of what changed: the cloud is the truth
+  // A copy saved before devices kept a record of their edits. If the cloud has
+  // nothing yet, this device's copy is the data. Otherwise the cloud copy is the
+  // base, and only rows that exist on this device alone (added here) are kept.
+  const R = stateToRows(remote.state);
+  if (TABLES.every((t) => R.rows[t.table].size === 0)) return { state: cached.state, pending: true };
+  const M = stateToRows(cached.state);
+  const up: Record<string, string[]> = {};
+  for (const t of TABLES) {
+    const ids = [...M.rows[t.table].keys()].filter((id) => !R.rows[t.table].has(id));
+    if (ids.length) up[t.table] = ids;
+  }
+  const edits: Edits = { up, del: {}, keys: [] };
+  return noEdits(edits) ? { state: remote.state, pending: false } : { state: applyEdits(remote.state, cached.state, edits), pending: true };
 }
 
 const cacheKey = (userId: string) => `ledger-cloud:${userId}`;

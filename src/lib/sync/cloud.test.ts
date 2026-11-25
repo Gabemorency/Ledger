@@ -306,8 +306,22 @@ describe("a phone opening with an old copy (the desktop edited since)", () => {
     expect((after.state as Record<string, unknown>).notes).toEqual([{ id: "n1", title: "from phone" }]);
   });
 
-  it("an old copy with no record of its edits gives way to the cloud", () => {
-    const start = startState({ state: { plan: { income: 1 } }, pending: true, rev: "old" }, { state: { plan: { income: 2 } }, rev: "new" });
-    expect(start).toEqual({ state: { plan: { income: 2 } }, pending: false });
+  it("an old copy with no record of its edits gives way to the cloud, keeping only entries added on this device", () => {
+    const cloud = state() as ReturnType<typeof state>;
+    cloud.plan.income = 2;
+    const old = state() as ReturnType<typeof state>;
+    old.plan.income = 1;
+    old.tx.push({ id: "t7", date: "2026-10-09", kind: "expense", acct: "a1", cat: "food", amount: 4 }); // logged offline
+    const start = startState({ state: old, pending: true, rev: "old" }, { state: cloud, rev: "new" });
+    const s = start.state as ReturnType<typeof state>;
+    expect(s.plan.income).toBe(2);
+    expect(s.tx.map((t) => t.id)).toEqual(["t1", "t7"]);
+    expect(start.pending).toBe(true);
+    expect(startState({ state: state(), pending: true, rev: "old" }, { state: state(), rev: "new" }).pending).toBe(false);
+  });
+  it("an account with nothing in the cloud yet takes this device's copy", () => {
+    const start = startState({ state: state(), pending: true, rev: "" }, { state: { plan: {} }, rev: "r1" });
+    expect((start.state as ReturnType<typeof state>).tx).toHaveLength(1);
+    expect(start.pending).toBe(true);
   });
 });
