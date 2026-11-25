@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CloudSync, loadCloud, readCache } from "./cloud";
+import { CloudSync, loadCloud, readCache, startState } from "./cloud";
 import { fakeSupabase } from "./fake-supabase";
 
 const USER = "u1";
@@ -254,5 +254,60 @@ describe("coming back to the app", () => {
     b.schedule(sb);
     void b.flush(); // going to the background starts an upload
     expect(await b.changedElsewhere()).toBe(true); // coming back right away
+  });
+});
+
+describe("a phone opening with an old copy (the desktop edited since)", () => {
+  async function setup() {
+    const fake = fakeSupabase(USER);
+    const desktop = new CloudSync(fake.client, USER, null, "");
+    desktop.schedule(state());
+    await vi.runAllTimersAsync();
+    const first = await loadCloud(fake.client);
+    const phone = new CloudSync(fake.client, USER, first.state, first.rev);
+    return { fake, desktop, phone, first };
+  }
+
+  it("a redraw that changed nothing doesn't leave the phone marked as having unsent work", async () => {
+    const { phone, first } = await setup();
+    phone.schedule({ ...first.state! }); // the app saves on every redraw
+    expect(readCache(USER)!.pending).toBe(false); // even if the phone is frozen before the upload timer runs
+  });
+
+  it("opens with the desktop's changes, keeping only the phone's own unsent edits", async () => {
+    const { fake, desktop, phone, first } = await setup();
+    // the phone makes a real edit but is frozen before it uploads
+    const mine = { ...(first.state as Record<string, unknown>), notes: [{ id: "n1", title: "from phone" }] };
+    phone.schedule(mine);
+    const cached = readCache(USER);
+    expect(cached!.pending).toBe(true);
+    // meanwhile the desktop changes the plan and logs a purchase
+    const d = state() as ReturnType<typeof state>;
+    d.plan.income = 3000;
+    d.tx.push({ id: "t2", date: "2026-10-05", kind: "expense", acct: "a1", cat: "food", amount: 9 });
+    desktop.schedule(d);
+    await vi.runAllTimersAsync();
+    // the phone opens again
+    const remote = await loadCloud(fake.client);
+    const start = startState(cached, remote);
+    const s = start.state as ReturnType<typeof state> & { notes: unknown };
+    expect(s.plan.income).toBe(3000); // desktop's change shows
+    expect(s.tx.map((t) => t.id)).toEqual(["t1", "t2"]); // desktop's purchase shows
+    expect(s.notes).toEqual([{ id: "n1", title: "from phone" }]); // phone's own edit kept
+    expect(start.pending).toBe(true);
+    // and uploading it doesn't undo the desktop's work
+    const phone2 = new CloudSync(fake.client, USER, remote.state, remote.rev);
+    phone2.markPending();
+    phone2.schedule(start.state!);
+    await vi.runAllTimersAsync();
+    const after = await loadCloud(fake.client);
+    expect((after.state as ReturnType<typeof state>).plan.income).toBe(3000);
+    expect((after.state as ReturnType<typeof state>).tx).toHaveLength(2);
+    expect((after.state as Record<string, unknown>).notes).toEqual([{ id: "n1", title: "from phone" }]);
+  });
+
+  it("an old copy with no record of its edits gives way to the cloud", () => {
+    const start = startState({ state: { plan: { income: 1 } }, pending: true, rev: "old" }, { state: { plan: { income: 2 } }, rev: "new" });
+    expect(start).toEqual({ state: { plan: { income: 2 } }, pending: false });
   });
 });

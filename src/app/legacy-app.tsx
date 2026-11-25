@@ -99,10 +99,9 @@ export default function LegacyApp() {
       }
       if (cancelled) return;
 
-      // Unsent changes on this device win; otherwise the cloud copy is the truth.
-      if (cached?.pending) state = cached.state;
-      else if (remote) state = remote.state;
-      else state = cached?.state ?? null;
+      // This device's unsent edits win, laid on top of the cloud copy; otherwise the cloud copy is the truth.
+      const start = cloud.startState(cached, remote);
+      state = start.state;
       // The PIN and open screen never leave this device: keep them from its copy.
       if (state && cached?.state && state !== cached.state)
         for (const k of LOCAL_ONLY) if (cached.state[k] !== undefined) state = { ...state, [k]: cached.state[k] };
@@ -127,7 +126,7 @@ export default function LegacyApp() {
           location.replace("/login");
         },
       };
-      if (cached?.pending) sync.markPending();
+      if (start.pending) sync.markPending();
 
       // Coming back to the app: if another device saved meanwhile, reload to show it.
       let hiddenAt = 0;

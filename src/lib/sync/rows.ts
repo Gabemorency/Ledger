@@ -151,3 +151,45 @@ export function diff(prev: { rows: RowSet; settings: Obj } | null, next: { rows:
   if (out.settings) out.count++;
   return out;
 }
+
+/** Which rows and settings differ between two copies: this device's edits not yet uploaded. */
+export interface Edits {
+  up: Record<string, string[]>;
+  del: Record<string, string[]>;
+  keys: string[];
+}
+
+export function editsBetween(prev: { rows: RowSet; settings: Obj }, next: { rows: RowSet; settings: Obj }): Edits {
+  const d = diff(prev, next);
+  const up: Record<string, string[]> = {};
+  for (const [t, rows] of Object.entries(d.upserts)) up[t] = rows.map((r) => r.id);
+  const keys = [...new Set([...Object.keys(prev.settings), ...Object.keys(next.settings)])].filter(
+    (k) => stable(prev.settings[k]) !== stable(next.settings[k]),
+  );
+  return { up, del: d.deletes, keys };
+}
+
+export const noEdits = (e: Edits) => !e.keys.length && !Object.keys(e.up).length && !Object.keys(e.del).length;
+
+/** Another device's copy (`theirs`) with this device's edits, taken from `mine`, laid on top. */
+export function applyEdits(theirs: Obj, mine: Obj, e: Edits): Obj {
+  const T = stateToRows(theirs);
+  const M = stateToRows(mine);
+  const rows: Record<string, Obj[]> = {};
+  for (const spec of TABLES) {
+    const t = spec.table;
+    const m = new Map(T.rows[t]);
+    for (const id of e.up[t] || []) {
+      const r = M.rows[t].get(id);
+      if (r) m.set(id, r);
+    }
+    for (const id of e.del[t] || []) m.delete(id);
+    rows[t] = [...m.values()];
+  }
+  const settings: Obj = { ...T.settings };
+  for (const k of e.keys) {
+    if (M.settings[k] === undefined) delete settings[k];
+    else settings[k] = M.settings[k];
+  }
+  return rowsToState(rows, settings);
+}

@@ -7,7 +7,7 @@
  * device and is retried, including on the next visit.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { TABLES, diff, rowsToState, stable, stateToRows } from "./rows";
+import { TABLES, applyEdits, diff, editsBetween, noEdits, rowsToState, stable, stateToRows, type Edits } from "./rows";
 
 type Obj = Record<string, unknown>;
 type Saved = ReturnType<typeof stateToRows>;
@@ -49,6 +49,22 @@ interface Cached {
   state: Obj;
   pending: boolean;
   rev: string;
+  /** What this device changed since its last upload (null: unknown, e.g. started offline). */
+  edits?: Edits | null;
+}
+
+/**
+ * The state to start from. Unsent edits on this device win, but only those
+ * edits: if another device saved meanwhile, its copy is the base. Starting
+ * from this device's whole older copy would hide (and could undo) the other
+ * device's changes.
+ */
+export function startState(cached: Cached | null, remote: { state: Obj | null; rev: string } | null): { state: Obj | null; pending: boolean } {
+  if (!remote) return { state: cached?.state ?? null, pending: !!cached?.pending };
+  if (!cached?.pending || !cached.state) return { state: remote.state, pending: false };
+  if (!remote.state || cached.rev === remote.rev) return { state: cached.state, pending: true };
+  if (cached.edits) return { state: applyEdits(remote.state, cached.state, cached.edits), pending: true };
+  return { state: remote.state, pending: false }; // an older copy with no record of what changed: the cloud is the truth
 }
 
 const cacheKey = (userId: string) => `ledger-cloud:${userId}`;
@@ -144,7 +160,15 @@ export class CloudSync {
   schedule(state: Obj, delay = 700) {
     if (this.stopped) return;
     this.latest = state;
-    writeCache(this.userId, { state, pending: true, rev: this.rev });
+    // Most saves follow a redraw that changed nothing worth uploading. Only mark
+    // the device as having unsent changes when it really does, so a later open
+    // doesn't mistake an old copy for new work.
+    const edits = this.saved ? editsBetween(this.saved, stateToRows(state)) : null;
+    if (edits && noEdits(edits) && !this.running && !this.pending) {
+      writeCache(this.userId, { state, pending: false, rev: this.rev });
+      return;
+    }
+    writeCache(this.userId, { state, pending: true, rev: this.rev, edits });
     this.pending = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => this.flush(), delay);
