@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       # Actions are pinned to full commit SHAs; Dependabot keeps them current.
@@ -51,7 +51,7 @@ jobs:
   # Sign-in, sync, row-level security and offline saving against a real
   # Postgres and PostgREST (the API Supabase uses).
   cloud:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:
