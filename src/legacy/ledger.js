@@ -143,7 +143,7 @@ const cat=cid=>S.categories.find(c=>c.id===cid);
 function adjOf(cid,m){return Model.adjustmentOf(S,cid,m)}
 function carryOf(c,m){return Model.carryOf(S,memo(),c,m||thisM)}
 function budgetOf(c,m){return Model.budgetOf(S,memo(),c,m||thisM)}
-function sanitize(){if(!S.adj)S.adj={};if(!S.proj||typeof S.proj!=='object')S.proj={};if(!Array.isArray(S.proj.events))S.proj.events=[];if(!Array.isArray(S.subs))S.subs=[];if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('safe'))S.dash.order.unshift('safe');if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!S.dash.lean){/* simpler dashboard: the everyday cards first, the extras hidden (turn them back on in Settings) */S.dash.lean=1;S.dash.hidden=[...new Set(S.dash.hidden.concat(DASH_EXTRA))];const front=['safe','start','payday','checkin','cardpay','unassigned','spending','fixed','latest'];S.dash.order=front.filter(k=>S.dash.order.includes(k)).concat(S.dash.order.filter(k=>!front.includes(k)))}S.goals.forEach(g=>{if(g.date==null)g.date='';if(typeof g.target!=='number'||isNaN(g.target))g.target=0});if(!S.fund||typeof S.fund!=='object')S.fund={};if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
+function sanitize(){if(!S.adj)S.adj={};if(!S.proj||typeof S.proj!=='object')S.proj={};if(!Array.isArray(S.proj.events))S.proj.events=[];if(!Array.isArray(S.subs))S.subs=[];if(!Array.isArray(S.notes))S.notes=[];if(S.dash&&!S.dash.order.includes('safe'))S.dash.order.unshift('safe');if(S.dash&&!S.dash.order.includes('notes')){const i=S.dash.order.indexOf('checkin');S.dash.order.splice(i>=0?i+1:0,0,'notes')}if(!S.dash)S.dash=defaultDash();['cardpay','checkin','payday','start'].forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.unshift(k)});if(!S.dash.order.includes('unassigned')){const i=S.dash.order.indexOf('networth');S.dash.order.splice(i>=0?i+1:S.dash.order.length,0,'unassigned')}Object.keys(DASH_CARDS).forEach(k=>{if(!S.dash.order.includes(k))S.dash.order.push(k)});if(!S.dash.lean){/* simpler dashboard: the everyday cards first, the extras hidden (turn them back on in Settings) */S.dash.lean=1;S.dash.hidden=[...new Set(S.dash.hidden.concat(DASH_EXTRA))];const front=['safe','start','payday','checkin','cardpay','unassigned','spending','fixed','latest'];S.dash.order=front.filter(k=>S.dash.order.includes(k)).concat(S.dash.order.filter(k=>!front.includes(k)))}S.goals.forEach(g=>{if(g.date==null)g.date='';if(typeof g.target!=='number'||isNaN(g.target))g.target=0});if(!S.fund||typeof S.fund!=='object')S.fund={};if(!S.fixRound)S.fixRound=thisM+'-01';if(!Array.isArray(S.payday))S.payday=[];if(!S.did||typeof S.did!=='object')S.did={};if(!Array.isArray(S.gsSkip))S.gsSkip=[];if(S.notif&&S.notif.weekly===undefined)S.notif.weekly=true;S.categories.forEach(c=>{if(typeof c.budget!=='number'||isNaN(c.budget))c.budget=0});(S.assets||[]).forEach(a=>{if(typeof a.value!=='number'||isNaN(a.value))a.value=0});S.fixed.forEach(f=>{if(f.pct==null&&(typeof f.amount!=='number'||isNaN(f.amount)))f.amount=0})}
 function acct(aid){return Model.findAccount(S,aid)}
 const aName=aid=>aid==null||aid===''?'not set':(acct(aid)||(UI.sd&&UI.sd.accounts||[]).find(a=>a.id===aid)||{name:'Deleted account'}).name;
 const goal=gid=>S.goals.find(g=>g.id===gid);
@@ -171,18 +171,22 @@ function incomeIn(m){return Model.incomeIn(memo(),m)}
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function mIdx(...a){return Model.mIdx(...a)}
 function perYear(...a){return Model.perYear(...a)}
-function dueIn(f,m){return Model.dueIn(f,m||thisM)}
+/* this month, fixed costs follow the current round (see schedule.ts): nothing resets on the 1st */
+const inRound=m=>(!m||m===thisM)&&!!S.fixRound;
+function dueIn(f,m){return Model.dueIn(f,inRound(m)?S.fixRound.slice(0,7):m||thisM)}
 function nextDue(f,m){return Model.nextDue(f,m||thisM)}
 function ended(f){return Model.hasEnded(f,thisM)}
 function schedText(f){const fr=f.freq||'monthly';
   const base=fr==='monthly'?'Every month':fr==='quarterly'?`Every 3 months from ${MON[+(f.begins||thisM).slice(5,7)-1]}`:fr==='yearly'?`Every ${MON[+(f.begins||thisM).slice(5,7)-1]}`:`In ${(f.months||[]).slice().sort((a,b)=>a-b).map(n=>MON[n-1]).join(', ')||'no months'}`;
   return base+(f.end?`, until ${monthName(mDate(f.end),{month:'short',year:'numeric'})}`:'')+(f.begins&&f.begins>thisM&&fr==='monthly'?`, starting ${monthName(mDate(f.begins),{month:'short',year:'numeric'})}`:'')}
-function fixedDue(f,m){return Model.fixedDue(memo(),f,m||thisM)}
+function fixedDue(f,m){return inRound(m)?Model.roundDue(S,f,S.fixRound):Model.fixedDue(memo(),f,m||thisM)}
 function fixedPlan(f){return Model.fixedPlanned(S,f,thisM)}
 function fixedPaid(f,m){return Model.fixedPaid(memo(),f,m||thisM)}
 const isSpend=t=>t.kind==='expense'||t.kind==='interest'||(t.kind==='fixed'&&!t.to);
 const isPlanned=t=>t.kind==='goalbuy';
-function fixedOwe(f,m){return Model.fixedOwed(memo(),f,m||thisM)}
+function fixedOwe(f,m){return inRound(m)?Model.roundOwed(S,f,S.fixRound):Model.fixedOwed(memo(),f,m||thisM)}
+/* not marked paid for month T; when the current round began in T, payments in the round count */
+function unpaidIn(T){return liveFixed().filter(f=>Model.fixedOwed(memo(),f,T)>0.004&&!(S.fixRound&&S.fixRound.slice(0,7)===T&&Model.roundOwed(S,f,S.fixRound)<=0.004))}
 function openMonths(){
   const keys=S.closed.slice().sort(),last=keys[keys.length-1];
   let start;
@@ -524,10 +528,11 @@ function homeCards(){
     fixed:()=>{const all=liveFixed().filter(f=>!ended(f));if(!all.length)return `<h2>Fixed costs</h2><div class="panel emptycard"><b>No fixed costs yet.</b><p class="sub">These are bills that repeat, like rent, your phone, a loan payment, or a yearly fee. Add them in Settings and you can mark each one paid here.</p></div>`;
       const fx=all.filter(f=>dueIn(f)),later=all.filter(f=>!dueIn(f));
       return `<h2>Fixed costs ${tip('fixed')}</h2>
+      ${S.fixRound?`<div class="roundbar"><span class="sub">This round started ${esc(fmtD(S.fixRound))}</span><button class="btn small ghost" data-act="newRound">Start a new round</button></div>`:''}
       <div class="panel">${fx.map(f=>{const due=fixedDue(f),owe=fixedOwe(f);
       const late=f.day&&now.getDate()>f.day&&owe>0.004;
       return `<div class="row"><div class="rowtop" style="align-items:center"><div><b>${esc(f.name)}</b><div class="sub" style="font-size:13px">${f.pct?`${f.pct}% of income logged (${money(due,true)})`:money(f.amount,true)}${f.day?`, due the ${ordinal(f.day)}`:''}, ${esc(aName(f.acct))}${f.to?' → '+esc(aName(f.to)):''}${(f.freq||'monthly')!=='monthly'||f.end?`<br>${esc(schedText(f))}`:''}</div>${late?'<div class="warnline" style="margin:2px 0 0;font-size:13px">Past due</div>':''}</div>
-      ${owe>0.004?`<button class="btn small" data-payfixed="${f.id}">Pay</button>`:`<button class="paidbtn" data-unpay="${f.id}" aria-label="Paid. Tap to undo">Paid ✓</button>`}</div></div>`}).join('')||'<div class="empty">Nothing due this month.</div>'}
+      ${owe>0.004?`<button class="btn small" data-payfixed="${f.id}">Pay</button>`:f.pct&&due<=0.004&&!(S.fixRound&&Model.roundPaid(S,f,S.fixRound)>0.004)?`<span class="sub" style="font-size:13px;white-space:nowrap">Nothing due yet</span>`:`<button class="paidbtn" data-unpay="${f.id}" aria-label="Paid. Tap to undo">Paid ✓</button>`}</div></div>`}).join('')||'<div class="empty">Nothing due this month.</div>'}
       ${later.length?`<div class="row"><p class="lbl" style="margin:0 0 4px">Not due this month</p>${later.map(f=>{const n=nextDue(f);return `<div class="hrow"><span>${esc(f.name)}</span><span class="num">${f.pct?f.pct+'%':money(f.amount)}${n?', next '+monthName(mDate(n),{month:'short',year:'numeric'}):''}</span></div>`}).join('')}</div>`:''}</div>`},
     annual:()=>annual.length?`<h2>Annual budgets</h2><div class="panel">${annual.map(c=>row(c,false)).join('')}</div>`:'',
     latest:()=>{const recent=S.tx.slice().reverse().filter(t=>inMonth(t,thisM)).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
@@ -1544,7 +1549,7 @@ V.close=()=>{
   if(!T)return `<h1>All caught up</h1><p class="sub">Every finished month is closed. The next one opens for closing on the 1st.</p>`;
   const pname=monthName(mDate(T),{month:'long',year:'numeric'});
   const monthly=S.categories.filter(c=>c.type==='monthly'&&(!c.archived||spent(c.id,T)>0));
-  const unpaid=liveFixed().filter(f=>fixedOwe(f,T)>0.004);
+  const unpaid=unpaidIn(T);
   const older=T<mkey(new Date(now.getFullYear(),now.getMonth()-1,1));
   return `
   <h1>Close ${esc(pname)} ${tip('closewhy')}</h1>
@@ -2099,7 +2104,7 @@ const TIPS={
   payday:['When you split a paycheck, the app records the moves right away. This list is the matching transfers to make in your real bank. Amounts come from Settings: fixed costs, each goal’s monthly pace, and your category budgets, scaled to this paycheck.','payday'],
   spendto:['Where your spending money for the month should live, like a spending bucket or checking. When you split a paycheck, your category budgets’ share moves there.','payday'],
   extrato:['Where money left after bills, goals, and spending should go, like a high-yield savings account. Leave it alone to keep extra where paychecks land.','payday'],
-  fixed:['Bills that repeat every month. Tap Pay when one goes out. Tap Paid ✓ to undo.','bills'],
+  fixed:['Bills that repeat. Tap Pay when one goes out; it stays Paid ✓ until you tap Start a new round, so nothing resets on the 1st. Tap Paid ✓ to undo a payment.','bills'],
   goals:['Each goal holds money for something specific. Priority decides which goal the plan funds first when money is tight.','goal'],
   unassigned:['Money in an account that isn’t set aside for any goal. Goals can only use money that’s really there.','move'],
   gmove:['Moves money from one goal to another, or back to unassigned. If both goals are in the same account, nothing leaves the bank; only the label changes.','move'],
@@ -2664,7 +2669,7 @@ document.getElementById('app').addEventListener('click',e=>{
       let nt,note='';if(f.to&&acct(f.to).type==='debt'){const r=payDebt(base);if(r.err){toast(r.err);return}nt=r.tx;note=r.note}else nt=addTx(base);
       render();toast(f.name+' marked paid.'+note,()=>{removeTx(nt);render()})},{input:{label:'Amount paid',value:amt}});return}
   if(t.dataset.unpay){
-    const f=S.fixed.find(x=>x.id===t.dataset.unpay);const txs=S.tx.filter(x=>x.kind==='fixed'&&x.fixedId===f.id&&inMonth(x,thisM));const tot=txs.reduce((a,x)=>a+x.amount,0);
+    const f=S.fixed.find(x=>x.id===t.dataset.unpay);const txs=S.tx.filter(x=>x.kind==='fixed'&&x.fixedId===f.id&&(S.fixRound?x.date>=S.fixRound:inMonth(x,thisM)));const tot=txs.reduce((a,x)=>a+x.amount,0);
     confirmBox('Undo '+esc(f.name)+' payment?',[`${money(tot,true)} goes back to ${esc(aName(f.acct))}`,'It will show as unpaid again'],'Undo payment',()=>{txs.forEach(x=>removeTx(x));render();toast(f.name+' marked unpaid')});return}
   if(t.dataset.edit){openSheet(S.tx.find(x=>x.id===t.dataset.edit));return}
   if(t.dataset.viewmonth){setMonth(t.dataset.viewmonth);F.type='all';F.cat='all';F.acct='all';F.q='';render();window.scrollTo(0,0);return}
@@ -2841,6 +2846,11 @@ function handleAct(t){
     const a1=S.notes.indexOf(grp[i]),a2=S.notes.indexOf(grp[j]);[S.notes[a1],S.notes[a2]]=[S.notes[a2],S.notes[a1]];render();return}
   if(a==='nDel'){const i=S.notes.findIndex(x=>x.id===t.dataset.id);if(i<0)return;const [n]=S.notes.splice(i,1);UI.noteOpen=null;logIt(['Notes — deleted a note']);render();
     toast('Note deleted',()=>{S.notes.splice(Math.min(i,S.notes.length),0,n);render();toast('Note restored')});return}
+  if(a==='newRound'){
+    const open=liveFixed().filter(f=>!ended(f)&&dueIn(f)&&fixedOwe(f)>0.004).map(f=>f.name);
+    confirmBox('Start a new round of fixed costs?',['Every fixed cost goes back to Pay','Payments you’ve already made stay recorded in Activity'].concat(open.length?[`${open.map(esc).join(', ')} ${open.length===1?'isn’t':'aren’t'} marked paid in this round. ${open.length===1?'It starts':'They start'} over too`]:[]),'Start new round',()=>{
+      const was=S.fixRound;S.fixRound=todayISO;MEMO=null;logIt([`Started a new round of fixed costs (${fmtD(todayISO)})`]);
+      render();toast('New round started',()=>{S.fixRound=was;MEMO=null;render();toast('Undone')})});return}
   if(a==='uaCover'){
     const to=t.dataset.acct,src=(document.querySelector(`[data-ua-src="${to}"]`)||{}).value,v=r2(parseFloat((document.querySelector(`[data-ua-cov="${to}"]`)||{}).value));
     if(!src){toast('Pick an account to move from');return}if(!(v>0)){toast('Enter an amount');return}
@@ -3029,7 +3039,7 @@ function handleAct(t){
     const nm=monthName(mDate(T)),corr=[],asOf={};
     document.querySelectorAll('#app [data-bal]').forEach(i=>{const x=acct(i.dataset.bal),calc=parseFloat(i.dataset.calc),v=r2(parseFloat(i.value)||0);asOf[x.id]=v;if(Math.abs(v-calc)>0.004)corr.push({id:x.id,from:calc,to:v,delta:r2(v-calc)})});
     document.querySelectorAll('#app [data-asset]').forEach(i=>{const x=S.assets.find(y=>y.id===i.dataset.asset),v=r2(Math.max(0,parseFloat(i.value)||0));if(Math.abs(v-(x.value||0))>0.004)corr.push({asset:x.id,from:x.value||0,to:v})});
-    const unpaid=liveFixed().filter(f=>fixedOwe(f,T)>0.004);
+    const unpaid=unpaidIn(T);
     const LP=leftoverPlan(T),moves=LP.filter(x=>x.to!=='stay');
     const loTx=moves.filter(x=>x.to==='goal').map(x=>x.from&&x.from!==x.g.acct?{date:todayISO,kind:'transfer',from:x.from,to:x.g.acct,goal:x.g.id,amount:x.left}:{date:todayISO,kind:'assign',acct:x.g.acct,goal:x.g.id,amount:x.left});
     if(moves.some(x=>x.to==='goal'&&!x.from&&!x.g.acct)){toast('Pick an account for that goal first');return}

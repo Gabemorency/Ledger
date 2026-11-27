@@ -942,3 +942,4 @@ body{transition:background-color .25s}
 .adjnote{display:flex;flex-direction:column;gap:6px;align-items:flex-start;font-size:13px;color:var(--muted);margin:6px 0 4px}
 .syncpill[data-s=remote]{pointer-events:auto;cursor:pointer;color:var(--ink)}
 .syncpill[data-s=remote] i{background:var(--accent)}
+.roundbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 10px;font-size:13px}

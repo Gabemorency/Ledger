@@ -1,7 +1,7 @@
 import { addMonths, mIdx } from "./dates";
 import { r2 } from "./money";
 import { incomeIn, type TxIndex } from "./budget";
-import type { FixedCost, LedgerState, MonthKey } from "./types";
+import type { FixedCost, ISODate, LedgerState, MonthKey } from "./types";
 
 export const liveFixed = (s: LedgerState) => s.fixed.filter((f) => !f.archived);
 
@@ -47,4 +47,27 @@ export function fixedOwed(ix: TxIndex, f: FixedCost, m: MonthKey): number {
   if (!dueIn(f, m)) return 0;
   const paid = fixedPaid(ix, f, m);
   return f.pct != null ? r2(fixedDue(ix, f, m) - paid) : paid > 0 ? 0 : f.amount || 0;
+}
+
+/*
+ * Rounds: fixed costs stay paid until the person starts a new round themselves
+ * (nothing resets on the 1st). A round starts on a date; payments and income
+ * from that date on count toward it, and what's due is what was due in the
+ * month it started.
+ */
+export const roundPaid = (s: LedgerState, f: FixedCost, start: ISODate) =>
+  r2(s.tx.reduce((t, x) => (x.kind === "fixed" && x.fixedId === f.id && x.date >= start ? t + x.amount : t), 0));
+
+export const roundIncome = (s: LedgerState, start: ISODate) =>
+  r2(s.tx.reduce((t, x) => (x.kind === "income" && x.date >= start ? t + x.amount : t), 0));
+
+export function roundDue(s: LedgerState, f: FixedCost, start: ISODate): number {
+  if (!dueIn(f, start.slice(0, 7))) return 0;
+  return f.pct ? r2((roundIncome(s, start) * f.pct) / 100) : f.amount || 0;
+}
+
+export function roundOwed(s: LedgerState, f: FixedCost, start: ISODate): number {
+  if (!dueIn(f, start.slice(0, 7))) return 0;
+  const paid = roundPaid(s, f, start);
+  return f.pct != null ? r2(roundDue(s, f, start) - paid) : paid > 0 ? 0 : f.amount || 0;
 }
